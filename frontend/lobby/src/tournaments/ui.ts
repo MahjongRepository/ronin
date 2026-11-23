@@ -67,6 +67,11 @@ function rowTemplate(tournament: TournamentRow): TemplateResult {
         <a href=${tournamentPath(tournament.id)}>
             <span class="lobby-tournament-name">${tournament.name}</span>
             <span class="lobby-tournament-meta">
+                ${
+                    tournament.finishedAt === null
+                        ? nothing
+                        : html`<span class="lobby-tournament-ended">${t("tournaments.row.ended")}</span>`
+                }
                 ${gamesTemplate(tournament)}
                 <time datetime=${tournament.createdAt.toISOString()}>${formatDate(tournament.createdAt)}</time>
             </span>

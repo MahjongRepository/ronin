@@ -52,6 +52,14 @@ class SqliteTournamentRepository(TournamentRepository):
         """
         await self._db.submit_write(partial(_update_tournament_name, tournament_id=tournament_id, name=name))
 
+    async def finish_tournament(self, tournament_id: str, finished_at: float) -> bool:
+        """
+        Mark the tournament finished; return False when it is unknown or already finished.
+        """
+        return await self._db.submit_write(
+            partial(_update_tournament_finish, tournament_id=tournament_id, finished_at=finished_at)
+        )
+
     async def delete_tournament(self, tournament_id: str) -> None:
         """
         Remove the tournament and the record of its games in one write.
@@ -102,14 +110,14 @@ def _insert_tournament(conn: sqlite3.Connection, *, tournament: Tournament) -> N
 
 def _select_tournament(conn: sqlite3.Connection, *, tournament_id: str) -> Tournament | None:
     row = conn.execute(
-        "SELECT id, name, owner_user_id, created_at FROM tournaments WHERE id = ?", (tournament_id,)
+        "SELECT id, name, owner_user_id, created_at, finished_at FROM tournaments WHERE id = ?", (tournament_id,)
     ).fetchone()
     return None if row is None else _tournament_from_row(row)
 
 
 def _select_tournaments(conn: sqlite3.Connection) -> list[Tournament]:
     rows = conn.execute(
-        "SELECT id, name, owner_user_id, created_at FROM tournaments ORDER BY created_at DESC, rowid DESC"
+        "SELECT id, name, owner_user_id, created_at, finished_at FROM tournaments ORDER BY created_at DESC, rowid DESC"
     ).fetchall()
     return [_tournament_from_row(row) for row in rows]
 
@@ -129,14 +137,23 @@ def _update_tournament_name(conn: sqlite3.Connection, *, tournament_id: str, nam
     conn.execute("UPDATE tournaments SET name = ? WHERE id = ?", (name, tournament_id))
 
 
+def _update_tournament_finish(conn: sqlite3.Connection, *, tournament_id: str, finished_at: float) -> bool:
+    cursor = conn.execute(
+        "UPDATE tournaments SET finished_at = ? WHERE id = ? AND finished_at IS NULL", (finished_at, tournament_id)
+    )
+    return cursor.rowcount > 0
+
+
 def _delete_tournament(conn: sqlite3.Connection, *, tournament_id: str) -> None:
     conn.execute("DELETE FROM tournament_games WHERE tournament_id = ?", (tournament_id,))
     conn.execute("DELETE FROM tournaments WHERE id = ?", (tournament_id,))
 
 
-def _tournament_from_row(row: tuple[str, str, str, float]) -> Tournament:
-    tournament_id, name, owner_user_id, created_at = row
-    return Tournament(id=tournament_id, name=name, owner_user_id=owner_user_id, created_at=created_at)
+def _tournament_from_row(row: tuple[str, str, str, float, float | None]) -> Tournament:
+    tournament_id, name, owner_user_id, created_at, finished_at = row
+    return Tournament(
+        id=tournament_id, name=name, owner_user_id=owner_user_id, created_at=created_at, finished_at=finished_at
+    )
 
 
 def _insert_game(conn: sqlite3.Connection, *, game: TournamentGame) -> None:

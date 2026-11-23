@@ -317,8 +317,11 @@ finish row has `ended_at`, the lobby copies the end reason and standings into `t
 and, only when that update finished the row, sends `game_ended` to the page and the owner's events
 sockets (`/ws/tournaments/{id}/events`, key-authenticated, `presence` first). A game with no finish
 row stays unfinished. A player leaving a tournament game returns to the tournament page through the
-game client's exit route (Game client contract). The manager's side of all this is
-`docs/tournament-api.md`.
+game client's exit route (Game client contract). The owner may finish a tournament: its row
+gains `finished_at`, its sockets are told `tournament_finished` and closed, no socket or game
+start is accepted after it, and its page shows only the game history, which the page's config
+answer carries. Running games play on and the poller still records their ends. The manager's side
+of all this is `docs/tournament-api.md`.
 
 ## Game start (shared by rooms, matchmaking and tournaments)
 

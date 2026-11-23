@@ -95,6 +95,7 @@ from app.views.tournament_handlers import (
     game_exit_redirect,
     lobby_create_tournament,
     lobby_delete_tournament,
+    lobby_finish_tournament,
     lobby_rename_tournament,
     lobby_tournament,
     lobby_tournaments,
@@ -266,6 +267,12 @@ def create_app(  # noqa: PLR0913
             protected_json(lobby_rename_tournament),
             methods=["POST"],
             name="lobby_rename_tournament",
+        ),
+        Route(
+            "/api/lobby/tournaments/{tournament_id}/finish",
+            protected_json(lobby_finish_tournament),
+            methods=["POST"],
+            name="lobby_finish_tournament",
         ),
         Route(
             "/api/lobby/tournaments/{tournament_id}/delete",

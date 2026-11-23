@@ -21,7 +21,7 @@ import { renderTournament } from "@/tournament/ui";
 
 function buildTournament() {
     const state = createTournamentState();
-    const handlers = buildMessageHandlers(state, vi.fn());
+    const handlers = buildMessageHandlers(state, vi.fn(), vi.fn());
     handleMessage(handlers, { players: ["Alice", "Bob"], type: "joined" });
     return { handlers, state };
 }
@@ -34,6 +34,7 @@ function mountPage(state: ReturnType<typeof createTournamentState>) {
             renderTournament({
                 actions: {
                     deleteTournament: () => {},
+                    finishTournament: () => {},
                     renameTournament: () => {},
                     selectTab: () => {},
                     sendChat: () => false,
@@ -81,7 +82,7 @@ describe("buildMessageHandlers", () => {
 
     test("keeps the ended games from the join and adds an ended game once, latest end first, with completed results in points", () => {
         const state = createTournamentState();
-        const handlers = buildMessageHandlers(state, vi.fn());
+        const handlers = buildMessageHandlers(state, vi.fn(), vi.fn());
         const players = ["Dave", "Carol", "Bob", "Alice"];
         handleMessage(handlers, {
             played: [
@@ -129,7 +130,7 @@ describe("buildMessageHandlers", () => {
 
     test("keeps the current games from the join, adds started ones and drops ended ones", () => {
         const state = createTournamentState();
-        const handlers = buildMessageHandlers(state, vi.fn());
+        const handlers = buildMessageHandlers(state, vi.fn(), vi.fn());
         handleMessage(handlers, {
             games: [{ game_id: "g1", players: ["A", "B", "C", "D"], started_at: 1_700_000_000 }],
             players: [],
@@ -198,6 +199,62 @@ describe("buildMessageHandlers", () => {
     });
 });
 
+function joinFinishingTournament() {
+    const state = createTournamentState();
+    const reload = vi.fn();
+    const handlers = buildMessageHandlers(state, vi.fn(), reload);
+    handleMessage(handlers, { players: ["Alice"], type: "joined" });
+    state.connectionStatus = "connected";
+    return { handlers, reload, state };
+}
+
+describe("a finished tournament", () => {
+    test("stops reconnecting, reloads once and keeps only the game history when the owner finishes it", () => {
+        const { handlers, reload, state } = joinFinishingTournament();
+        const { container, render } = mountPage(state);
+
+        handleMessage(handlers, { message: "tournament_finished", type: "error" });
+        buildStatusHandler(state, render, vi.fn())("disconnected");
+
+        expect(reload).toHaveBeenCalledOnce();
+        expect(state.reconnectTimer).toBeNull();
+        expect(
+            [".tournament-current", ".tournament-online", ".tournament-chat", "[role=alert]"].map(
+                (selector) => container.querySelector(selector) !== null,
+            ),
+        ).toEqual([false, false, false, false]);
+        expect(container.querySelector(".tournament-played")).not.toBeNull();
+        expect(container.querySelector(".tournament-finished")).not.toBeNull();
+    });
+
+    test("reads its finish and ended games from the config", () => {
+        const answer = readTournamentConfigAnswer({
+            data: {
+                chat_max_length: 100,
+                finished_at: 1_800_000_000,
+                is_owner: false,
+                name: "Cup",
+                name_max_length: 80,
+                played: [
+                    {
+                        end_reason: "abandoned",
+                        ended_at: 1_799_999_000,
+                        game_id: "g1",
+                        players: PLAYERS,
+                        result: [],
+                    },
+                ],
+                ws_url: "wss://ronin.test/ws/tournaments/cup",
+            },
+            ok: true,
+        });
+
+        const finish = answer.kind === "open" ? answer.config.finish : undefined;
+        expect(finish?.finishedAt).toEqual(new Date(1_800_000_000 * 1000));
+        expect(finish?.played.map((game) => game.gameId)).toEqual(["g1"]);
+    });
+});
+
 describe("buildStatusHandler", () => {
     afterEach(() => {
         vi.useRealTimers();
@@ -246,6 +303,7 @@ describe("describeTournamentError", () => {
 describe("renderTournament", () => {
     const config = {
         chatMaxLength: 100,
+        finish: null,
         isOwner: true,
         name: "Cup",
         nameMaxLength: 80,
@@ -267,6 +325,7 @@ describe("renderTournament", () => {
         renderTournament({
             actions: {
                 deleteTournament: () => {},
+                finishTournament: () => {},
                 renameTournament: () => {},
                 selectTab: () => {},
                 sendChat: () => false,

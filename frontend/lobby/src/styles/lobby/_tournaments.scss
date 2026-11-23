@@ -59,6 +59,10 @@
     white-space: nowrap;
 }
 
+.lobby-tournament-ended {
+    font-weight: 600;
+}
+
 .lobby-tournament-live {
     color: var(--pico-primary);
     font-weight: 600;
@@ -99,6 +103,25 @@
 .tournament-name {
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.tournament-finish {
+    margin-bottom: 1.5rem;
+
+    summary {
+        width: fit-content;
+        cursor: pointer;
+    }
+
+    form {
+        max-width: 36rem;
+        margin-top: 0.75rem;
+    }
+
+    button {
+        width: auto;
+        margin-bottom: 0;
+    }
 }
 
 .tournament-delete {

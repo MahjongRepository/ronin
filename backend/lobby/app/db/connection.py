@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS tournaments (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     owner_user_id TEXT NOT NULL,
-    created_at REAL NOT NULL
+    created_at REAL NOT NULL,
+    finished_at REAL
 );
 
 CREATE INDEX IF NOT EXISTS idx_tournaments_owner_user_id
@@ -77,6 +78,8 @@ CREATE TABLE IF NOT EXISTS tournament_games (
 CREATE INDEX IF NOT EXISTS idx_tournament_games_tournament_id
     ON tournament_games (tournament_id);
 """
+
+_ADDED_COLUMNS = (("tournaments", "finished_at", "REAL"),)
 
 _DROPPED_UNRUN = "dropped unrun: the database worker did not drain before shutdown"
 
@@ -315,6 +318,7 @@ class Database:
             conn.execute("PRAGMA foreign_keys=ON")
             conn.execute(f"PRAGMA busy_timeout={self._busy_timeout_ms:d}")
             conn.executescript(_SCHEMA_SQL)
+            _add_missing_columns(conn)
             self._harden_permissions()
         except BaseException:
             conn.close()
@@ -396,3 +400,13 @@ def _failure_log(log_fields: dict[str, str]) -> _Report:
             logger.error("database write failed", exc_info=error, **log_fields)
 
     return report
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    """
+    Add each column of ``_ADDED_COLUMNS`` to a table created before it, which ``CREATE TABLE IF NOT EXISTS`` skips.
+    """
+    for table, column, column_type in _ADDED_COLUMNS:
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")

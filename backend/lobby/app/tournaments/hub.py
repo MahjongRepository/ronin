@@ -12,7 +12,8 @@ if TYPE_CHECKING:
     from app.players import LobbyPlayer
 
 TOURNAMENT_DELETED = "tournament_deleted"
-_DELETED_CLOSE_CODE = 4000
+TOURNAMENT_FINISHED = "tournament_finished"
+_CLOSED_TOURNAMENT_CLOSE_CODE = 4000
 HISTORY_MAX_AGE_SECONDS = 24 * 60 * 60
 HISTORY_MAX_ENTRIES = 1000
 
@@ -151,17 +152,17 @@ class TournamentHub:
         cutoff = self._clock() - HISTORY_MAX_AGE_SECONDS
         return [entry.event for entry in self._history.get(tournament_id, ()) if entry.time >= cutoff]
 
-    def close_deleted_tournament(self, tournament_id: str) -> None:
+    def close_tournament(self, tournament_id: str, reason: str) -> None:
         """
-        Tell every player connection and events subscriber of a deleted tournament ``tournament_deleted``, close them
-        and forget them all with its history.
+        Tell every player connection and events subscriber of a deleted or finished tournament the ``reason``, close
+        them and forget them all with its history.
         """
         self._history.pop(tournament_id, None)
         players = self._online.pop(tournament_id, {})
         subscribers = self._subscribers.pop(tournament_id, {})
         for connection in [*players.values(), *subscribers.values()]:
-            connection.send({"type": "error", "message": TOURNAMENT_DELETED})
-            connection.connection.close(code=_DELETED_CLOSE_CODE, reason=TOURNAMENT_DELETED)
+            connection.send({"type": "error", "message": reason})
+            connection.connection.close(code=_CLOSED_TOURNAMENT_CLOSE_CODE, reason=reason)
 
     def _send_to_players(self, tournament_id: str, payload: str, *, exclude: str | None) -> None:
         for player in self._online.get(tournament_id, {}).values():

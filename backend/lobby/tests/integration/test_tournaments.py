@@ -450,6 +450,55 @@ def test_tournament_delete__when_owner_deletes__should_close_sockets_and_return_
     assert client.get(f"/api/tournaments/{tournament_id}", headers={"x-api-key": owner_key}).status_code == 404
 
 
+def test_tournament_finish__when_owner_finishes__should_close_sockets_and_keep_only_its_game_history(
+    app, client, tournament_id
+):
+    owner_key = issue_api_token(client)
+    repo = app.state.tournament_repo
+    players = ["erin", "frank", "gina", "hank"]
+    client.portal.call(
+        repo.add_game,
+        TournamentGame(game_id="cup-game-1", tournament_id=tournament_id, players=players, created_at=1.0),
+    )
+    client.portal.call(
+        lambda: repo.finish_game("cup-game-1", ended_at=2.0, end_reason=GameEndReason.ABANDONED, result=[])
+    )
+
+    with (
+        client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice,
+        client.websocket_connect(f"/ws/tournaments/{tournament_id}/events") as events,
+    ):
+        _receive_until(ws_alice, "joined")
+        _receive_until(events, "presence")
+
+        finished = post_lobby_json(client, f"/api/lobby/tournaments/{tournament_id}/finish")
+
+        for socket in (ws_alice, events):
+            assert _receive_until(socket, "error") == {"type": "error", "message": "tournament_finished"}
+            with pytest.raises(WebSocketDisconnect) as closed:
+                socket.receive_json()
+            assert closed.value.code == 4000
+
+    assert finished.status_code == 200
+    finished_at = finished.json()["finished_at"]
+    again = post_lobby_json(client, f"/api/lobby/tournaments/{tournament_id}/finish")
+    assert (again.status_code, again.json()) == (409, {"error": "tournament_finished"})
+    page = client.get(f"/api/lobby/tournaments/{tournament_id}").json()
+    assert page["finished_at"] == finished_at
+    assert page["played"] == [
+        {"game_id": "cup-game-1", "players": players, "ended_at": 2.0, "end_reason": "abandoned", "result": []}
+    ]
+    [listed] = client.get("/api/lobby/tournaments").json()["own"]
+    assert (listed["id"], listed["finished_at"]) == (tournament_id, finished_at)
+    with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as rejoined:
+        assert rejoined.receive_json() == {"type": "error", "message": "tournament_finished"}
+    client.cookies.delete("session_id")
+    started = client.post(
+        f"/api/tournaments/{tournament_id}/games", json={"games": [players]}, headers={"x-api-key": owner_key}
+    )
+    assert (started.status_code, started.json()) == (409, {"error": "tournament_finished"})
+
+
 def test_tournament_delete__when_user_is_not_owner__should_return_404(client, tournament_id):
     login_with_csrf(client, "bob")
 
@@ -466,7 +515,7 @@ def test_tournament_create__when_non_admin_posts_name__should_list_it_and_open_i
 
     listed = client.get("/api/lobby/tournaments").json()
     assert [{key: value for key, value in entry.items() if key != "created_at"} for entry in listed["own"]] == [
-        {"id": tournament_id, "name": "Spring Cup", "playing": 0, "finished": 0}
+        {"id": tournament_id, "name": "Spring Cup", "finished_at": None, "playing": 0, "finished": 0}
     ]
     assert (listed["others"], listed["can_create"], listed["name_max_length"]) == ([], True, 80)
     assert client.get("/tournaments").status_code == 200
@@ -474,6 +523,8 @@ def test_tournament_create__when_non_admin_posts_name__should_list_it_and_open_i
     page = client.get(f"/api/lobby/tournaments/{tournament_id}").json()
     assert page == {
         "name": "Spring Cup",
+        "finished_at": None,
+        "played": None,
         "ws_url": f"ws://testserver/ws/tournaments/{tournament_id}",
         "chat_max_length": 1000,
         "name_max_length": 80,

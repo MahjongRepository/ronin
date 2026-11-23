@@ -37,6 +37,27 @@ class TestOpen:
         assert sorted(tables) == ["played_games", "players", "sessions", "tournament_games", "tournaments"]
         await db.close()
 
+    async def test_database_open__when_tournaments_table_predates_finished_at__should_add_it_and_keep_rows(
+        self, tmp_path: Path
+    ):
+        db_path = tmp_path / "test.db"
+        with closing(sqlite3.connect(db_path)) as conn:
+            conn.execute(
+                "CREATE TABLE tournaments (id TEXT PRIMARY KEY, name TEXT NOT NULL, owner_user_id TEXT NOT NULL, "
+                "created_at REAL NOT NULL)"
+            )
+            conn.execute("INSERT INTO tournaments VALUES ('cup', 'Cup', 'alice', 1.0)")
+            conn.commit()
+        db = Database(db_path)
+        await db.open()
+
+        rows = await db.submit_read(
+            lambda conn: conn.execute("SELECT id, finished_at FROM tournaments").fetchall(),
+        )
+        await db.close()
+
+        assert rows == [("cup", None)]
+
     async def test_database_open__when_opening_fails__should_raise_and_refuse_later_work(self, tmp_path: Path):
         db = Database(tmp_path / "test.db")
         with (

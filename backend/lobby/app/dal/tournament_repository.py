@@ -31,6 +31,12 @@ class TournamentRepository(ABC):
     async def rename_tournament(self, tournament_id: str, name: str) -> None: ...
 
     @abstractmethod
+    async def finish_tournament(self, tournament_id: str, finished_at: float) -> bool:
+        """
+        Mark the tournament finished; return False when it is unknown or already finished.
+        """
+
+    @abstractmethod
     async def delete_tournament(self, tournament_id: str) -> None:
         """
         Remove the tournament and the record of its games.

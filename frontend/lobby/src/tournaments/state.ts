@@ -1,6 +1,7 @@
 export interface TournamentRow {
     readonly createdAt: Date;
     readonly finished: number;
+    readonly finishedAt: Date | null;
     readonly id: string;
     readonly name: string;
     readonly playing: number;
@@ -38,6 +39,7 @@ function parseTournamentRow(value: unknown): TournamentRow | null {
         typeof value.id !== "string" ||
         typeof value.name !== "string" ||
         typeof value.created_at !== "number" ||
+        (value.finished_at !== null && typeof value.finished_at !== "number") ||
         !isCount(value.playing) ||
         !isCount(value.finished)
     ) {
@@ -46,6 +48,8 @@ function parseTournamentRow(value: unknown): TournamentRow | null {
     return {
         createdAt: new Date(value.created_at * 1000),
         finished: value.finished,
+        finishedAt:
+            typeof value.finished_at === "number" ? new Date(value.finished_at * 1000) : null,
         id: value.id,
         name: value.name,
         playing: value.playing,

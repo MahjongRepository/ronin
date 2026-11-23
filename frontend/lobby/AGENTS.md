@@ -70,7 +70,9 @@ delete) shows when `/api/lobby/tournaments/{id}` says `is_owner`; switching tabs
 stays online, and a delete goes to the tournaments page. The page leads with the games: the current
 ones and the game history from `joined` (every ended game, latest first), which a `game_ended` then
 updates, so a reload or reconnect loses none; only the owner sees the Start game button. Who is online
-and the chat sit folded below them. The chat shows people's messages only: the chat lines of the
+and the chat sit folded below them. A finished tournament (the config's `finished_at`) opens no socket: the page
+shows its name, when it finished and the game history from the config, and the owner's Settings keep rename and
+delete. A live page told `tournament_finished` stops reconnecting and reloads its config into that view. The chat shows people's messages only: the chat lines of the
 server's `history`, sent before `joined` on every join, replace its log, so a reconnect loses only the
 page's own local error lines. `chat.ts` holds the chat log and composer both pages render.
 

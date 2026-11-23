@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse
 
 from app.dal.models import TournamentGame
 from app.game_transition import GameStartError, start_game
+from app.tournaments.hub import TOURNAMENT_FINISHED
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -83,6 +84,7 @@ async def tournament_api(request: Request) -> Response:
         {
             "id": tournament.id,
             "name": tournament.name,
+            "finished_at": tournament.finished_at,
             "online": hub.online_names(tournament.id),
             "games": [game.model_dump(mode="json", exclude={"tournament_id"}) for game in games],
         }
@@ -94,11 +96,15 @@ async def start_tournament_games(request: Request) -> Response:
     POST /api/tournaments/{tournament_id}/games - start a game per table, seated East to North in list order.
 
     Tables start one by one in request order, and each fails alone: its result names why (players not online, players
-    in a game, or the game start's reason) and the next table still starts. A malformed body starts nothing.
+    in a game, or the game start's reason) and the next table still starts. A malformed body starts nothing, and a
+    finished tournament answers 409 ``tournament_finished``.
     """
     tournament = await _find_owned_tournament(request)
     if tournament is None:
         return _not_found()
+
+    if tournament.finished_at is not None:
+        return JSONResponse({"error": TOURNAMENT_FINISHED}, status_code=HTTPStatus.CONFLICT)
 
     try:
         body = _StartGamesRequest.model_validate_json(await request.body())

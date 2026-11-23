@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from operator import attrgetter
 from typing import TYPE_CHECKING
 
 import structlog
@@ -9,6 +8,8 @@ from pydantic import ValidationError
 
 from app.occupancy import REPLACED_BY_NEW_CONNECTION
 from app.rate_limit import TokenBucket
+from app.tournaments.games import current_games, played_games
+from app.tournaments.hub import TOURNAMENT_FINISHED
 from app.tournaments.messages import TournamentClientMessage, parse_tournament_message
 from app.websocket_utils import serve_lobby_socket
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from starlette.types import Message
     from starlette.websockets import WebSocket
 
-    from app.dal.models import TournamentGame
+    from app.dal.models import Tournament
     from app.dal.tournament_repository import TournamentRepository
     from app.players import LobbyPlayer
     from app.tournaments.hub import TournamentHub
@@ -63,13 +64,16 @@ async def _serve_subscriber(subscriber: LobbyPlayer, ctx: _TournamentContext) ->
     """
     Subscribe the tournament's owner to its events, starting with a ``presence`` snapshot, until the socket ends.
 
-    Anyone else is refused as for an unknown tournament; whatever the client sends is read and dropped.
+    Anyone else is refused as for an unknown tournament, and a finished tournament refuses its owner too; whatever the
+    client sends is read and dropped.
     """
     tournament = await ctx.tournament_repo.get_tournament(ctx.tournament_id)
     if tournament is None or tournament.owner_user_id != subscriber.user_id:
-        logger.info("tournament events rejected", tournament_id=ctx.tournament_id, username=subscriber.username)
-        subscriber.send({"type": "error", "message": _TOURNAMENT_NOT_FOUND})
-        subscriber.connection.close(code=4000, reason=_TOURNAMENT_NOT_FOUND)
+        _refuse(subscriber, ctx, _TOURNAMENT_NOT_FOUND)
+        return
+
+    if tournament.finished_at is not None:
+        _refuse(subscriber, ctx, TOURNAMENT_FINISHED)
         return
 
     ctx.hub.subscribe(ctx.tournament_id, subscriber)
@@ -105,14 +109,14 @@ async def _serve_player(player: LobbyPlayer, ctx: _TournamentContext) -> None:
 async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
     """
     Put the player online, send them the tournament's history, then acknowledge it with who is online, the games being
-    played and the games that have ended, and announce it; return False when the tournament does not exist.
+    played and the games that have ended, and announce it; return False when the tournament does not exist or is
+    finished.
 
     The same user's older connection is told ``replaced_by_new_connection`` and closed; the new one takes its place.
     """
-    if await ctx.tournament_repo.get_tournament(ctx.tournament_id) is None:
-        logger.info("tournament join rejected", tournament_id=ctx.tournament_id, username=player.username)
-        player.send({"type": "error", "message": _TOURNAMENT_NOT_FOUND})
-        player.connection.close(code=4000, reason=_TOURNAMENT_NOT_FOUND)
+    refusal = _join_refusal(await ctx.tournament_repo.get_tournament(ctx.tournament_id))
+    if refusal is not None:
+        _refuse(player, ctx, refusal)
         return False
 
     replaced = ctx.hub.connect(ctx.tournament_id, player)
@@ -123,38 +127,34 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
     player.send({"type": "history", "messages": ctx.hub.history(ctx.tournament_id)})
     names = ctx.hub.online_names(ctx.tournament_id)
     games = await ctx.tournament_repo.list_games(ctx.tournament_id)
-    player.send({"type": "joined", "players": names, "games": _current_games(games), "played": _played_games(games)})
+    player.send({"type": "joined", "players": names, "games": current_games(games), "played": played_games(games)})
     ctx.hub.broadcast_presence(ctx.tournament_id, exclude=player.connection_id)
     logger.info("player online in tournament", tournament_id=ctx.tournament_id, username=player.username)
     return True
 
 
-def _current_games(games: list[TournamentGame]) -> list[dict[str, object]]:
+def _join_refusal(tournament: Tournament | None) -> str | None:
     """
-    Return the games still being played, in the given order, each with its players East to North.
+    Return why a tournament page cannot go online: the tournament is unknown or finished; None when it can.
     """
-    return [
-        {"game_id": game.game_id, "players": game.players, "started_at": game.created_at}
-        for game in games
-        if game.ended_at is None
-    ]
+    if tournament is None:
+        return _TOURNAMENT_NOT_FOUND
+
+    if tournament.finished_at is not None:
+        return TOURNAMENT_FINISHED
+
+    return None
 
 
-def _played_games(games: list[TournamentGame]) -> list[dict[str, object]]:
+def _refuse(connection: LobbyPlayer, ctx: _TournamentContext, reason: str) -> None:
     """
-    Return the games that have ended, latest end first, each shaped as its ``game_ended`` event with its ``ended_at``.
+    Tell the connection why the tournament refused it and close it.
     """
-    ended = sorted((game for game in games if game.ended_at is not None), key=attrgetter("ended_at"), reverse=True)
-    return [
-        {
-            "game_id": game.game_id,
-            "players": game.players,
-            "ended_at": game.ended_at,
-            "end_reason": game.end_reason,
-            "result": [standing.model_dump(mode="json", exclude={"user_id"}) for standing in game.result or []],
-        }
-        for game in ended
-    ]
+    logger.info(
+        "tournament socket refused", tournament_id=ctx.tournament_id, username=connection.username, reason=reason
+    )
+    connection.send({"type": "error", "message": reason})
+    connection.connection.close(code=4000, reason=reason)
 
 
 async def _message_loop(player: LobbyPlayer, ctx: _TournamentContext) -> None:

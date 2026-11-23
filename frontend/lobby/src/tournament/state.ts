@@ -3,7 +3,7 @@ import { type ChatEntry } from "@/chat";
 import { type CurrentGame } from "@/current-games";
 import { type MessageKey } from "@/i18n";
 import { type LobbySocket, type SocketStatus } from "@/lobby-socket";
-import { type PlayedGame } from "@/tournament/played-games";
+import { type PlayedGame, readPlayedGames } from "@/tournament/played-games";
 
 type ConnectionStatus = SocketStatus | "connecting";
 
@@ -18,8 +18,14 @@ const TOURNAMENT_TABS = ["tournament", "settings"] as const;
 
 type TournamentTab = (typeof TOURNAMENT_TABS)[number];
 
+interface TournamentFinish {
+    readonly finishedAt: Date;
+    readonly played: readonly PlayedGame[];
+}
+
 interface TournamentConfig {
     readonly chatMaxLength: number;
+    readonly finish: TournamentFinish | null;
     readonly isOwner: boolean;
     readonly name: string;
     readonly nameMaxLength: number;
@@ -39,6 +45,7 @@ interface TournamentState {
     ownerBusy: boolean;
     ownerError: MessageKey | null;
     connectionStatus: ConnectionStatus;
+    finishedAt: Date | null;
     games: CurrentGame[];
     joined: boolean;
     pageError: string | null;
@@ -58,6 +65,7 @@ function createTournamentState(): TournamentState {
         chatOpen: false,
         chatUnread: 0,
         connectionStatus: "connecting",
+        finishedAt: null,
         games: [],
         joined: false,
         name: null,
@@ -75,8 +83,12 @@ function createTournamentState(): TournamentState {
     };
 }
 
+function isFinished(state: TournamentState): boolean {
+    return state.finishedAt !== null;
+}
+
 function isOnline(state: TournamentState): boolean {
-    return state.joined && state.pageError === null;
+    return state.joined && state.pageError === null && !isFinished(state);
 }
 
 function isLive(state: TournamentState): boolean {
@@ -85,7 +97,9 @@ function isLive(state: TournamentState): boolean {
 
 function isConnectionLost(state: TournamentState): boolean {
     const closed = state.connectionStatus === "disconnected" || state.connectionStatus === "error";
-    return closed && state.pageError === null && state.reconnectTimer === null;
+    return (
+        closed && state.pageError === null && !isFinished(state) && state.reconnectTimer === null
+    );
 }
 
 function isPositiveInteger(value: unknown): value is number {
@@ -96,12 +110,24 @@ function isFilledString(value: unknown): value is string {
     return typeof value === "string" && value !== "";
 }
 
+function parseFinishedAt(data: unknown): Date | null {
+    return isRecord(data) && typeof data.finished_at === "number"
+        ? new Date(data.finished_at * 1000)
+        : null;
+}
+
+function parseTournamentFinish(data: Record<string, unknown>): TournamentFinish | null {
+    const finishedAt = parseFinishedAt(data);
+    return finishedAt === null ? null : { finishedAt, played: readPlayedGames(data) };
+}
+
 function parseTournamentConfig(data: unknown): TournamentConfig | null {
     if (!isRecord(data)) {
         return null;
     }
     const {
         chat_max_length: chatMaxLength,
+        finished_at: finishedAt,
         is_owner: isOwner,
         name,
         name_max_length: nameMaxLength,
@@ -111,12 +137,20 @@ function parseTournamentConfig(data: unknown): TournamentConfig | null {
         !isFilledString(name) ||
         !isFilledString(wsUrl) ||
         typeof isOwner !== "boolean" ||
+        (finishedAt !== null && typeof finishedAt !== "number") ||
         !isPositiveInteger(chatMaxLength) ||
         !isPositiveInteger(nameMaxLength)
     ) {
         return null;
     }
-    return { chatMaxLength, isOwner, name, nameMaxLength, wsUrl };
+    return {
+        chatMaxLength,
+        finish: parseTournamentFinish(data),
+        isOwner,
+        name,
+        nameMaxLength,
+        wsUrl,
+    };
 }
 
 function readTournamentConfigAnswer(result: ApiResult): TournamentConfigAnswer {
@@ -137,9 +171,17 @@ export {
     TOURNAMENT_TABS,
     createTournamentState,
     isConnectionLost,
+    isFinished,
     isLive,
     isOnline,
+    parseFinishedAt,
     parseRenamedName,
     readTournamentConfigAnswer,
 };
-export type { TournamentConfig, TournamentConfigAnswer, TournamentState, TournamentTab };
+export type {
+    TournamentConfig,
+    TournamentConfigAnswer,
+    TournamentFinish,
+    TournamentState,
+    TournamentTab,
+};

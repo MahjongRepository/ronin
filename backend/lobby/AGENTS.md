@@ -185,6 +185,12 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   subscriber `tournament_deleted`, closes them and stops watching its games. Running games are not stopped: they play
   on, publish no `game_ended`, and their exit falls back to the lobby. A rename shows on the owner's page at once and
   on anyone else's at their next load; no event carries it.
+* Only the owner finishes a tournament (`finished_at`, set once). A finished tournament stays listed and its page
+  still opens, but it is a record only: its config answer carries the ended games, every player connection and events
+  subscriber is told `tournament_finished` and closed, new ones are refused the same way, the chat history is dropped
+  and the API refuses game starts with 409. Running games play on and the poller still records their ends.
+* `db/connection.py` creates the schema with `CREATE TABLE IF NOT EXISTS`, which never changes an existing table, so a
+  column added to one is also listed in `_ADDED_COLUMNS`, which adds it to a database created before it.
 * `live_games/` — the lobby page's list of the games being played, over the send-only `/ws/games`. "Being played"
   comes only from the game server's in-memory sessions (its internal `GET /games`, started games only), never from
   `played_games`, whose `ended_at` stays NULL after a crash. One task polls it, and only while a page watches; each

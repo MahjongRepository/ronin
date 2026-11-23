@@ -13,8 +13,9 @@ The two HTTP routes (`POST /api/tournaments/{id}/games` and `GET /api/tournament
 request without a valid `X-API-Key` gets `401 {"error": "API key required"}`. Send no session cookie: a cookie takes
 precedence over the key, so such a request gets the same 401. A tournament that does not exist, or that the key's
 account does not own, gets `404 {"error": "tournament_not_found"}` on them. A deleted tournament is gone with its
-games: it answers the same 404, and its open events sockets are closed. The events socket has its own rules (see
-Events).
+games: it answers the same 404, and its open events sockets are closed. The owner can also finish a tournament on its
+page: it then refuses `POST /api/tournaments/{id}/games` with `409 {"error": "tournament_finished"}`, while the
+snapshot still answers. The events socket has its own rules (see Events).
 
 ## Players
 
@@ -64,6 +65,7 @@ each fails alone, so the other tables still start:
 {
   "id": "...",
   "name": "Spring Cup",
+  "finished_at": null,
   "online": ["alice", "bob"],
   "games": [
     {
@@ -83,7 +85,8 @@ each fails alone, so the other tables still start:
 }
 ```
 
-`online` is in the order the players came online. `games` is oldest first, `players` East to North. `created_at` and
+`finished_at` is the epoch seconds the owner finished the tournament, or `null`. `online` is in the order the players
+came online. `games` is oldest first, `players` East to North. `created_at` and
 `ended_at` are epoch seconds. `ended_at`, `end_reason` and `result` are `null` until the game has ended.
 
 - `end_reason` is `completed`, `abandoned` (no player stayed connected) or `error` (the game failed on a server
@@ -114,6 +117,8 @@ client sends is ignored. Several may be open at once. Every message is a JSON ob
   account does not own it. The socket then closes with code 4000.
 - `error` — `{"type": "error", "message": "tournament_deleted"}`: the owner deleted the tournament on its page. The
   socket then closes with code 4000.
+- `error` — `{"type": "error", "message": "tournament_finished"}`: the owner finished the tournament on its page, or
+  it was already finished when the socket opened. The socket then closes with code 4000.
 
 A handshake with neither a valid key nor a session, or a cookie handshake with a foreign `Origin`, is refused with
 HTTP 403 before the socket opens; the two cases look the same on the wire.
@@ -126,4 +131,6 @@ gaps, connect the events socket first, then read the snapshot, and on a reconnec
 A game that never started (nobody joined it within the game server's pending timeout) never gets an end: it stays
 with a `null` `ended_at` in the snapshot and no `game_ended` is sent for it. A game lost to a game server crash keeps a
 `null` `ended_at` until the game server starts again, which ends it as `error`; its `game_ended` follows then.
-Deleting a tournament does not stop its running games: they play on, and no `game_ended` is sent for them.
+Deleting a tournament does not stop its running games: they play on, and no `game_ended` is sent for them. Finishing
+one does not stop them either: they play on and their ends still reach the snapshot, but no socket is left to send
+their `game_ended`.

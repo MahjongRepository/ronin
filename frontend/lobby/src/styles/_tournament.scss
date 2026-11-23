@@ -29,6 +29,15 @@
     }
 }
 
+.tournament-finished {
+    flex: none;
+    margin-inline-start: auto;
+    color: var(--pico-muted-color);
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 .tournament-section-count {
     margin-inline-start: 0.375rem;
     color: var(--pico-muted-color);

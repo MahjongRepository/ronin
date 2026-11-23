@@ -14,8 +14,10 @@ import {
     type TournamentConfigAnswer,
     type TournamentState,
     createTournamentState,
+    isFinished,
     isLive,
     isOnline,
+    parseFinishedAt,
     parseRenamedName,
     readTournamentConfigAnswer,
 } from "@/tournament/state";
@@ -27,6 +29,7 @@ type Navigate = (url: string, options?: NavigateOptions) => void;
 interface OwnerContext {
     readonly isDisposed: () => boolean;
     readonly navigate: Navigate;
+    readonly reload: () => void;
     readonly render: RenderTournament;
     readonly tournamentId: string;
 }
@@ -39,11 +42,13 @@ const MAX_RECONNECT_ATTEMPTS = 24;
 const RESUME_RECONNECT_AFTER_HIDDEN_MS = 20_000;
 
 const TOURNAMENT_DELETED = "tournament_deleted";
+const TOURNAMENT_FINISHED = "tournament_finished";
 
 const TOURNAMENT_ERROR_CODES = [
     "rate_limited",
     TOURNAMENT_NOT_FOUND,
     TOURNAMENT_DELETED,
+    TOURNAMENT_FINISHED,
     OCCUPANCY.REPLACED_BY_NEW_CONNECTION,
     PAGE_ERROR.GAME_START_INVALID,
     PAGE_ERROR.PAGE_SETUP_FAILED,
@@ -160,7 +165,18 @@ function showHistory(
     render();
 }
 
-function buildMessageHandlers(state: TournamentState, render: RenderTournament): MessageHandlerMap {
+function showFinished(state: TournamentState, render: RenderTournament, reload: () => void): void {
+    cancelReconnect(state);
+    state.finishedAt ??= new Date();
+    render();
+    reload();
+}
+
+function buildMessageHandlers(
+    state: TournamentState,
+    render: RenderTournament,
+    reload: () => void,
+): MessageHandlerMap {
     function appendChat(sender: string, text: string, at = new Date()): void {
         state.chatMessages.push({ sender, text, timestamp: formatTime(at) });
     }
@@ -255,7 +271,13 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
 
     return {
         chat: onChat,
-        error: onError,
+        error: (message) => {
+            if (message.message === TOURNAMENT_FINISHED) {
+                showFinished(state, render, reload);
+                return;
+            }
+            onError(message);
+        },
         game_ended: onGameEnded,
         game_started: onGameStarted,
         game_starting: onGameStarting,
@@ -288,7 +310,7 @@ function leaveOnPageExit(state: TournamentState): void {
 }
 
 function rejoinOnPageShow(state: TournamentState, rejoin: () => void): void {
-    if (state.pageError) {
+    if (state.pageError || isFinished(state)) {
         return;
     }
     cancelReconnect(state);
@@ -349,6 +371,30 @@ function showRenamed(state: TournamentState, result: ApiResult): void {
     state.name = renamed;
 }
 
+async function finishTournament(state: TournamentState, context: OwnerContext): Promise<void> {
+    if (!startOwnerAction(state, context.render)) {
+        return;
+    }
+    const result = await apiPost(`${tournamentApiPath(context.tournamentId)}/finish`, {});
+    if (!context.isDisposed()) {
+        showFinishAnswer(state, context, result);
+    }
+}
+
+function showFinishAnswer(state: TournamentState, context: OwnerContext, result: ApiResult): void {
+    state.ownerBusy = false;
+    const finishedAt = result.ok ? parseFinishedAt(result.data) : null;
+    if (finishedAt === null) {
+        console.error("tournament not finished", result.ok ? "invalid answer" : result.error);
+        state.ownerError = "tournament.owner.finish_failed";
+        context.render();
+        return;
+    }
+    state.finishedAt = finishedAt;
+    context.render();
+    context.reload();
+}
+
 async function deleteTournament(state: TournamentState, context: OwnerContext): Promise<void> {
     if (!startOwnerAction(state, context.render)) {
         return;
@@ -378,6 +424,7 @@ export {
     deleteTournament,
     describeTournamentError,
     fetchTournamentConfig,
+    finishTournament,
     handleMessage,
     joinTournament,
     leaveOnPageExit,

@@ -8,7 +8,7 @@ import {
     scrollChatToLatest,
 } from "@/chat";
 import { currentGameRowsTemplate } from "@/current-games";
-import { type MessageKey, formatList, t } from "@/i18n";
+import { type MessageKey, formatDate, formatList, t } from "@/i18n";
 import { listLoadingTemplate } from "@/list-loading";
 import { describeTournamentError } from "@/tournament/handlers";
 import { playedGamesTemplate } from "@/tournament/played-games";
@@ -19,11 +19,13 @@ import {
     type TournamentState,
     type TournamentTab,
     isConnectionLost,
+    isFinished,
     isLive,
 } from "@/tournament/state";
 
 interface TournamentActions {
     readonly deleteTournament: () => void;
+    readonly finishTournament: () => void;
     readonly renameTournament: (name: string) => void;
     readonly selectTab: (tab: TournamentTab) => void;
     readonly sendChat: (text: string) => boolean;
@@ -168,7 +170,16 @@ function chatTemplate(page: TournamentPage): TemplateResult {
     </details>`;
 }
 
+function finishedTemplate(finishedAt: Date): TemplateResult {
+    return html`<span class="tournament-finished">
+        ${t("tournament.finished_on", { date: formatDate(finishedAt) })}
+    </span>`;
+}
+
 function connectingTemplate(state: TournamentState): TemplateResult | typeof nothing {
+    if (state.finishedAt !== null) {
+        return finishedTemplate(state.finishedAt);
+    }
     if (state.pageError) {
         return nothing;
     }
@@ -183,6 +194,9 @@ function connectingTemplate(state: TournamentState): TemplateResult | typeof not
 
 function panelsTemplate(page: TournamentPage): TemplateResult | typeof nothing {
     const { actions, state } = page;
+    if (isFinished(state)) {
+        return playedGamesTemplate(state.played, state.playedExpanded, actions.showAllPlayed);
+    }
     if (!state.joined) {
         return isConnectionLost(state)
             ? nothing
@@ -222,7 +236,9 @@ function tabsTemplate(page: TournamentPage): TemplateResult | typeof nothing {
 }
 
 function isEntering(state: TournamentState): boolean {
-    return !state.joined && state.pageError === null && !isConnectionLost(state);
+    return (
+        !state.joined && !isFinished(state) && state.pageError === null && !isConnectionLost(state)
+    );
 }
 
 function nameTemplate(state: TournamentState): TemplateResult | string {
@@ -284,6 +300,26 @@ function deleteTemplate(page: TournamentPage): TemplateResult {
     `;
 }
 
+function finishTemplate(page: TournamentPage): TemplateResult | typeof nothing {
+    const { actions, state } = page;
+    if (isFinished(state)) {
+        return nothing;
+    }
+    function submitFinish(event: SubmitEvent): void {
+        event.preventDefault();
+        actions.finishTournament();
+    }
+    return html`
+        <details class="tournament-finish">
+            <summary>${t("tournament.owner.finish.open")}</summary>
+            <form @submit=${submitFinish}>
+                <p>${t("tournament.owner.finish.warning")}</p>
+                <button type="submit" ?disabled=${state.ownerBusy}>${t("tournament.owner.finish.confirm")}</button>
+            </form>
+        </details>
+    `;
+}
+
 function settingsTemplate(page: TournamentPage, config: TournamentConfig): TemplateResult {
     const { state } = page;
     return html`
@@ -293,7 +329,7 @@ function settingsTemplate(page: TournamentPage, config: TournamentConfig): Templ
                     ? nothing
                     : html`<div class="lobby-alert" role="alert"><p>${t(state.ownerError)}</p></div>`
             }
-            ${renameFormTemplate(page, config)} ${deleteTemplate(page)}
+            ${renameFormTemplate(page, config)} ${finishTemplate(page)} ${deleteTemplate(page)}
         </section>
     `;
 }

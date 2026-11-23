@@ -174,13 +174,14 @@ class Tournament(BaseModel, frozen=True):
     """
     A tournament stored in the tournament repository; its owner is the account that created it.
 
-    `created_at` is epoch seconds.
+    `created_at` and `finished_at` are epoch seconds; `finished_at` is None until the owner finishes it.
     """
 
     id: str
     name: str
     owner_user_id: str
     created_at: float
+    finished_at: float | None = None
 
 
 class TournamentGameCounts(BaseModel, frozen=True):

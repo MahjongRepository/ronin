@@ -11,6 +11,7 @@ import {
     buildStatusHandler,
     deleteTournament,
     fetchTournamentConfig,
+    finishTournament,
     handleMessage,
     joinTournament,
     leaveOnPageExit,
@@ -24,6 +25,7 @@ import {
     TOURNAMENT_NOT_FOUND,
     type TournamentConfig,
     type TournamentConfigAnswer,
+    type TournamentFinish,
     type TournamentState,
     createTournamentState,
 } from "@/tournament/state";
@@ -36,11 +38,19 @@ export interface TournamentViewDeps {
 interface TournamentMount {
     readonly host: HTMLElement;
     readonly navigate: Navigate;
+    readonly reload: () => void;
     readonly tournamentId: string;
+}
+
+interface SocketHooks {
+    readonly draw: () => void;
+    readonly rejoin: () => void;
+    readonly reload: () => void;
 }
 
 const NO_ACTIONS: TournamentActions = {
     deleteTournament: () => {},
+    finishTournament: () => {},
     renameTournament: () => {},
     selectTab: () => {},
     sendChat: () => false,
@@ -67,6 +77,7 @@ function showTournamentFrame(mount: TournamentMount, pageError: string | null): 
 function buildActions(state: TournamentState, owner: OwnerContext): TournamentActions {
     return {
         deleteTournament: () => void deleteTournament(state, owner),
+        finishTournament: () => void finishTournament(state, owner),
         renameTournament: (name) => void renameTournament(state, owner, name),
         selectTab: (tab) => {
             state.tab = tab;
@@ -88,8 +99,9 @@ function buildActions(state: TournamentState, owner: OwnerContext): TournamentAc
     };
 }
 
-function attachSocket(state: TournamentState, draw: () => void, rejoin: () => void): () => void {
-    const handlers = buildMessageHandlers(state, draw);
+function attachSocket(state: TournamentState, hooks: SocketHooks): () => void {
+    const { draw, rejoin } = hooks;
+    const handlers = buildMessageHandlers(state, draw, hooks.reload);
     state.socket = new LobbySocket(
         (message) => handleMessage(handlers, message),
         buildStatusHandler(state, draw, rejoin),
@@ -109,14 +121,31 @@ function attachSocket(state: TournamentState, draw: () => void, rejoin: () => vo
     };
 }
 
+function startTournament(
+    state: TournamentState,
+    finish: TournamentFinish | null,
+    hooks: SocketHooks,
+): (() => void)[] {
+    if (finish !== null) {
+        state.finishedAt = finish.finishedAt;
+        state.played = finish.played;
+        hooks.draw();
+        return [];
+    }
+    const stops = [attachSocket(state, hooks), redrawElapsedTimes(hooks.draw)];
+    hooks.rejoin();
+    return stops;
+}
+
 function openTournament(mount: TournamentMount, config: TournamentConfig): MountedView {
     const state = createTournamentState();
     state.name = config.name;
     let disposed = false;
-    const { navigate, tournamentId } = mount;
+    const { navigate, reload, tournamentId } = mount;
     const actions = buildActions(state, {
         isDisposed: () => disposed,
         navigate,
+        reload,
         render: draw,
         tournamentId,
     });
@@ -126,8 +155,7 @@ function openTournament(mount: TournamentMount, config: TournamentConfig): Mount
     function rejoin(): void {
         joinTournament(state, draw, config.wsUrl);
     }
-    const stops = [attachSocket(state, draw, rejoin), redrawElapsedTimes(draw)];
-    rejoin();
+    const stops = startTournament(state, config.finish, { draw, rejoin, reload });
     return {
         rerender: draw,
         unmount: () => {
@@ -158,15 +186,17 @@ export function mountTournamentView(
     tournamentId: string,
     deps: TournamentViewDeps,
 ): MountedView {
-    const mount = { host, navigate: deps.navigate, tournamentId };
+    const mount = { host, navigate: deps.navigate, reload: () => void load(), tournamentId };
     let disposed = false;
     let shown = showTournamentFrame(mount, null);
 
     async function load(): Promise<void> {
         const answer = await fetchTournamentConfig(tournamentId);
-        if (!disposed) {
-            shown = showAnswer(mount, answer);
+        if (disposed) {
+            return;
         }
+        shown.unmount();
+        shown = showAnswer(mount, answer);
     }
 
     void load();

@@ -11,6 +11,8 @@ from starlette.responses import JSONResponse, RedirectResponse
 from app.auth.csrf import is_csrf_valid
 from app.chat_messages import CHAT_MAX_LENGTH
 from app.dal.models import Tournament, TournamentGameCounts
+from app.tournaments.games import played_games
+from app.tournaments.hub import TOURNAMENT_DELETED, TOURNAMENT_FINISHED
 from app.views.error_pages import NO_STORE_HEADERS, json_csrf_rejection
 from app.views.handlers import lobby_websocket_url
 from app.views.json_body import parse_json_body
@@ -67,8 +69,8 @@ async def _read_checked_body(request: Request) -> dict | Response:
 
 async def lobby_tournaments(request: Request) -> JSONResponse:
     """
-    GET /api/lobby/tournaments - the user's own tournaments and everyone else's, each newest first, whether the user
-    may create one (a guest may not) and the name limit the create form enforces.
+    GET /api/lobby/tournaments - the user's own tournaments and everyone else's, each newest first and finished ones
+    included, whether the user may create one (a guest may not) and the name limit the create form enforces.
     """
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     tournaments = await tournament_repo.list_tournaments()
@@ -82,6 +84,7 @@ async def lobby_tournaments(request: Request) -> JSONResponse:
             "id": tournament.id,
             "name": tournament.name,
             "created_at": tournament.created_at,
+            "finished_at": tournament.finished_at,
             **counts.get(tournament.id, no_games).model_dump(),
         }
         (own if tournament.owner_user_id == request.user.user_id else others).append(row)
@@ -124,16 +127,23 @@ async def lobby_tournament(request: Request) -> JSONResponse:
     """
     GET /api/lobby/tournaments/{tournament_id} - what the tournament view shows and opens the page's socket with.
 
-    Anyone signed in gets it; ``is_owner`` tells the view whether to show the id, the API hints, rename and delete.
+    Anyone signed in gets it; ``is_owner`` tells the view whether to show the id, the API hints, rename and delete. A
+    finished tournament's page opens no socket, so its answer carries its ended games as ``played``, null otherwise.
     """
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     tournament = await tournament_repo.get_tournament(request.path_params["tournament_id"])
     if tournament is None:
         return _tournament_not_found()
 
+    played = None
+    if tournament.finished_at is not None:
+        played = played_games(await tournament_repo.list_games(tournament.id))
+
     return JSONResponse(
         {
             "name": tournament.name,
+            "finished_at": tournament.finished_at,
+            "played": played,
             "ws_url": lobby_websocket_url(request, f"/ws/tournaments/{tournament.id}"),
             "chat_max_length": CHAT_MAX_LENGTH,
             "name_max_length": TOURNAMENT_NAME_MAX_LENGTH,
@@ -166,6 +176,32 @@ async def lobby_rename_tournament(request: Request) -> Response:
     return JSONResponse({"name": name}, headers=NO_STORE_HEADERS)
 
 
+async def lobby_finish_tournament(request: Request) -> Response:
+    """
+    POST /api/lobby/tournaments/{tournament_id}/finish - finish the owner's tournament and answer when it finished.
+
+    Its open sockets are told ``tournament_finished`` and closed, and no socket or game start is accepted after it.
+    Games already running keep playing and their ends are still recorded. Anyone but the owner gets the 404 of an
+    unknown tournament; a tournament already finished answers 409 ``tournament_finished``.
+    """
+    body = await _read_checked_body(request)
+    if not isinstance(body, dict):
+        return body
+
+    tournament = await _find_owned_tournament(request)
+    if tournament is None:
+        return _tournament_not_found()
+
+    tournament_repo: TournamentRepository = request.app.state.tournament_repo
+    finished_at = time.time()
+    if not await tournament_repo.finish_tournament(tournament.id, finished_at):
+        return _json_error(TOURNAMENT_FINISHED, HTTPStatus.CONFLICT)
+
+    hub: TournamentHub = request.app.state.tournament_hub
+    hub.close_tournament(tournament.id, TOURNAMENT_FINISHED)
+    return JSONResponse({"finished_at": finished_at}, headers=NO_STORE_HEADERS)
+
+
 async def lobby_delete_tournament(request: Request) -> Response:
     """
     POST /api/lobby/tournaments/{tournament_id}/delete - delete the owner's tournament.
@@ -185,7 +221,7 @@ async def lobby_delete_tournament(request: Request) -> Response:
     await tournament_repo.delete_tournament(tournament.id)
 
     hub: TournamentHub = request.app.state.tournament_hub
-    hub.close_deleted_tournament(tournament.id)
+    hub.close_tournament(tournament.id, TOURNAMENT_DELETED)
     poller: TournamentGameEndPoller = request.app.state.tournament_game_end_poller
     poller.untrack_tournament(tournament.id)
     return JSONResponse({}, headers=NO_STORE_HEADERS)

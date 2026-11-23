@@ -8,15 +8,29 @@ afterEach(() => {
 });
 
 describe("renderTournaments", () => {
-    it("shows each tournament's live and finished games, or that it has none", () => {
+    it("shows each tournament's live and finished games, or that it has none, and marks a finished one", () => {
         const state = createTournamentsState();
         state.lists = parseTournamentLists({
             can_create: true,
             name_max_length: 80,
             others: [],
             own: [
-                { created_at: 0, finished: 6, id: "t1", name: "Autumn Cup", playing: 2 },
-                { created_at: 0, finished: 0, id: "t2", name: "Aye", playing: 0 },
+                {
+                    created_at: 0,
+                    finished: 6,
+                    finished_at: 100,
+                    id: "t1",
+                    name: "Autumn Cup",
+                    playing: 2,
+                },
+                {
+                    created_at: 0,
+                    finished: 0,
+                    finished_at: null,
+                    id: "t2",
+                    name: "Aye",
+                    playing: 0,
+                },
             ],
         });
         const host = document.createElement("main");
@@ -34,7 +48,7 @@ describe("renderTournaments", () => {
                 ].map((part) => part.textContent),
             ]),
         ).toEqual([
-            ["Autumn Cup", "2 playing", ["6 finished"]],
+            ["Autumn Cup", "2 playing", ["Tournament finished", "6 finished"]],
             ["Aye", null, ["No games yet"]],
         ]);
     });
@@ -44,7 +58,16 @@ describe("renderTournaments", () => {
         state.lists = parseTournamentLists({
             can_create: false,
             name_max_length: 80,
-            others: [{ created_at: 0, finished: 0, id: "t3", name: "Open Cup", playing: 1 }],
+            others: [
+                {
+                    created_at: 0,
+                    finished: 0,
+                    finished_at: null,
+                    id: "t3",
+                    name: "Open Cup",
+                    playing: 1,
+                },
+            ],
             own: [],
         });
         const host = document.createElement("main");
