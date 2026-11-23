@@ -795,8 +795,12 @@ async function showOpponentTedashi(): Promise<TableState> {
 }
 
 describe("opponent tedashi hole", () => {
-    it("keeps the hole through another seat's draw and closes it at once when the discarder draws again", async () => {
+    beforeEach(() => {
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        vi.spyOn(performance, "now").mockReturnValue(1000);
+    });
+
+    it("keeps the hole through another seat's draw and closes it at once when the discarder draws again", async () => {
         const view = { view: bottomOnly };
         const discarded = await showOpponentTedashi();
         const closes = animations.filter(movesOpponentHandSlot);
