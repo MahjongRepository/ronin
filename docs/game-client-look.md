@@ -645,13 +645,13 @@ as a number, not seen, so the count turns red from ten tiles left.
   450ms after it, the viewer's and an opponent's alike in live play, as in a watched live game even face up,
   and at once with no discard still landing (at once in a replay). The dealer's opening draw, the viewer's included, appears 300ms after it reaches the board, so the
   13 dealt tiles show alone first (at once in a replay). Discards travel from hand
-  to river in 150ms at a constant speed, stopping in their slot, the latest in its gap; it stays there until 330ms after landing or the
+  to river in 200ms at a constant speed, stopping in their slot, the latest in its gap; it stays there until 330ms after landing or the
   next draw's arrival, whichever is later, or while a call on it is being decided, then slides back into line over 120ms, starting and stopping gently.
-  A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
+  A travelling tile is three faint shadowless copies, 8ms apart, in its destination's look from take-off: its body
   (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
   the lying own meld tile), its size and its turn. Nothing
-  resizes or turns in flight; only its place moves. A discard's middle copy turns solid over its last 60ms, so the tile
-  settles rather than pops in. The solid tile appears in its slot when the middle copy lands, and
+  resizes or turns in flight; only its place moves. The copies stay faint to the end, and the solid tile appears in its slot in one
+  frame when the middle copy lands, and
   a replay's tsumogiri shade stays on the copies. The body
   flies upright on the screen in its slot's orientation, so the light and the edge stay fixed to the screen. A
   flight a later update touches lands at once and any further move starts from its slot. Rearranging hands, settling

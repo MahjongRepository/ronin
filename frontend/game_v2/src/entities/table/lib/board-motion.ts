@@ -1,16 +1,15 @@
 import { type BoardMotionCue, type SeatPosition } from "@/entities/table/model/board-types";
 
-const FLIGHT = 150;
+const FLIGHT = 200;
 const GHOSTS = [
     { alpha: 0.07, delay: 0 },
-    { alpha: 0.2, delay: 12 },
-    { alpha: 0.07, delay: 24 },
+    { alpha: 0.2, delay: 8 },
+    { alpha: 0.07, delay: 16 },
 ] as const;
 
 export const BOARD_MOTION = {
     dealHold: 300,
     discardEasing: "linear",
-    discardSolidFrom: 0.6,
     drawHold: 450,
     flight: FLIGHT,
     gapReturn: 120,

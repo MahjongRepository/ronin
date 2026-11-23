@@ -897,15 +897,7 @@ describe("tile flight material", () => {
             [0, ["translate"], BOARD_MOTION.discardEasing, undefined],
             [1, ["translate"], "linear", undefined],
         ];
-        expect(animations.map(riverCourse)).toEqual([
-            trail,
-            [
-                [0, ["opacity", "translate"], BOARD_MOTION.discardEasing, "0.2"],
-                [BOARD_MOTION.discardSolidFrom, ["opacity"], "linear", "0.2"],
-                [1, ["opacity", "translate"], "linear", "1"],
-            ],
-            trail,
-        ]);
+        expect(animations.map(riverCourse)).toEqual([trail, trail, trail]);
         expect(host.querySelectorAll(".board-motion__tile > .tile--standing")).toHaveLength(0);
         expect(
             host

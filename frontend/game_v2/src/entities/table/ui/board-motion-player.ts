@@ -44,24 +44,9 @@ function flightFrames({ from, to }: Flight): Keyframe[] {
     return [{ translate: `${deltaX}px ${deltaY}px` }, { translate: "0px 0px" }];
 }
 
-function ghostFrames(
-    flight: Flight,
-    ghost: (typeof BOARD_MOTION.ghosts)[number],
-    intoRiver: boolean,
-): Keyframe[] {
+function ghostFrames(flight: Flight, intoRiver: boolean): Keyframe[] {
     const [start, end] = flightFrames(flight);
-    if (!intoRiver) {
-        return [start, end];
-    }
-    const eased = { ...start, easing: BOARD_MOTION.discardEasing };
-    if (ghost !== MAIN_GHOST) {
-        return [eased, end];
-    }
-    return [
-        { ...eased, opacity: ghost.alpha },
-        { offset: BOARD_MOTION.discardSolidFrom, opacity: ghost.alpha },
-        { ...end, opacity: 1 },
-    ];
+    return intoRiver ? [{ ...start, easing: BOARD_MOTION.discardEasing }, end] : [start, end];
 }
 
 function placeImage({ board, image, to }: Flight): void {
@@ -299,7 +284,7 @@ export class BoardMotionPlayer {
         placeImage(flight);
         const intoRiver = target.region === "discards";
         for (const ghost of BOARD_MOTION.ghosts) {
-            const animation = this.playGhost(flight, ghost, ghostFrames(flight, ghost, intoRiver));
+            const animation = this.playGhost(flight, ghost, ghostFrames(flight, intoRiver));
             if (ghost === MAIN_GHOST) {
                 this.running.set(motion.target, {
                     animation,
