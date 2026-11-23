@@ -10,76 +10,14 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from app.db.schema import migrate
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 logger = structlog.get_logger()
 
 _DB_FILE_PERMISSIONS = 0o600
-
-_SCHEMA_SQL = """\
-CREATE TABLE IF NOT EXISTS players (
-    id TEXT PRIMARY KEY,
-    username TEXT NOT NULL,
-    api_key_hash TEXT,
-    data TEXT NOT NULL
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_players_username
-    ON players (username COLLATE NOCASE);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_players_api_key_hash
-    ON players (api_key_hash) WHERE api_key_hash IS NOT NULL;
-
-CREATE TABLE IF NOT EXISTS played_games (
-    id TEXT PRIMARY KEY,
-    started_at TEXT NOT NULL,
-    ended_at TEXT,
-    end_reason TEXT,
-    data TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_played_games_started_at
-    ON played_games (started_at DESC);
-
-CREATE TABLE IF NOT EXISTS sessions (
-    token_hash TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    username TEXT NOT NULL,
-    is_guest INTEGER NOT NULL,
-    created_at REAL NOT NULL,
-    expires_at REAL NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_sessions_expires_at
-    ON sessions (expires_at);
-
-CREATE TABLE IF NOT EXISTS tournaments (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    owner_user_id TEXT NOT NULL,
-    created_at REAL NOT NULL,
-    finished_at REAL
-);
-
-CREATE INDEX IF NOT EXISTS idx_tournaments_owner_user_id
-    ON tournaments (owner_user_id);
-
-CREATE TABLE IF NOT EXISTS tournament_games (
-    game_id TEXT PRIMARY KEY,
-    tournament_id TEXT NOT NULL,
-    players TEXT NOT NULL,
-    created_at REAL NOT NULL,
-    ended_at REAL,
-    end_reason TEXT,
-    result TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_tournament_games_tournament_id
-    ON tournament_games (tournament_id);
-"""
-
-_ADDED_COLUMNS = (("tournaments", "finished_at", "REAL"),)
 
 _DROPPED_UNRUN = "dropped unrun: the database worker did not drain before shutdown"
 
@@ -308,7 +246,7 @@ class Database:
 
     def _connect(self) -> sqlite3.Connection:
         """
-        Open the database, apply pragmas, create schema, and harden file permissions; close it again on any failure.
+        Open the database, apply pragmas, migrate, and harden file permissions; close it again on any failure.
         """
         Path(self._path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -317,8 +255,9 @@ class Database:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
             conn.execute(f"PRAGMA busy_timeout={self._busy_timeout_ms:d}")
-            conn.executescript(_SCHEMA_SQL)
-            _add_missing_columns(conn)
+            applied = migrate(conn)
+            if applied:
+                logger.info("database migrated", migrations=applied)
             self._harden_permissions()
         except BaseException:
             conn.close()
@@ -400,13 +339,3 @@ def _failure_log(log_fields: dict[str, str]) -> _Report:
             logger.error("database write failed", exc_info=error, **log_fields)
 
     return report
-
-
-def _add_missing_columns(conn: sqlite3.Connection) -> None:
-    """
-    Add each column of ``_ADDED_COLUMNS`` to a table created before it, which ``CREATE TABLE IF NOT EXISTS`` skips.
-    """
-    for table, column, column_type in _ADDED_COLUMNS:
-        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
-        if column not in existing:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")

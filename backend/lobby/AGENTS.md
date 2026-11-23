@@ -189,8 +189,11 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   still opens, but it is a record only: its config answer carries the ended games, every player connection and events
   subscriber is told `tournament_finished` and closed, new ones are refused the same way, the chat history is dropped
   and the API refuses game starts with 409. Running games play on and the poller still records their ends.
-* `db/connection.py` creates the schema with `CREATE TABLE IF NOT EXISTS`, which never changes an existing table, so a
-  column added to one is also listed in `_ADDED_COLUMNS`, which adds it to a database created before it.
+* The schema is the files of `db/migrations/NNNN_<name>.sql`, and `Database.open` applies the ones missing from the
+  `schema_migrations` ledger in name order, all in one immediate transaction with their ledger rows, so a migration
+  holds no transaction control and a failure leaves none applied. An applied migration is never edited; a fix is a new
+  one. `0000_initial` uses `IF NOT EXISTS` because the game server creates `played_games` in the same file on its own
+  and may start first, and because databases from before the ledger already hold its tables.
 * `live_games/` — the lobby page's list of the games being played, over the send-only `/ws/games`. "Being played"
   comes only from the game server's in-memory sessions (its internal `GET /games`, started games only), never from
   `played_games`, whose `ended_at` stays NULL after a crash. One task polls it, and only while a page watches; each

@@ -34,8 +34,42 @@ class TestOpen:
         tables = await db.submit_read(
             lambda conn: [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")],
         )
-        assert sorted(tables) == ["played_games", "players", "sessions", "tournament_games", "tournaments"]
         await db.close()
+
+        assert sorted(tables) == [
+            "played_games",
+            "players",
+            "schema_migrations",
+            "sessions",
+            "tournament_games",
+            "tournaments",
+        ]
+
+    async def test_database_open__when_game_server_created_its_table_first__should_create_the_rest_of_the_schema(
+        self, tmp_path: Path
+    ):
+        db_path = tmp_path / "test.db"
+        with closing(sqlite3.connect(db_path)) as conn:
+            conn.execute(
+                "CREATE TABLE played_games (id TEXT PRIMARY KEY, started_at TEXT NOT NULL, ended_at TEXT, "
+                "end_reason TEXT, data TEXT NOT NULL)"
+            )
+        db = Database(db_path)
+        await db.open()
+
+        tables = await db.submit_read(
+            lambda conn: [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")],
+        )
+        await db.close()
+
+        assert sorted(tables) == [
+            "played_games",
+            "players",
+            "schema_migrations",
+            "sessions",
+            "tournament_games",
+            "tournaments",
+        ]
 
     async def test_database_open__when_tournaments_table_predates_finished_at__should_add_it_and_keep_rows(
         self, tmp_path: Path
