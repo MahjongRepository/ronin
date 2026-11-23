@@ -333,7 +333,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   as possible so the latest discard and the riichi tile are found at a glance.
 - **Latest discard.** Decision: every newest discard lands in its gap and stays there until 300ms after it lands
   (when an opponent's held draw appears), or for as long as a call on it is being decided, whether or not the viewer
-  has an offer on it; then it slides back into line over 120ms, never outward. The gap is small and reads the same from every
+  has an offer on it; then it slides back into line over 240ms, starting and stopping gently, never outward. The gap is small and reads the same from every
   seat: the same felt between painted bodies before it along its row and toward its seat (7px off a phone; a phone's
   scaled to its river tile, 7px per 50px, never under 2px), as a tile just thrown lies, with no ring, pointer or
   colour. Where the move borders an earlier tile on the screen's vertical (a side river's row past its first tile, a
@@ -645,7 +645,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   (the watched seat's at 150ms), and at once with no discard still landing (at once in a replay). The dealer's opening draw, the viewer's included, appears 300ms after it reaches the board, so the
   13 dealt tiles show alone first (at once in a replay). Discards travel from hand
   to river in 150ms, slowing to a stop in their slot, the latest in its gap; it stays there until 300ms after landing, or
-  while a call on it is being decided, then slides back into line over 500ms, decelerating.
+  while a call on it is being decided, then slides back into line over 240ms, starting and stopping gently.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
   (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
   the lying own meld tile), its size and its turn. Nothing
@@ -658,11 +658,13 @@ as a number, not seen, so the count turns red from ten tiles left.
   shared edge and shadow and native button feedback. Meld resizing keeps its tiles moving and scaling together
   under that shared shadow. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,
   shows in its new slot at once.
-  An opponent's tedashi leaves from the middle of their concealed hand and leaves a hole there, which closes 1000ms
-  after the landing as the tiles to its right and the drawn tile slide over, over 300ms and decelerating. The hole is
-  visual only: the next seat's draw and everything else keep their time. A tsumogiri leaves no hole, and that seat's
-  next draw or call settles its concealed hand at once, closing a hole still open. A visible hand closes its gap and
-  sorts over 300ms from the discard's landing, decelerating. Both run alike in live play and in a replay.
+  In live play an opponent's tedashi leaves from the middle of their concealed hand and leaves a hole there, which
+  closes 1000ms after the landing as the tiles to its right and the drawn tile slide over, over 240ms, starting and
+  stopping gently. The hole is visual only: the next seat's draw and everything else keep their time. A tsumogiri
+  leaves no hole, and that seat's next draw or call settles its concealed hand at once, closing a hole still open. A
+  visible hand, every hand in a replay included, closes its gap and sorts over 240ms from the discard's landing,
+  starting and stopping gently. Every other slide keeps its decelerating timing: a hand rearranged by a call over
+  300ms, settling discards over 150ms, laid melds and dora indicators over 200ms.
   Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates
   only the latest move and never waits for an animation backlog. Calls assemble their
   meld from the original hand and river positions; travel time follows distance at the local tile scale, bounded

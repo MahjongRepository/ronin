@@ -12,9 +12,10 @@ export const BOARD_MOTION = {
     discardSolidFrom: 0.6,
     drawHold: 300,
     flight: FLIGHT,
-    gapReturn: 500,
+    gapReturn: 240,
     ghosts: GHOSTS,
-    handClose: 300,
+    handClose: 240,
+    handReflow: 300,
     holeHold: 1000,
     landing: GHOSTS[1].delay + FLIGHT,
     maxTravel: 300,
@@ -23,6 +24,7 @@ export const BOARD_MOTION = {
     minTravel: 80,
     ownDrawHold: 150,
     revealTile: 35,
+    settleEasing: "cubic-bezier(0.37, 0, 0.63, 1)",
     slotEasing: "cubic-bezier(0.16, 1, 0.3, 1)",
 } as const;
 
@@ -59,7 +61,7 @@ export interface MotionTile {
 export interface TileMotion {
     readonly target: string;
     readonly source: string | null;
-    readonly kind: "flight" | "hold" | "reflow" | "return" | "reveal";
+    readonly kind: "close" | "flight" | "hold" | "reflow" | "return" | "reveal";
     readonly duration: number;
     readonly delay: number;
 }
@@ -202,7 +204,7 @@ function planConcealedShift(target: MotionTile, context: MoveContext): TileMotio
         : {
               delay: BOARD_MOTION.landing + BOARD_MOTION.holeHold,
               duration: BOARD_MOTION.handClose,
-              kind: "reflow",
+              kind: "close",
               source: mover.key,
               target: target.key,
           };
@@ -251,12 +253,22 @@ function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
         return null;
     }
     return {
-        delay: !flight && target.region === "hand" && context.discarding ? BOARD_MOTION.landing : 0,
-        duration: moveDuration(source, target),
-        kind: flight ? "flight" : "reflow",
+        ...moveTiming(source, target, context.discarding),
         source: source.key,
         target: target.key,
     };
+}
+
+function moveTiming(
+    source: MotionTile,
+    target: MotionTile,
+    discarding: boolean,
+): Pick<TileMotion, "delay" | "duration" | "kind"> {
+    const flight = !samePlace(source, target);
+    if (!flight && target.region === "hand" && discarding) {
+        return { delay: BOARD_MOTION.landing, duration: BOARD_MOTION.handClose, kind: "close" };
+    }
+    return { delay: 0, duration: moveDuration(source, target), kind: flight ? "flight" : "reflow" };
 }
 
 function moveDuration(source: MotionTile, target: MotionTile): number {
@@ -266,7 +278,7 @@ function moveDuration(source: MotionTile, target: MotionTile): number {
     if (!samePlace(source, target) || target.region === "discards") {
         return BOARD_MOTION.flight;
     }
-    return target.region === "hand" ? BOARD_MOTION.handClose : BOARD_MOTION.meldShift;
+    return target.region === "hand" ? BOARD_MOTION.handReflow : BOARD_MOTION.meldShift;
 }
 
 function planDeal(

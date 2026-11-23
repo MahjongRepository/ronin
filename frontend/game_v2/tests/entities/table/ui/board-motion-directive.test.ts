@@ -920,11 +920,23 @@ function renderLatestRiver(tileIds: readonly number[]): void {
 function returnOf(animation: Animation | undefined): readonly unknown[] {
     const [start, end] = animation ? getAnimationFrames(animation) : [];
     const timing = animation?.effect?.getTiming();
-    return [translationOf(start?.transform), end?.transform, timing?.delay, timing?.duration];
+    return [
+        translationOf(start?.transform),
+        end?.transform,
+        timing?.delay,
+        timing?.duration,
+        timing?.easing,
+    ];
 }
 
 function gapReturn(delay: number): readonly unknown[] {
-    return [[LATEST_GAP, LATEST_GAP], "translate(0px, 0px)", delay, BOARD_MOTION.gapReturn];
+    return [
+        [LATEST_GAP, LATEST_GAP],
+        "translate(0px, 0px)",
+        delay,
+        BOARD_MOTION.gapReturn,
+        BOARD_MOTION.settleEasing,
+    ];
 }
 
 describe("latest discard gap", () => {

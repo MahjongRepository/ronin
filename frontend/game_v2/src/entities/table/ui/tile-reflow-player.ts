@@ -124,15 +124,19 @@ function sameKeys(first: ReadonlySet<string>, second: ReadonlySet<string>): bool
     return first.size === second.size && [...first].every((key) => second.has(key));
 }
 
+function settles(kind: TileMotion["kind"]): boolean {
+    return kind === "return" || kind === "close";
+}
+
 function animateSlot(
     slot: HTMLElement,
     frames: Keyframe[],
-    { delay, duration }: TileMotion,
+    { delay, duration, kind }: TileMotion,
 ): { readonly animation: Animation; readonly effect: KeyframeEffect } {
     const animation = slot.animate(frames, {
         delay,
         duration,
-        easing: BOARD_MOTION.slotEasing,
+        easing: settles(kind) ? BOARD_MOTION.settleEasing : BOARD_MOTION.slotEasing,
         fill: "both",
     });
     if (!(animation.effect instanceof KeyframeEffect)) {

@@ -66,7 +66,7 @@ describe("planTileMotion", () => {
                 {
                     delay: BOARD_MOTION.landing,
                     duration: BOARD_MOTION.handClose,
-                    kind: "reflow",
+                    kind: "close",
                     source: "0",
                     target: "0",
                 },
@@ -82,8 +82,9 @@ describe("planTileMotion", () => {
         },
     );
 
-    it("assembles a meld from its caller's hand and another seat's river", () => {
+    it("assembles a meld from its caller's hand and another seat's river, sliding the rest of the hand at once", () => {
         const hand = tile("hand-1", { id: "1" });
+        const kept = tile("hand-3", { id: "3", rect: { ...hand.rect, left: 40 } });
         const river = tile("river-2", {
             id: "2",
             region: "discards",
@@ -96,8 +97,19 @@ describe("planTileMotion", () => {
                 region: "melds",
             }),
         );
-        const result = planTileMotion([hand, river], meld);
-        expect(result.map(({ source, target, kind }) => ({ kind, source, target }))).toEqual([
+        const result = planTileMotion([hand, kept, river], [{ ...kept, rect: hand.rect }, ...meld]);
+        expect(
+            result.map(({ delay, duration, source, target, kind }) =>
+                kind === "flight" ? { kind, source, target } : { delay, duration, kind, source, target },
+            ),
+        ).toEqual([
+            {
+                delay: 0,
+                duration: BOARD_MOTION.handReflow,
+                kind: "reflow",
+                source: "hand-3",
+                target: "hand-3",
+            },
             { kind: "flight", source: "hand-1", target: "meld-1" },
             { kind: "flight", source: "river-2", target: "meld-2" },
         ]);
@@ -134,7 +146,7 @@ describe("planTileMotion", () => {
         const shift = {
             delay: BOARD_MOTION.landing + BOARD_MOTION.holeHold,
             duration: BOARD_MOTION.handClose,
-            kind: "reflow",
+            kind: "close",
         };
         expect(planTileMotion([...hand, drawn], [...hand, tedashi])).toEqual([
             { ...shift, source: "slot-2", target: "slot-1" },
