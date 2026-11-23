@@ -26,20 +26,15 @@ interface TileReflow {
 
 interface ReleaseGroup {
     readonly members: Set<TileReflow>;
-    timer: ReturnType<typeof setTimeout> | undefined;
+    readonly timer: ReturnType<typeof setTimeout>;
 }
 
-/** When a slot starts after its plan does: its planned delay, or the draw hold after the latest landing. */
-type ReleaseDelay = number | "drawHold";
-
 /** One played plan's pending releases, a group per planned delay, so the slots sharing a delay start together. */
-export type SlotReleases = Map<ReleaseDelay, ReleaseGroup>;
+export type SlotReleases = Map<number, ReleaseGroup>;
 
 export interface ReflowScene {
     readonly after: ReadonlyMap<string, TileSnapshot>;
     readonly releases: SlotReleases;
-    /** Whether the plan's slots wait for its start; otherwise they move at once and only delayed ones wait. */
-    readonly waits: boolean;
 }
 
 /** How far a tile starts from its slot in its frame (px): the screen's offset of their centres, unscaled and turned. */
@@ -149,7 +144,7 @@ function settles(kind: TileMotion["kind"]): boolean {
 function animateSlot(
     slot: HTMLElement,
     frames: Keyframe[],
-    { duration, kind }: TileMotion,
+    { delay, duration, kind }: TileMotion,
 ): { readonly animation: Animation; readonly effect: KeyframeEffect } {
     const animation = slot.animate(frames, {
         delay: 0,
@@ -161,25 +156,14 @@ function animateSlot(
         animation.cancel();
         throw new Error("Tile reflow requires a keyframe effect");
     }
+    if (delay > 0) {
+        animation.pause();
+        animation.currentTime = 0;
+    }
     return { animation, effect: animation.effect };
 }
 
-/** When a slot of a plan waiting (`waits`) or not starts after the plan does; null when it moves at once. */
-function releaseDelay({ delay, kind }: TileMotion, waits: boolean): ReleaseDelay | null {
-    if (waits && kind === "return") {
-        return "drawHold";
-    }
-    return waits || delay > 0 ? delay : null;
-}
-
-/** Pauses a new animation at its first frame until something starts it. */
-export function holdAtStart(animation: Animation): void {
-    animation.pause();
-    animation.currentTime = 0;
-}
-
-/** Starts a waiting animation at `time` on its timeline, or now through `play()` when there is none. */
-export function startAt(animation: Animation, time: CSSNumberish | null): void {
+function startAt(animation: Animation, time: CSSNumberish | null): void {
     if (time === null) {
         animation.play();
         return;
@@ -259,7 +243,7 @@ export class TileReflowPlayer {
         active.effect.target = next.element.parentElement;
     }
 
-    play(motion: TileMotion, from: MotionRect, { after, releases, waits }: ReflowScene): void {
+    play(motion: TileMotion, from: MotionRect, { after, releases }: ReflowScene): void {
         const target = after.get(motion.target);
         const slot = target?.element.parentElement ?? null;
         if (target === undefined || slot === null) {
@@ -283,16 +267,14 @@ export class TileReflowPlayer {
                 visible: from,
             },
             releases,
-            releaseDelay(motion, waits),
         );
     }
 
-    private track(active: TileReflow, releases: SlotReleases, delay: ReleaseDelay | null): void {
+    private track(active: TileReflow, releases: SlotReleases): void {
         const { key } = active.target;
         this.running.set(key, active);
-        if (delay !== null) {
-            holdAtStart(active.animation);
-            this.releaseGroup(releases, delay).members.add(active);
+        if (active.shift.delay > 0) {
+            this.releaseGroup(releases, active.shift.delay).members.add(active);
         }
         this.markPartedSlots();
         active.animation.onfinish = () => {
@@ -301,34 +283,23 @@ export class TileReflowPlayer {
         };
     }
 
-    private releaseGroup(releases: SlotReleases, delay: ReleaseDelay): ReleaseGroup {
+    private releaseGroup(releases: SlotReleases, delay: number): ReleaseGroup {
         const pending = releases.get(delay);
         if (pending !== undefined) {
             return pending;
         }
-        const group: ReleaseGroup = { members: new Set(), timer: undefined };
+        const group: ReleaseGroup = {
+            members: new Set(),
+            timer: setTimeout(() => this.release(group), delay),
+        };
         releases.set(delay, group);
         this.releases.add(group);
         return group;
     }
 
-    /** Starts a played plan's slots at `at` (now when null), each group then or a timer after it, the returns after `drawHold`. */
-    start(releases: SlotReleases, at: number | null, drawHold: number): void {
-        for (const [planned, group] of releases) {
-            const delay = planned === "drawHold" ? drawHold : planned;
-            if (this.releases.has(group) && delay > 0) {
-                group.timer = setTimeout(() => this.release(group), delay);
-            } else if (this.releases.has(group)) {
-                this.release(group, at);
-            }
-        }
-    }
-
-    private release(
-        group: ReleaseGroup,
-        releasedAt: CSSNumberish | null = document.timeline.currentTime,
-    ): void {
+    private release(group: ReleaseGroup): void {
         this.releases.delete(group);
+        const releasedAt = document.timeline.currentTime;
         for (const member of group.members) {
             if (this.running.get(member.target.key) === member) {
                 startAt(member.animation, releasedAt);

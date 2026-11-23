@@ -16,23 +16,6 @@ function heardBy(
     });
 }
 
-const LANDS_AT = 30 + DISCARD_LANDING_MS;
-
-function listen(): { clacks: LandingClacks; clock: ManualClock; played: SoundCue[] } {
-    const clock = new ManualClock();
-    const played: SoundCue[] = [];
-    const clacks = new LandingClacks(steadyClockOn(clock), {
-        play: (cue) => played.push(cue),
-        setting: { load: () => ({ sound_on: true }), save: () => {} },
-    });
-    return { clacks, clock, played };
-}
-
-function landAt(clock: ManualClock, clacks: LandingClacks, at: number): void {
-    clock.advanceTo(at);
-    clacks.landIn(DISCARD_LANDING_MS);
-}
-
 describe("LandingClacks", () => {
     it.each([
         { atLanding: true, clackAt: DISCARD_LANDING_MS, hold: DRAW_HOLD_MS, ownDraw: false },
@@ -58,32 +41,4 @@ describe("LandingClacks", () => {
             ]);
         },
     );
-
-    it("moves a waiting clack and only the draw tick waiting on it to the landing the board reports", () => {
-        const { clacks, clock, played } = listen();
-
-        clacks.play(["discard"], true, false);
-        clacks.play(["draw"], true, false);
-        landAt(clock, clacks, 30);
-        const first = heardBy(clock, played, [LANDS_AT - 1, LANDS_AT]);
-        clock.advanceTo(200);
-        clacks.play(["discard"], true, false);
-        landAt(clock, clacks, 230);
-
-        expect([
-            first,
-            heardBy(clock, played, [
-                230 + DISCARD_LANDING_MS,
-                LANDS_AT + DRAW_HOLD_MS - 1,
-                LANDS_AT + DRAW_HOLD_MS,
-            ]),
-        ]).toEqual([
-            [[], ["discard"]],
-            [
-                ["discard", "discard"],
-                ["discard", "discard"],
-                ["discard", "discard", "draw"],
-            ],
-        ]);
-    });
 });

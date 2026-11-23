@@ -3,12 +3,9 @@ import { DISCARD_LANDING_MS, DRAW_HOLD_MS, OWN_DRAW_HOLD_MS } from "@/entities/t
 import { type CancelTimer, type Clock } from "@/shared/clock";
 
 interface PendingCues {
-    readonly at: number;
     readonly cancel: CancelTimer;
     readonly lead: SoundCue;
     readonly cues: SoundCue[];
-    /** The waiting clack this tick follows, which moves it along. */
-    readonly follows: PendingCues | null;
 }
 
 export class LandingClacks {
@@ -36,32 +33,6 @@ export class LandingClacks {
                 this.sound.play(cue);
             }
         }
-    }
-
-    /** Move the waiting clack, and the ticks waiting on it, to the board's landing `inMs` from now. */
-    landIn(inMs: number): void {
-        const clack = this.pending.findLast((pending) => pending.lead === "discard");
-        if (clack === undefined) {
-            return;
-        }
-        const shift = this.clock.now() + inMs - clack.at;
-        this.clackAt = clack.at + shift;
-        const ticks = this.pending.filter((pending) => pending.follows === clack);
-        this.drop([clack, ...ticks]);
-        const moved = this.playLater(clack.at + shift - this.clock.now(), clack.lead, clack);
-        for (const tick of ticks) {
-            this.playLater(tick.at + shift - this.clock.now(), tick.lead, {
-                ...tick,
-                follows: moved,
-            });
-        }
-    }
-
-    private drop(dropped: readonly PendingCues[]): void {
-        for (const pending of dropped) {
-            pending.cancel();
-        }
-        this.pending = this.pending.filter((pending) => !dropped.includes(pending));
     }
 
     landNow(): void {
@@ -101,29 +72,22 @@ export class LandingClacks {
     private drawAfterClack(drawHoldMs: number): void {
         const wait = this.clackAt === null ? 0 : this.clackAt + drawHoldMs - this.clock.now();
         if (wait > 0) {
-            const clack = this.pending.findLast((pending) => pending.lead === "discard");
-            this.playLater(wait, "draw", { follows: clack ?? null });
+            this.playLater(wait, "draw");
         } else {
             this.sound.play("draw");
         }
     }
 
-    private playLater(
-        delayMs: number,
-        lead: SoundCue,
-        { cues = [lead], follows = null }: Partial<Pick<PendingCues, "cues" | "follows">> = {},
-    ): PendingCues {
+    private playLater(delayMs: number, cue: SoundCue): void {
+        const cues: SoundCue[] = [cue];
         const pending: PendingCues = {
-            at: this.clock.now() + delayMs,
             cancel: this.clock.setTimer(delayMs, () => {
                 this.pending = this.pending.filter((other) => other !== pending);
                 cues.forEach(this.sound.play);
             }),
             cues,
-            follows,
-            lead,
+            lead: cue,
         };
         this.pending = [...this.pending, pending];
-        return pending;
     }
 }

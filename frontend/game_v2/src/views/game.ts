@@ -142,7 +142,6 @@ interface GameViewProps {
     readonly ui: PlayUi;
     readonly panel: Ref<HTMLElement>;
     readonly onCommand: (command: PlayCommand) => void;
-    readonly onDiscardLanding: (inMs: number) => void;
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
     readonly onTileLabels: (on: boolean) => void;
@@ -271,8 +270,7 @@ function logTemplate(
  * and countdown stay current while it is hidden.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {
-    const { links, log, onCommand, onDiscardLanding, onLanguage, onTileLabels, onWinds } = props;
-    const { panel, state, ui } = props;
+    const { links, log, onCommand, onLanguage, onTileLabels, onWinds, panel, state, ui } = props;
     const display: PlayDisplay = playDisplay(state, ui);
     const board = PlayBoard({
         clock: props.clock,
@@ -280,7 +278,6 @@ function gameTemplate(props: GameViewProps): TemplateResult {
         links: { history: links.history, replay: links.replay(state.viewerSeat) },
         menuExtra: log === null ? undefined : logTemplate(log, panel, state),
         onCommand,
-        onDiscardLanding,
         onLanguage,
         onTileLabels,
         onWinds,
@@ -434,10 +431,6 @@ class GameViewController {
             return;
         }
         this.guard(() => this.changeUi(command));
-    };
-
-    private readonly landClacks = (inMs: number): void => {
-        this.clacks.landIn(inMs);
     };
 
     private readonly changeLanguage = (locale: Locale): void => {
@@ -663,7 +656,6 @@ class GameViewController {
             links: this.deps.links,
             log,
             onCommand: command,
-            onDiscardLanding: this.landClacks,
             onLanguage: changeLanguage,
             onTileLabels: changeTileLabels,
             onWinds: changeWinds,

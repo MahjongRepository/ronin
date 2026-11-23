@@ -1,15 +1,8 @@
 import { type TileSnapshot } from "./board-motion-snapshot";
-import { startAt } from "./tile-reflow-player";
 
 interface TileHold {
     readonly animation: Animation;
     readonly effect: KeyframeEffect;
-}
-
-/** A hold waiting for its plan's start: its tile's key and its animation. */
-export interface HeldTile {
-    readonly key: string;
-    readonly animation: Animation;
 }
 
 export class TileHoldPlayer {
@@ -36,8 +29,7 @@ export class TileHoldPlayer {
         }
     }
 
-    /** Hides the tile at `key` for `ms`. */
-    play(key: string, target: HTMLElement, ms: number): HeldTile {
+    play(key: string, target: HTMLElement, ms: number): void {
         this.stop(key);
         const animation = target.animate([{ visibility: "hidden" }, { visibility: "hidden" }], {
             duration: ms,
@@ -49,21 +41,6 @@ export class TileHoldPlayer {
         }
         this.running.set(key, { animation, effect: animation.effect });
         animation.onfinish = () => this.stop(key);
-        return { animation, key };
-    }
-
-    /** Keeps the tile hidden for `ms` from `at` (now when null), or shows it now when no wait is left. */
-    start({ animation, key }: HeldTile, ms: number, at: number | null): void {
-        const active = this.running.get(key);
-        if (active?.animation !== animation) {
-            return;
-        }
-        if (ms <= 0) {
-            this.stop(key);
-            return;
-        }
-        active.effect.updateTiming({ duration: ms });
-        startAt(animation, at);
     }
 
     private stop(key: string): void {
