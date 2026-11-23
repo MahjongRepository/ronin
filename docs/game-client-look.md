@@ -659,7 +659,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   under that shared shadow. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,
   shows in its new slot at once.
   In live play an opponent's tedashi leaves from the middle of their concealed hand and leaves a hole there, which
-  closes 1000ms after the landing as the tiles to its right and the drawn tile slide over, over 240ms, starting and
+  closes 700ms after the landing as the tiles to its right and the drawn tile slide over, over 240ms, starting and
   stopping gently. The hole is visual only: the next seat's draw and everything else keep their time. A tsumogiri
   leaves no hole, and that seat's next draw or call settles its concealed hand at once, closing a hole still open. A
   hand shown face up, in live play or in a replay, closes its gap and sorts over 240ms from the discard's landing,

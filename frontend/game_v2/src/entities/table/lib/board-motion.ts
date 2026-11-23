@@ -16,7 +16,7 @@ export const BOARD_MOTION = {
     ghosts: GHOSTS,
     handClose: 240,
     handReflow: 300,
-    holeHold: 1000,
+    holeHold: 700,
     landing: GHOSTS[1].delay + FLIGHT,
     maxTravel: 300,
     meldShift: 200,
