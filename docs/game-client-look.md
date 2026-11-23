@@ -799,9 +799,9 @@ as a number, not seen, so the count turns red from ten tiles left.
   riichi sticks the winner collected as counts with what they added, and a note where a seat's payment is not the
   hand's (pao, a head bump). The column keeps one height whatever the hand: a long yaku list scrolls. Beside it the
   seats where they sit at the table, the viewer's (a replay's viewpoint) at the bottom and the round with its honba
-  in the middle, like the board's centre: each seat's wind and name on a line of their own, so a long name keeps
-  the card's width, then its change in its tone (gain, loss; nothing for a seat that moved nothing), and its new total
-  with its placement after payment beside it; a Pao, Tenpai or Noten tag only where the
+  in the middle, like the board's centre: each card shows the seat's wind and name at the top left and its placement
+  after payment at the top right. Below are its change in its tone (gain, loss; nothing for a seat that moved
+  nothing) and its new total. A seat with no change shows its total directly below its name. A Pao, Tenpai or Noten tag appears only where the
   change does not say it. There is no headline: a win tags the winner's card Ron or Tsumo (in the gain's green, its
   border green and the card faintly tinted green, so the gold stays the primary button's) and the card of the seat that dealt in Dealt in (quieter, outlined red), each tag small and set into the
   card's top edge. The primary button stands in the bottom-right corner with the countdown where the server set one (the game's

@@ -625,6 +625,7 @@ $result-large-panel-width: 47rem;
     margin-left: 1.25rem;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
     grid-template-areas:
         ". top ."
         "left center right"
@@ -635,10 +636,17 @@ $result-large-panel-width: 47rem;
 }
 
 .round-end-result__seat {
+    --seat-padding-inline: 0.55rem;
+
+    position: relative;
     justify-self: stretch;
     min-width: 0;
     max-width: 13rem;
-    padding: 0.4rem 0.55rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+    padding: 0.4rem var(--seat-padding-inline);
+    line-height: 1.25;
     border: 1px solid var(--ronin-border);
     border-radius: var(--ronin-corner-panel);
 
@@ -673,14 +681,9 @@ $result-large-panel-width: 47rem;
     font-weight: 600;
 }
 
-.round-end-result__standing {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-}
-
 .round-end-result__rank {
     flex: none;
+    margin-inline-start: auto;
     font-size: 0.85rem;
     color: var(--ronin-text-secondary);
 }
@@ -692,7 +695,6 @@ $result-large-panel-width: 47rem;
     white-space: nowrap;
 }
 
-/* A seat that moved no points keeps its change's line, blank, so the cards stay one height. */
 .round-end-result__delta {
     @include type.figures;
 
@@ -700,10 +702,6 @@ $result-large-panel-width: 47rem;
     font-weight: 700;
     line-height: 1.2;
     color: var(--ronin-text-secondary);
-
-    &[aria-hidden="true"] {
-        visibility: hidden;
-    }
 
     .round-end-result__seat--gain & {
         color: var(--ronin-score-positive);
@@ -736,10 +734,6 @@ $result-large-panel-width: 47rem;
     color: var(--ronin-text-secondary);
 }
 
-.round-end-result__seat {
-    position: relative;
-}
-
 .round-end-result__seat--winner {
     border-color: var(--ronin-score-positive);
     background: color-mix(in srgb, var(--ronin-score-positive) 8%, var(--ronin-surface));
@@ -753,7 +747,7 @@ $result-large-panel-width: 47rem;
 .round-end-result__seat-mark {
     position: absolute;
     top: 0;
-    left: 0.55rem;
+    left: var(--seat-padding-inline);
     transform: translateY(-60%);
     padding: 0 0.4rem;
     border: 1px solid transparent;
@@ -1106,12 +1100,16 @@ $result-large-panel-width: 47rem;
     }
 
     .round-end-result__settle {
+        grid-auto-rows: auto;
         margin-left: 0.2rem;
         gap: 0.15rem 0.4rem;
     }
 
     .round-end-result__seat {
-        padding: 0.15rem 0.4rem;
+        --seat-padding-inline: 0.4rem;
+
+        gap: 0.1rem;
+        padding-block: 0.15rem;
     }
 
     .round-end-result__seat-name {
@@ -1126,10 +1124,6 @@ $result-large-panel-width: 47rem;
 
     .round-end-result__delta {
         font-size: 0.85rem;
-
-        &[aria-hidden="true"] {
-            display: none;
-        }
     }
 
     .round-end-result__score-after,

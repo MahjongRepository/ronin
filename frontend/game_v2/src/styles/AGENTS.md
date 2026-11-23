@@ -137,7 +137,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - A round result fits its panel whole at every supported size. Its sizes never follow the shown page or the hand: a
   double ron's pages stack every page's hand, indicators and scoring column in the same cells (the hidden ones
   `visibility: hidden`), the scoring column takes no height from its yaku (`contain: size`; the seats set the row) and
-  scrolls a list too long for it, and a seat that moved nothing keeps its change's line blank. A board under
+  scrolls a list too long for it. Equal settlement rows keep the regular layout stable as the pages turn,
+  while each card fits its contents. A board under
   `$result-compact-height` (`game-board/_queries.scss`) gives it its compact form, a container query on the board's
   height (content-responsive, not a family branch): smaller type and tiles held to the panel's height, each seat's
   change and total on one line where its card holds them, else wrapping to two, never past the card. Its large type needs both a board of `$result-large-height` and a panel

@@ -473,7 +473,7 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
                 const card = seat.getBoundingClientRect();
                 return [
                     ...seat.querySelectorAll(
-                        ".round-end-result__delta, .round-end-result__standing",
+                        ".round-end-result__delta, .round-end-result__score-after, .round-end-result__rank",
                     ),
                 ].some((figure) => {
                     const shown = figure.getBoundingClientRect();

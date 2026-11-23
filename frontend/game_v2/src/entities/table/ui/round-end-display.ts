@@ -184,7 +184,6 @@ function Scoring(page: WinPageDisplay): TemplateResult {
 }
 
 function Seat(seat: ResultSeat, mark: SeatMark | null): TemplateResult {
-    const zero = seat.delta === 0;
     const marked = mark === null ? "" : ` round-end-result__seat--${mark.kind}`;
     return html`<div
         class="round-end-result__seat round-end-result__seat--${seat.position} round-end-result__seat--${seat.role}${marked}"
@@ -197,15 +196,11 @@ function Seat(seat: ResultSeat, mark: SeatMark | null): TemplateResult {
             >
             ${PlayerName(seat.name, "round-end-result__score-name")}
             ${seat.tag === null ? nothing : html`<span class="round-end-result__score-tag">${seat.tag}</span>`}
+            <span class="round-end-result__rank">${seat.rank}</span>
         </div>
         <div class="round-end-result__seat-figures">
-            <span class="round-end-result__delta" aria-hidden=${zero ? "true" : "false"}
-                >${zero ? "0" : formatDelta(seat.delta)}</span
-            >
-            <span class="round-end-result__standing"
-                ><span class="round-end-result__score-after">${formatPoints(seat.after)}</span>
-                <span class="round-end-result__rank">${seat.rank}</span></span
-            >
+            ${seat.delta === 0 ? nothing : html`<span class="round-end-result__delta">${formatDelta(seat.delta)}</span>`}
+            <span class="round-end-result__score-after">${formatPoints(seat.after)}</span>
         </div>
     </div>`;
 }
