@@ -442,6 +442,7 @@ class ReplayViewController {
         closeSettings: () => this.dispatch({ kind: "close_settings" }),
         closeTools: () => this.dispatch({ kind: "close_tools" }),
         copyHand: () => this.dispatch({ kind: "copy_hand" }),
+        discardLands: (inMs) => this.clacks.landIn(inMs),
         keydown: (event) => this.onKeydown(event),
         keyup: (event) => this.onKeyup(event),
         move: (cursor) => this.dispatch({ cursor, kind: "move" }),

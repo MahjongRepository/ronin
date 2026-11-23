@@ -54,6 +54,8 @@ export interface ReplayBoardHandlers {
     readonly start: () => void;
     readonly stepPress: (direction: StepDirection, event: PointerEvent) => void;
     readonly stepClick: (direction: StepDirection) => void;
+    /** Told, as each discard's flight starts, how many ms from now its picture lands. */
+    readonly discardLands: (inMs: number) => void;
     readonly togglePlay: () => void;
     readonly toggleHands: () => void;
     readonly toggleSettings: () => void;
@@ -203,6 +205,7 @@ export function ReplayBoard(props: ReplayBoardProps): TemplateResult {
             status: null,
         }),
         motion: display.motion,
+        onDiscardLanding: handlers.discardLands,
         onViewSeat: handlers.viewSeat,
         overlay: overlay === null ? undefined : TablePanelDisplay(overlay, controls),
         overlayHeld: overlay?.kind === "result" && overlay.held,

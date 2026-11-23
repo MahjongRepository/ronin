@@ -653,8 +653,9 @@ as a number, not seen, so the count turns red from ten tiles left.
   settles rather than pops in. The solid tile appears in its slot when the middle copy lands, and
   a replay's tsumogiri shade stays on the copies. The body
   flies upright on the screen in its slot's orientation, so the light and the edge stay fixed to the screen. A
-  flight a later update touches lands at once and any further move starts from its slot. An update's moves take off
-  together on the frame after the one that first shows them, so a flight's first moving frame is one frame along. Rearranging hands, settling
+  flight a later update touches lands at once and any further move starts from its slot. An update with a flight takes
+  off together on the frame after the one that first shows it, so a flight's first moving frame is one frame along;
+  an update without one moves at once. Rearranging hands, settling
   discards and moving or resizing laid melds animate their actual tile wrappers inside their group, retaining its
   shared edge and shadow and native button feedback. Meld resizing keeps its tiles moving and scaling together
   under that shared shadow. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,
@@ -698,7 +699,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   recorded voices play as their callouts first show, with an additional voice when the server confirms a yakuman result.
   The countdown beeps for each of the last five
   seconds of a decision that runs
-  longer than five. The clack sounds as the discard lands, the landing delay after the move, while the board animates
+  longer than five. The clack sounds as the discard lands, the landing delay after its flight takes off, while the board animates
   (the Animations switch on and no system reduced motion); otherwise it plays with the move. A clack still waiting to
   land is dropped when the sound is turned off, a reset snapshot comes or the page closes; in a replay also on a jump or a
   step back, while a step on plays it at once. A decision chime that comes while a clack waits sounds with that clack,

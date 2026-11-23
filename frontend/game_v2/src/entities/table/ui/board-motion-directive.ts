@@ -8,6 +8,12 @@ import { type BoardDisplayState, type BoardMotionCue } from "@/entities/table/mo
 import { BoardMotionPlayer } from "./board-motion-player";
 import { type TileSnapshot, snapshotTiles } from "./board-motion-snapshot";
 
+/** Whether the board animates, and whom it tells when each discard's picture lands. */
+interface MotionSwitch {
+    readonly animationsOn: boolean;
+    readonly onDiscardLanding?: (inMs: number) => void;
+}
+
 interface PendingMotion {
     readonly before: readonly TileSnapshot[];
     readonly enabled: boolean;
@@ -35,20 +41,21 @@ class AnimateBoard extends AsyncDirective {
     render(
         _state: BoardDisplayState | null,
         _cue: BoardMotionCue | undefined,
-        _animationsOn: boolean,
+        _motion: MotionSwitch,
     ): typeof nothing {
         return nothing;
     }
 
     override update(
         part: ElementPart,
-        [state, cue, animationsOn]: [BoardDisplayState | null, BoardMotionCue | undefined, boolean],
+        [state, cue, { animationsOn, onDiscardLanding }]: Parameters<AnimateBoard["render"]>,
     ): typeof nothing {
         if (!(part.element instanceof HTMLElement)) {
             return nothing;
         }
         this.board = part.element;
         this.player ??= new BoardMotionPlayer(part.element);
+        this.player.onDiscardLanding = onDiscardLanding;
         this.followSwitch(animationsOn);
         this.player.prepareRender();
         this.updateState(state, cue);

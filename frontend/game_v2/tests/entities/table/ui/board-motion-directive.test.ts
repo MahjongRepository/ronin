@@ -231,7 +231,7 @@ async function showMovingHand(
     render(
         html`<div
       class="game-board"
-      ${animateBoard(state, { mode, sequence }, true)}
+      ${animateBoard(state, { mode, sequence }, { animationsOn: true })}
     >
       <div data-area="bottom-hand">${Hand({ tiles })}</div>
     </div>`,
@@ -781,6 +781,10 @@ function anonymousOpponent(state: TableState): TableState {
     };
 }
 
+function anonymousDealt(): TableState {
+    return anonymousOpponent(table(true));
+}
+
 function opponentTedashi(state: TableState): TableState {
     return {
         ...state,
@@ -826,17 +830,41 @@ function runFrameAt(now: number): void {
     runFrames(1);
 }
 
+const WAITING_GHOSTS = BOARD_MOTION.ghosts.map(() => ["paused", 0]);
+
+const HOLE_CLOSE_MS = BOARD_MOTION.landing + BOARD_MOTION.holeHold;
+
+function waitingStates(animationsNow: readonly Animation[]): readonly unknown[] {
+    return [
+        animationsNow.map((animation) => [animation.playState, animation.currentTime]),
+        vi.getTimerCount(),
+    ];
+}
+
 async function paintThenStartOpponentTedashi() {
+    recordAnimations((element) => !element.matches(".board-motion > *"));
     const discarded = await showOpponentTedashi();
     const ghosts = animations.filter(flies);
-    const played = [ghosts.map((animation) => animation.startTime), vi.getTimerCount()];
+    const played = waitingStates(ghosts);
     runFrameAt(1016);
-    const painted = [ghosts.map((animation) => animation.startTime), vi.getTimerCount()];
+    const painted = waitingStates(ghosts);
     for (const ghost of ghosts) {
         vi.spyOn(ghost, "play").mockImplementation(() => {});
     }
     runFrameAt(1033);
     return { discarded, ghosts, painted, played };
+}
+
+function startTimesAround(
+    moving: readonly Animation[],
+    ms: number,
+    at: number,
+): readonly unknown[] {
+    vi.mocked(performance.now).mockReturnValue(at);
+    vi.advanceTimersByTime(ms - 1);
+    const before = moving.some((animation) => animation.startTime === at);
+    vi.advanceTimersByTime(1);
+    return [before, moving.map((animation) => animation.startTime)];
 }
 
 describe("opponent tedashi hole", () => {
@@ -845,20 +873,21 @@ describe("opponent tedashi hole", () => {
         vi.spyOn(performance, "now").mockReturnValue(1000);
     });
 
-    it("starts the discard and arms its hole's close on the frame after the one that first paints them, keeps the hole through another seat's draw and closes it at once when the discarder draws again", async () => {
+    it("starts the discard and arms its hole's close on the frame after the one that first paints them, keeps the hole through another seat's draw until the close's time and closes it at once when the discarder draws again", async () => {
         const view = { view: bottomOnly };
         const { discarded, ghosts, painted, played } = await paintThenStartOpponentTedashi();
         const closes = animations.filter(movesOpponentHandSlot);
         expect([
-            played[1],
-            painted,
+            [played, painted],
             ghosts.map((animation) => animation.startTime),
             closes.length > 1,
             closes[0]?.effect?.getTiming().easing,
             vi.getTimerCount(),
         ]).toEqual([
-            0,
-            played,
+            [
+                [WAITING_GHOSTS, 0],
+                [WAITING_GHOSTS, 0],
+            ],
             BOARD_MOTION.ghosts.map(() => 1033),
             true,
             BOARD_MOTION.settleEasing,
@@ -870,6 +899,10 @@ describe("opponent tedashi hole", () => {
             closes.filter((animation) => animation.playState === "idle"),
             vi.getTimerCount(),
         ]).toEqual([[], 2]);
+        expect(startTimesAround(closes, HOLE_CLOSE_MS, 1033 + HOLE_CLOSE_MS)).toEqual([
+            false,
+            closes.map(() => 1033 + HOLE_CLOSE_MS),
+        ]);
         await show(opponentDrew(nextDrew), { mode: "step", sequence: 4 }, view);
         expect([
             closes.every((animation) => animation.playState === "idle"),
@@ -877,7 +910,19 @@ describe("opponent tedashi hole", () => {
                 (animation) => animation.playState !== "idle" && movesOpponentHandSlot(animation),
             ),
             vi.getTimerCount(),
-        ]).toEqual([true, [], 1]);
+        ]).toEqual([true, [], 0]);
+    });
+
+    it("starts a waiting discard at once when the page hides, its paint never coming", async () => {
+        await showOpponentTedashi();
+        const plays = animations.filter(flies).map((ghost) => vi.spyOn(ghost, "play"));
+        vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+        document.dispatchEvent(new Event("visibilitychange"));
+        expect([
+            plays.map((play) => play.mock.calls.length),
+            frameRequests.size,
+            vi.getTimerCount(),
+        ]).toEqual([BOARD_MOTION.ghosts.map(() => 1), 0, 1]);
     });
 });
 
@@ -1074,13 +1119,14 @@ function riverSlotAnimations(): Animation[] {
 async function startPendingReturn(sequence: number): Promise<() => Promise<void>> {
     const now = vi.spyOn(performance, "now").mockReturnValue(1000);
     const view = { view: bottomOnly };
-    const riichi = discardDraw(table(true), true);
-    await show(drawn(table(true)), { mode: "reset", sequence }, view);
+    const riichi = discardDraw(anonymousDealt(), true);
+    await show(drawn(anonymousDealt()), { mode: "reset", sequence }, view);
     await show(riichi, { mode: "step", sequence: sequence + 1 }, view);
     now.mockReturnValue(1050);
     const cue = { mode: "step", sequence: sequence + 2 } as const;
-    await show(opponentDrew(riichi), cue, view);
-    return () => show(opponentDrew(riichi), cue, view);
+    const nextDiscarded = opponentTedashi(opponentDrew(riichi));
+    await show(nextDiscarded, cue, view);
+    return () => show(nextDiscarded, cue, view);
 }
 
 async function cancelledReturnStates(): Promise<readonly (AnimationPlayState | undefined)[]> {

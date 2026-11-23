@@ -41,4 +41,28 @@ describe("LandingClacks", () => {
             ]);
         },
     );
+
+    it("moves a waiting clack and the draw tick waiting on it to the landing the board reports", () => {
+        const clock = new ManualClock();
+        const played: SoundCue[] = [];
+        const clacks = new LandingClacks(steadyClockOn(clock), {
+            play: (cue) => played.push(cue),
+            setting: { load: () => ({ sound_on: true }), save: () => {} },
+        });
+
+        clacks.play(["discard"], true, false);
+        clacks.play(["draw"], true, false);
+        clock.advanceTo(30);
+        clacks.landIn(DISCARD_LANDING_MS);
+
+        const clackAt = 30 + DISCARD_LANDING_MS;
+        expect(
+            heardBy(clock, played, [
+                clackAt - 1,
+                clackAt,
+                clackAt + DRAW_HOLD_MS - 1,
+                clackAt + DRAW_HOLD_MS,
+            ]),
+        ).toEqual([[], ["discard"], ["discard"], ["discard", "draw"]]);
+    });
 });

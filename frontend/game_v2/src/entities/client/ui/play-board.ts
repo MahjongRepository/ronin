@@ -57,6 +57,8 @@ export interface PlayBoardProps {
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
     readonly onTileLabels: (on: boolean) => void;
+    /** Told, as each discard's flight starts, how many ms from now its picture lands. */
+    readonly onDiscardLanding?: (inMs: number) => void;
     /** What the page adds to the corner before the settings (the debug log). */
     readonly menuExtra?: TemplateResult;
     /** The game end's links; without them it offers only the game's last result and the way back. */
@@ -569,6 +571,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         }),
         motion: display.motion,
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
+        onDiscardLanding: props.onDiscardLanding,
         overlay: overlay === null ? undefined : OverlayPanel(overlay.panel, props),
         overlayHeld: overlay?.panel.kind === "result" && overlay.panel.held,
         state: display.board,

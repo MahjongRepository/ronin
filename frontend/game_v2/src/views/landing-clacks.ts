@@ -3,6 +3,7 @@ import { DISCARD_LANDING_MS, DRAW_HOLD_MS, OWN_DRAW_HOLD_MS } from "@/entities/t
 import { type CancelTimer, type Clock } from "@/shared/clock";
 
 interface PendingCues {
+    readonly at: number;
     readonly cancel: CancelTimer;
     readonly lead: SoundCue;
     readonly cues: SoundCue[];
@@ -32,6 +33,30 @@ export class LandingClacks {
             } else {
                 this.sound.play(cue);
             }
+        }
+    }
+
+    /** Move the waiting clack, and the ticks waiting on it, to the board's landing `inMs` from now. */
+    landIn(inMs: number): void {
+        const clack = this.pending.findLast((pending) => pending.lead === "discard");
+        if (clack === undefined) {
+            return;
+        }
+        const shift = this.clock.now() + inMs - clack.at;
+        this.clackAt = clack.at + shift;
+        this.postpone(
+            this.pending.filter((pending) => pending.at >= clack.at),
+            shift,
+        );
+    }
+
+    private postpone(moved: readonly PendingCues[], shift: number): void {
+        for (const pending of moved) {
+            pending.cancel();
+        }
+        this.pending = this.pending.filter((pending) => !moved.includes(pending));
+        for (const pending of moved) {
+            this.playLater(pending.at + shift - this.clock.now(), pending.lead, pending.cues);
         }
     }
 
@@ -78,15 +103,15 @@ export class LandingClacks {
         }
     }
 
-    private playLater(delayMs: number, cue: SoundCue): void {
-        const cues: SoundCue[] = [cue];
+    private playLater(delayMs: number, lead: SoundCue, cues: SoundCue[] = [lead]): void {
         const pending: PendingCues = {
+            at: this.clock.now() + delayMs,
             cancel: this.clock.setTimer(delayMs, () => {
                 this.pending = this.pending.filter((other) => other !== pending);
                 cues.forEach(this.sound.play);
             }),
             cues,
-            lead: cue,
+            lead,
         };
         this.pending = [...this.pending, pending];
     }

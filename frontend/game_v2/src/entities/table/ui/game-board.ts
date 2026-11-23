@@ -51,6 +51,8 @@ interface GameBoardProps {
     readonly motion?: BoardMotionCue;
     /** Whether the player leaves the board's animations on; on when omitted. */
     readonly animationsOn?: boolean;
+    /** Told, as each discard's flight starts, how many ms from now its picture lands. */
+    readonly onDiscardLanding?: (inMs: number) => void;
     readonly debug: boolean;
     readonly overlay?: TemplateResult;
     readonly state: BoardDisplayState | null;
@@ -450,7 +452,10 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     top: stripContent(seatPlayer(state, "top")),
                 },
             )}
-            ${animateBoard(state, props.motion, animationsOn)}
+            ${animateBoard(state, props.motion, {
+                animationsOn,
+                onDiscardLanding: props.onDiscardLanding,
+            })}
             ${fadeMatchResult(props.matchResult === true, animationsOn)}
         >
             <div class="board-layout" ?inert=${props.inert ?? false}>

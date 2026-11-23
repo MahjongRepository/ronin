@@ -45,12 +45,15 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   animates from its place in the previous round. `animateBoard` follows `sizeBoard` on GameBoard's root, so it
   measures destinations after the geometry is written. Native effects detach before lit changes the DOM and rebind
   by physical tile key with their timing preserved; a concealed hand's pending close ends at once when that seat's
-  hand changes. A played plan's moves and holds (the flight copies included) wait paused at their first frame and start
-  together at the plan's start: the second animation frame after it plays, at that frame's time, joined by every plan
-  played before it. WebKit dates a new animation's start to the `animate()` call, so a flight would first paint far
-  along its path; the landing and every hold and release count from that start. A delayed slot motion is never a WAAPI
-  `delay`: it waits paused at its start and a cancellable timer armed at the plan's start releases it, one timer per
-  distinct delay of a played plan, so a hand's slots start together. The release sets its
+  hand changes. A plan holding a flight waits: its flight copies, slots, held draws and returns
+  stay paused at their first frame and start together at the second animation frame after it plays, at that frame's
+  time, or at once when the page is hidden, which paints no frame. A plan played while one waits joins it; any other
+  plan starts at once. WebKit dates a new animation's start to the `animate()` call, so a flight would first paint far
+  along its path; the flight's landing and its plan's holds and releases count from that start, and a return from its
+  own discard's landing. The board reports each discard's landing from that start (`onDiscardLanding`), which the
+  page's clack follows. A delayed slot motion is never a WAAPI `delay`: it waits paused at its start and a
+  cancellable timer armed at its plan's start releases it, one timer per distinct delay of a played plan, so a hand's
+  slots start together. The release sets its
   start time to the timeline's current time and never uses `play()`: WebKit keeps the creation start on `play()` while
   another animation runs, so the slide would finish at once. Board-motion release
   timing is presentation only and runs on the `performance.now` timeline, never `browserClock`.

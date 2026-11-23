@@ -1,8 +1,15 @@
 import { type TileSnapshot } from "./board-motion-snapshot";
+import { startAt } from "./tile-reflow-player";
 
 interface TileHold {
     readonly animation: Animation;
     readonly effect: KeyframeEffect;
+}
+
+/** A hold waiting for its plan's start: its tile's key and its animation. */
+export interface HeldTile {
+    readonly key: string;
+    readonly animation: Animation;
 }
 
 export class TileHoldPlayer {
@@ -29,8 +36,8 @@ export class TileHoldPlayer {
         }
     }
 
-    /** Hides the tile at `key` until its plan starts the hold. */
-    play(key: string, target: HTMLElement, ms: number): Animation {
+    /** Hides the tile at `key` for `ms`. */
+    play(key: string, target: HTMLElement, ms: number): HeldTile {
         this.stop(key);
         const animation = target.animate([{ visibility: "hidden" }, { visibility: "hidden" }], {
             duration: ms,
@@ -40,18 +47,15 @@ export class TileHoldPlayer {
             animation.cancel();
             throw new Error("Tile hold requires a keyframe effect");
         }
-        animation.pause();
-        animation.currentTime = 0;
         this.running.set(key, { animation, effect: animation.effect });
         animation.onfinish = () => this.stop(key);
-        return animation;
+        return { animation, key };
     }
 
-    /** Keeps the tile hidden for `ms` from `at`, or shows it now when no wait is left. */
-    start(animation: Animation, ms: number, at: number): void {
-        const [key, active] =
-            [...this.running].find(([, hold]) => hold.animation === animation) ?? [];
-        if (key === undefined || active === undefined) {
+    /** Keeps the tile hidden for `ms` from `at` (now when null), or shows it now when no wait is left. */
+    start({ animation, key }: HeldTile, ms: number, at: number | null): void {
+        const active = this.running.get(key);
+        if (active?.animation !== animation) {
             return;
         }
         if (ms <= 0) {
@@ -59,7 +63,7 @@ export class TileHoldPlayer {
             return;
         }
         active.effect.updateTiming({ duration: ms });
-        animation.startTime = at;
+        startAt(animation, at);
     }
 
     private stop(key: string): void {
