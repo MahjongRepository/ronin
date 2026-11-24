@@ -1,3 +1,7 @@
+import {
+    type BoardAppearanceSetting,
+    type SetBoardAppearance,
+} from "@ronin/shared/board-appearance";
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import "@/styles/replay-page.scss";
@@ -106,7 +110,7 @@ export interface ReplayViewDeps {
     readonly prefersReducedMotion: () => boolean;
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
-    readonly setTileLabels: (on: boolean) => void;
+    readonly setBoardAppearance: SetBoardAppearance;
     /** Put `text` on the clipboard; rejects where the browser refuses it. */
     readonly copyText: (text: string) => Promise<void>;
     /** Open `url` in a new tab. */
@@ -449,8 +453,8 @@ class ReplayViewController {
         retry: () => this.startLoad(),
         root: createRef<HTMLElement>(),
         selectRound: (cursor) => this.dispatch({ cursor, kind: "select_round" }),
+        setBoardAppearance: (setting, on) => this.changeBoardAppearance(setting, on),
         setLanguage: (locale) => this.changeLanguage(locale),
-        setTileLabels: (on) => this.changeTileLabels(on),
         setWinds: (script) => this.changeWinds(script),
         showResultPage: (page) => this.dispatch({ kind: "result_page", page }),
         start: () => this.dispatch({ kind: "start" }),
@@ -515,8 +519,8 @@ class ReplayViewController {
         this.guard(() => this.show(this.screen));
     }
 
-    private changeTileLabels(on: boolean): void {
-        this.deps.setTileLabels(on);
+    private changeBoardAppearance(setting: BoardAppearanceSetting, on: boolean): void {
+        this.deps.setBoardAppearance(setting, on);
         this.guard(() => this.show(this.screen));
     }
 

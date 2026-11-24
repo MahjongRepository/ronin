@@ -1,4 +1,7 @@
+import { applyBoardAppearance, restoreBoardAppearance } from "@ronin/shared/board-appearance";
+
 import "@/zod-setup";
+
 import "@/styles/game-app.scss";
 import "@/zones-overlay";
 import { type Route, lazyRoute, startRouter } from "@ronin/shared/router";
@@ -35,11 +38,9 @@ import {
 } from "@/entities/client";
 import {
     type TileSprite,
-    applyTileLabels,
     injectTileBodies,
     injectTileSprite,
     loadTileSprite,
-    restoreTileLabels,
 } from "@/entities/tile";
 import { fetchGameHandoff } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
@@ -253,8 +254,8 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         prefersReducedMotion: () => matchMedia("(prefers-reduced-motion: reduce)").matches,
         recoverHandoff: fetchGameHandoff,
+        setBoardAppearance: applyBoardAppearance,
         setLanguage: applyPageLocale,
-        setTileLabels: applyTileLabels,
         setWinds: applyWindScript,
         sink: {
             clearHandoff: clearGameSession,
@@ -332,7 +333,7 @@ function createStorybookRoutes(): Route[] {
 
 document.documentElement.lang = resolveLocale(document.cookie, navigator.languages);
 restoreWindScript();
-restoreTileLabels();
+restoreBoardAppearance();
 document.title = t("game.page.title");
 
 const app = document.getElementById("app");

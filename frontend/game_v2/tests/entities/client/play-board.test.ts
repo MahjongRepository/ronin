@@ -22,9 +22,9 @@ function drawPlay(host: HTMLElement, state: LiveClient, ui: PlayUi = NO_PLAY_UI)
         PlayBoard({
             clock: PAGE_CLOCK,
             display: playDisplay(state, ui),
+            onBoardAppearance: () => {},
             onCommand: () => {},
             onLanguage: () => {},
-            onTileLabels: () => {},
             onWinds: () => {},
         }),
         host,
@@ -93,13 +93,13 @@ function mountLive(
             PlayBoard({
                 clock: PAGE_CLOCK,
                 display: playDisplay(state, ui),
+                onBoardAppearance: () => {},
                 onCommand: (command) => {
                     commands.push(command);
                     ui = stepPlayUi(state, ui, command);
                     draw();
                 },
                 onLanguage: () => {},
-                onTileLabels: () => {},
                 onWinds: () => {},
             }),
             host,
@@ -156,9 +156,9 @@ function renderSwitchSlot(
         PlayBoard({
             clock: PAGE_CLOCK,
             display: playDisplay(state, ui),
+            onBoardAppearance: () => {},
             onCommand,
             onLanguage: () => {},
-            onTileLabels: () => {},
             onWinds: () => {},
         }),
         host,
@@ -199,9 +199,9 @@ function renderLiveGameEnd(
             clock: PAGE_CLOCK,
             display: playDisplay(ended, NO_PLAY_UI),
             links: LINKS,
+            onBoardAppearance: () => {},
             onCommand: (command) => commands.push(command),
             onLanguage: () => {},
-            onTileLabels: () => {},
             onWinds: () => {},
         }),
         host,
@@ -249,9 +249,9 @@ describe("PlayBoard", () => {
                 PlayBoard({
                     clock: PAGE_CLOCK,
                     display: playDisplay(roundEnd, { ...NO_PLAY_UI, confirmingLeave }),
+                    onBoardAppearance: () => {},
                     onCommand: () => {},
                     onLanguage: () => {},
-                    onTileLabels: () => {},
                     onWinds: () => {},
                 }),
                 host,

@@ -40,6 +40,10 @@ $plate-seats: bottom, right, top, left;
 
 .nameplate:is(.nameplate--left, .nameplate--right) {
     font-size: var(--geo-plate-side-text);
+
+    .nameplate__pill {
+        bottom: var(--geo-plate-side-pill-lift);
+    }
 }
 
 .nameplate--top {

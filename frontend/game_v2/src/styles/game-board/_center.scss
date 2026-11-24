@@ -16,12 +16,13 @@
 .board-center {
     --shorter-side: min(var(--c), var(--w));
     --squeeze: clamp(0px, 88px - var(--c), 20px);
-    --score-size: max(11px, calc(var(--shorter-side) * 0.12));
+    --score-size: max(11px, calc(var(--geo-compass-panel-height) * 0.216));
     --row-h: calc(var(--score-size) * 1.25 - var(--squeeze) * 0.0825);
     --edge-gap: calc(max(4px, var(--shorter-side) * 0.035) - var(--squeeze) * 0.05);
     --stick-h: calc(max(4px, var(--shorter-side) * 0.035) - var(--squeeze) * 0.05);
     --stick-gap: calc(max(2px, var(--shorter-side) * 0.012) - var(--squeeze) * 0.05);
     --row-depth: calc(var(--edge-gap) + var(--row-h) + 2 * var(--stick-gap) + var(--stick-h));
+    --turn-bar-h: max(3px, calc(var(--c) * 0.028));
     --stick-dot: calc(max(3px, var(--c) * 0.018) - var(--squeeze) * 0.05);
     --info-block: calc(var(--shorter-side) * 0.03 - var(--squeeze) * 0.05);
     --info-inline: calc(var(--shorter-side) * 0.02);
@@ -75,7 +76,7 @@
         position: absolute;
         z-index: layer(below);
         inset: 0;
-        border-bottom: max(3px, calc(var(--c) * 0.028)) solid var(--ronin-table-turn);
+        border-bottom: var(--turn-bar-h) solid var(--ronin-table-turn);
         border-radius: var(--ronin-corner-panel);
     }
 }
@@ -108,30 +109,22 @@
     }
 }
 
-/* Scores centre between the side rows' depths; a row too long for that starts off its seat's left corner instead. */
 .board-center__score-line {
     position: absolute;
-    left: var(--row-depth);
-    right: var(--row-depth);
+    left: 0;
+    right: 0;
     bottom: var(--edge-gap);
     width: max-content;
     margin-inline: auto;
     display: flex;
     align-items: baseline;
-    gap: 0.3em;
+    gap: 0.16em;
     height: var(--row-h);
     font-size: var(--score-size);
     font-weight: 650;
     line-height: var(--row-h);
     color: var(--ronin-text);
     white-space: nowrap;
-}
-
-.board-center__seat--left .board-center__score-line,
-.board-center__seat--right .board-center__score-line {
-    @include phone-board {
-        left: clamp(var(--edge-gap), calc(var(--c) - 5em - var(--edge-gap)), var(--row-depth));
-    }
 }
 
 .board-center__score-line--view {
@@ -161,10 +154,11 @@
     @include type.figures;
 
     display: none;
+    font-size: 0.88em;
 }
 
 .board-center__hundreds {
-    font-size: max(10px, 0.78em);
+    font-size: max(10px, 0.67em);
     font-weight: 500;
     color: var(--ronin-text-secondary);
 }

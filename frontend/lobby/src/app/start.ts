@@ -1,5 +1,5 @@
+import { restoreBoardAppearance } from "@ronin/shared/board-appearance";
 import { type Route, interceptLinks, startRouter } from "@ronin/shared/router";
-import { restoreTileLabels } from "@ronin/shared/tile-labels";
 import { restoreWindScript } from "@ronin/shared/winds";
 import { render } from "lit-html";
 
@@ -40,7 +40,7 @@ async function showSession(chrome: Chrome): Promise<void> {
 
 function startShell(host: HTMLElement, mounts: ChromeMounts, meta: PageMeta): void {
     restoreWindScript();
-    restoreTileLabels();
+    restoreBoardAppearance();
     const chrome = startChrome(mounts, meta, () => router.rerender());
     const routes = withChromeRender(
         lobbyRoutes({

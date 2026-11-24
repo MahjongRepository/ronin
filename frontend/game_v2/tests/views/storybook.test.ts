@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 
 import { loadSeatScenario, receivedPayload } from "#tests/fixtures/seat-transcripts";
 import { CLIENT_MESSAGE_TYPE, GAME_ACTION, WIRE_KEY, buildRiichiAction } from "@/shared/protocol";
+import { mountStorybookBoard } from "@/views/storybook-board";
 import { mountStorybookDecisions } from "@/views/storybook-decisions";
 import { storybookDiscardsView } from "@/views/storybook-discards";
 import { storybookHandView } from "@/views/storybook-hand";
@@ -106,6 +107,20 @@ describe("storybookHandView", () => {
 });
 
 const CALL_PROMPT = loadSeatScenario("call_prompt_seat_1").transcript;
+
+describe("mountStorybookBoard", () => {
+    test("opens the linked dora layout and switches back at the same board position", () => {
+        history.replaceState(null, "", "/play/storybook/board?state=worst&dora=compass");
+        const host = document.createElement("div");
+        mountStorybookBoard(host);
+        expect(host.querySelector("[data-compass-dora]")).not.toBeNull();
+
+        host.querySelector<HTMLButtonElement>('button[aria-pressed="true"]')?.click();
+        expect(location.search).toBe("?state=worst");
+        expect(host.querySelector("[data-compass-dora]")).toBeNull();
+        expect(host.querySelectorAll(".board-dora__tile")).toHaveLength(5);
+    });
+});
 
 /** The decisions storybook mounted on the story `story` names. */
 function mountStory(story: string): HTMLElement {

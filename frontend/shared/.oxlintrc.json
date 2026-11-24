@@ -26,7 +26,7 @@
                     "SoundIcon",
                     "SoundRow",
                     "AnimationsRow",
-                    "TileLabelsRow",
+                    "BoardAppearanceRows",
                     "KeepAutoWinRow",
                     "InputRows",
                     "LanguageRow",

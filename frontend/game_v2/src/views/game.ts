@@ -1,3 +1,4 @@
+import { type SetBoardAppearance } from "@ronin/shared/board-appearance";
 import { type TemplateResult, html, nothing, render } from "lit-html";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
@@ -84,7 +85,7 @@ export interface GameViewDeps {
     readonly autoWinSetting: LocalStore<AutoWinSetting>;
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
-    readonly setTileLabels: (on: boolean) => void;
+    readonly setBoardAppearance: SetBoardAppearance;
 }
 
 /**
@@ -144,7 +145,7 @@ interface GameViewProps {
     readonly onCommand: (command: PlayCommand) => void;
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
-    readonly onTileLabels: (on: boolean) => void;
+    readonly onBoardAppearance: SetBoardAppearance;
 }
 
 function describeError(error: unknown): string {
@@ -270,16 +271,17 @@ function logTemplate(
  * and countdown stay current while it is hidden.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {
-    const { links, log, onCommand, onLanguage, onTileLabels, onWinds, panel, state, ui } = props;
+    const { links, log, onCommand, onLanguage, onBoardAppearance, onWinds, panel, state, ui } =
+        props;
     const display: PlayDisplay = playDisplay(state, ui);
     const board = PlayBoard({
         clock: props.clock,
         display,
         links: { history: links.history, replay: links.replay(state.viewerSeat) },
         menuExtra: log === null ? undefined : logTemplate(log, panel, state),
+        onBoardAppearance,
         onCommand,
         onLanguage,
-        onTileLabels,
         onWinds,
     });
     return html`
@@ -447,8 +449,8 @@ class GameViewController {
         this.guard(() => this.draw());
     };
 
-    private readonly changeTileLabels = (on: boolean): void => {
-        this.deps.setTileLabels(on);
+    private readonly changeBoardAppearance: SetBoardAppearance = (setting, on): void => {
+        this.deps.setBoardAppearance(setting, on);
         this.guard(() => this.draw());
     };
 
@@ -668,15 +670,23 @@ class GameViewController {
         if (this.disposed || this.broken) {
             return;
         }
-        const { changeLanguage, changeTileLabels, changeWinds, command, log, panel, state, ui } =
-            this;
+        const {
+            changeLanguage,
+            changeBoardAppearance,
+            changeWinds,
+            command,
+            log,
+            panel,
+            state,
+            ui,
+        } = this;
         const props = {
             clock: this.deps.clock,
             links: this.deps.links,
             log,
+            onBoardAppearance: changeBoardAppearance,
             onCommand: command,
             onLanguage: changeLanguage,
-            onTileLabels: changeTileLabels,
             onWinds: changeWinds,
             panel,
             state,

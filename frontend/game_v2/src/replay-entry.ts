@@ -1,3 +1,5 @@
+import { applyBoardAppearance } from "@ronin/shared/board-appearance";
+
 import {
     DEFAULT_MOTION_SETTING,
     type GameSound,
@@ -5,7 +7,6 @@ import {
     readMotionSetting,
 } from "@/entities/client";
 import { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "@/entities/replay";
-import { applyTileLabels } from "@/entities/tile";
 import { fetchObserve, fetchReplay } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl, replayPageUrl } from "@/shared/config";
@@ -67,8 +68,8 @@ export function mountReplay(host: HTMLElement, gameId: string, page: ReplayPage)
         },
         prefersReducedMotion: () => matchMedia("(prefers-reduced-motion: reduce)").matches,
         prefs: localStore(REPLAY_PREFS_KEY, readReplayPrefs, DEFAULT_REPLAY_PREFS),
+        setBoardAppearance: applyBoardAppearance,
         setLanguage: applyPageLocale,
-        setTileLabels: applyTileLabels,
         setWinds: applyWindScript,
         shortcuts: shortcutKeysOf(navigator.userAgent),
         sound: page.sound,

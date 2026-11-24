@@ -1,3 +1,4 @@
+import { applyBoardAppearance } from "@ronin/shared/board-appearance";
 import { type MockInstance, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
@@ -31,12 +32,7 @@ import {
 } from "@/entities/client";
 import { SHORTCUT_SETTLE_MS } from "@/entities/client/ui/play-input";
 import { DISCARD_LANDING_MS } from "@/entities/table";
-import {
-    TILE_LABELS_KEY,
-    type TileSprite,
-    type TileSpriteStatus,
-    applyTileLabels,
-} from "@/entities/tile";
+import { TILE_LABELS_KEY, type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
 import { WIND_SCRIPT_KEY, applyWindScript } from "@/shared/i18n";
 import { localStore } from "@/shared/lib";
@@ -136,7 +132,7 @@ interface FakeOverrides {
     readonly autoWinSetting?: GameViewDeps["autoWinSetting"];
     readonly setLanguage?: GameViewDeps["setLanguage"];
     readonly setWinds?: GameViewDeps["setWinds"];
-    readonly setTileLabels?: GameViewDeps["setTileLabels"];
+    readonly setBoardAppearance?: GameViewDeps["setBoardAppearance"];
 }
 
 /** The game's sounds as a test hears them: each cue played, and the setting as this browser would keep it. */
@@ -215,8 +211,8 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
         recoverHandoff:
             overrides.recoverHandoff ??
             (() => Promise.reject(new Error("the tab holds a handoff"))),
+        setBoardAppearance: overrides.setBoardAppearance ?? (() => {}),
         setLanguage: overrides.setLanguage ?? (() => {}),
-        setTileLabels: overrides.setTileLabels ?? (() => {}),
         setWinds: overrides.setWinds ?? (() => {}),
         sink,
         sound: {
@@ -1319,7 +1315,7 @@ describe("mountGameView settings", () => {
             delete document.documentElement.dataset.tileLabels;
             localStorage.removeItem(TILE_LABELS_KEY);
         });
-        const { connections, host } = mountWithFakes({ setTileLabels: applyTileLabels });
+        const { connections, host } = mountWithFakes({ setBoardAppearance: applyBoardAppearance });
         openCallPrompt(connections[0]);
         function labelled(): number {
             return host.querySelectorAll(".game__play .board-local .hand .tile__label").length;

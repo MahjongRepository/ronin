@@ -160,6 +160,15 @@ const PAGES: readonly PageCase[] = [
         longNames: true,
     },
     {
+        ...boardCase("board-compass-dora", "?state=worst&dora=compass", [
+            ".game-board[data-compass-dora] .board-dora .tile__body",
+            ".board-river--top .tile",
+            ".board-river--bottom .tile",
+        ]),
+        at: [...WORST_CASES, SAFARI_PHONE, CHROME_PHONE],
+        longNames: true,
+    },
+    {
         ...boardCase("board-worst-offers", "?state=worst&offers=five", [
             ACTION,
             ".board-strip .meld",
@@ -457,9 +466,14 @@ function separation(first: Box, second: Box): number {
 
 /** Each seat's river that holds a settled tile, by its nearest one's distance from the centre, in pixels. */
 function riverGapsFromCenter(board: BoardMeasure, center: Box): ReadonlyMap<string, number> {
+    const top = Math.min(
+        center.top,
+        ...(board.compassDora?.indicators ?? []).map((tile) => tile.top),
+    );
+    const footprint = { ...center, height: center.top + center.height - top, top };
     const gaps = new Map<string, number>();
     for (const { box, group } of board.settledRiverTiles) {
-        gaps.set(group, Math.min(gaps.get(group) ?? Infinity, separation(box, center)));
+        gaps.set(group, Math.min(gaps.get(group) ?? Infinity, separation(box, footprint)));
     }
     return gaps;
 }
@@ -488,16 +502,15 @@ function checkDerivedProportions(board: BoardMeasure, viewport: string, report: 
     const { center } = board;
     const gapSlack = Math.max(DERIVED_TOLERANCE * river, WHOLE_PIXEL);
     if (center !== null) {
-        const off = [...riverGapsFromCenter(board, center)].filter(
-            ([seat, gap]) =>
-                Math.abs(
-                    gap -
-                        river *
-                            (seat === "top"
-                                ? (derived.topRiverGap ?? derived.riverGap)
-                                : derived.riverGap),
-                ) > gapSlack,
-        );
+        const off = [...riverGapsFromCenter(board, center)].filter(([seat, gap]) => {
+            if (board.compassDora !== null && (seat === "top" || seat === "bottom")) {
+                return false;
+            }
+            const share =
+                seat === "top" ? (derived.topRiverGap ?? derived.riverGap) : derived.riverGap;
+            const expected = river * share + (board.compassDora === null ? 0 : 2);
+            return Math.abs(gap - expected) > gapSlack;
+        });
         report.expect(
             off.length === 0,
             `rivers off the pinwheel's ${derived.riverGap} of a river tile from the centre: ${off.map(([seat, gap]) => `${seat} ${(gap / river).toFixed(3)} (${gap.toFixed(1)}px)`).join(", ")}`,
@@ -1071,6 +1084,42 @@ function isLandscapePhone(viewport: Viewport): boolean {
     return !viewport.desktop && !viewport.portrait;
 }
 
+function checkCompassDora(
+    wall: NonNullable<BoardMeasure["compassDora"]>,
+    center: Box,
+    report: PageReport,
+): void {
+    const tileWidth = (center.width * 0.75) / 5;
+    const start = center.left + (center.width - 5 * tileWidth) / 2;
+    report.expect(
+        wall.indicators.length === 5,
+        `middle wall has ${wall.indicators.length} indicators, expected five`,
+    );
+    for (const [index, tile] of wall.indicators.entries()) {
+        const gap = center.top - tile.top - tile.height;
+        report.expect(
+            Math.abs(tile.width - tileWidth) <= SHOWN_FACE_SLACK &&
+                Math.abs(tile.left - (start + index * tileWidth)) <= SHOWN_FACE_SLACK &&
+                Math.abs(gap - 6) <= SHOWN_FACE_SLACK,
+            `middle dora ${index + 1} at ${describeBox(tile)} should be ${tileWidth.toFixed(1)}px wide in a centred row 6px above ${describeBox(center)} (gap ${gap.toFixed(1)}px)`,
+        );
+    }
+    const wallTop = Math.min(...wall.indicators.map((tile) => tile.top));
+    const top = wall.rivers.filter(({ group }) => group === "top");
+    const bottom = wall.rivers.filter(({ group }) => group === "bottom");
+    if (top.length === 0 || bottom.length === 0) {
+        return;
+    }
+    const above = wallTop - Math.max(...top.map(({ box }) => box.top + box.height));
+    const below = Math.min(...bottom.map(({ box }) => box.top)) - center.top - center.height;
+    report.expect(
+        above >= MIN_RIVER_GAP &&
+            below >= MIN_RIVER_GAP &&
+            Math.abs(above - below) <= SHOWN_FACE_SLACK,
+        `middle wall and compass need equal river clearance, measured ${above.toFixed(1)}px above and ${below.toFixed(1)}px below`,
+    );
+}
+
 function checkCenterScale(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
     const { tileScale } = board;
     const { center } = board;
@@ -1079,6 +1128,17 @@ function checkCenterScale(board: BoardMeasure, viewport: Viewport, report: PageR
         return;
     }
     const riverRow = RIVER_ROW_SIZE * tileScale.river;
+    if (board.compassDora !== null) {
+        checkCompassDora(board.compassDora, center, report);
+        const expectedWidth = isLandscapePhone(viewport)
+            ? Math.max(riverRow, PHONE_CENTRE_LEAST.width)
+            : riverRow;
+        report.expect(
+            Math.abs(center.width - expectedWidth) <= EPSILON && center.height + EPSILON >= 48,
+            `middle compass ${describeSize(center)} must span the river row and be at least 48px tall`,
+        );
+        return;
+    }
     if (isLandscapePhone(viewport)) {
         const leastWidth = Math.max(riverRow, PHONE_CENTRE_LEAST.width);
         report.expect(

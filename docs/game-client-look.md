@@ -282,9 +282,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   the same emphasis, tabular digits: the wind a quiet letter, the dealer's (East) on a muted red chip;
   the score in hundreds with its last two digits smaller and quieter (`250` `00`). Every layout keeps the panel's width at least
   as long as a normal six-tile discard row, fitting the centre and tiles together.
-  The rivers keep its corners. Score rows stand centred on their edge, clear of the side rows' depth at both
-  ends; a row too long for that starts off its seat's left corner and runs toward its right, so it never meets the next
-  side's; a short phone centre's side rows start nearer their corner, so a long score stays on the panel. The counts keep one line, a narrow centre's at a smaller size, down to a 10px floor
+  The rivers keep its corners. Score rows sit centred along their seat’s edge. The counts keep one line, a narrow centre's at a smaller size, down to a 10px floor
   whose tighter gaps still hold the line in a phone's centre. While a badge's differences show, the round and counts stay and no label
   names whose they are: that seat keeps its score, underlined, and the others' show as signed differences. One primary cue on the centre for the seat in turn: a green bar along that seat's whole
   edge of the panel, its corners included, a shape the riichi stick never takes. Convention: a seat's
@@ -428,7 +426,10 @@ as a number, not seen, so the count turns red from ten tiles left.
   In a live game the badge takes no press, no pointer cursor and no text selection; a replay's badge is a control
   that views the table from its seat, its tap area meeting the control floor whatever the drawn badge's size, and a
   focused one shows the accent's outline. The name shows on every board, shortened rather than dropped.
-- **Dora indicators.** One opaque card on the centre's colour, a faint light rim and a small corner as the centre's: the five dora indicator slots edge to edge (each
+- **Dora indicators.** The settings cog can move the five indicators above the compass. In that layout
+  the row spans three quarters of the compass width, with a 6px gap below the tiles and no card or shadow.
+  The wall and compass sit halfway between the visible edges of the top and bottom rivers.
+  The four scores use the same type size in either layout. The default corner layout uses one opaque card on the centre's colour, a faint light rim and a small corner as the centre's: the five dora indicator slots edge to edge (each
   indicator as a face once the event that reveals it has arrived, the rest unreadable backs; indicators are not the
   bonus tiles). Off a phone the card stands at the
   table's top-left corner, level with the top hand's top: over the left strip's lane, ending 0.8 of a river tile short

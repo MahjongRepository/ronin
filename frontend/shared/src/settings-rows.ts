@@ -1,5 +1,6 @@
 import { type TemplateResult, html, nothing, svg } from "lit-html";
 
+import { type SetBoardAppearance, pageCompassDora } from "./board-appearance";
 import { LANGUAGE_NAMES, LOCALES, type Locale, pageLocale } from "./locale";
 import { t } from "./shared-i18n";
 import { pageTileLabels } from "./tile-labels";
@@ -85,16 +86,25 @@ export function AnimationsRow(block: string, animations: SwitchRowProps): Templa
             </button>`;
 }
 
-export function TileLabelsRow(block: string, onTileLabels: (on: boolean) => void): TemplateResult {
-    const on = pageTileLabels() !== null;
+export function BoardAppearanceRows(block: string, onChange: SetBoardAppearance): TemplateResult {
+    const labels = pageTileLabels() !== null;
+    const compass = pageCompassDora();
     return html`<button
         type="button"
         class="secondary ${block}__item ${block}__tile-labels"
         role="switch"
-        aria-checked=${String(on)}
-        @click=${() => onTileLabels(!on)}
+        aria-checked=${String(labels)}
+        @click=${() => onChange("tileLabels", !labels)}
     ><span class="${block}__item-name">${t("settings.tile_labels")}</span
-        >${SwitchValue(block, on)}</button>`;
+        >${SwitchValue(block, labels)}</button>
+        <button
+            type="button"
+            class="secondary ${block}__item ${block}__compass-dora"
+            role="switch"
+            aria-checked=${String(compass)}
+            @click=${() => onChange("compassDora", !compass)}
+        ><span class="${block}__item-name">${t("settings.compass_dora")}</span
+            >${SwitchValue(block, compass)}</button>`;
 }
 
 export function KeepAutoWinRow(block: string, keep: SwitchRowProps): TemplateResult {

@@ -54,6 +54,12 @@
     align-items: center;
     gap: var(--geo-call-row-gap, var(--decision-gap)) var(--decision-gap);
     min-width: 0;
+
+    @include phone-board {
+        &:not([data-upper="0"]):has(.decision-controls__action--riichi) {
+            --decision-gap: var(--geo-decision-gap);
+        }
+    }
 }
 
 .decision-controls__upper,

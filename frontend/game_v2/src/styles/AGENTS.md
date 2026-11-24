@@ -89,8 +89,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   the widest prompt, between them, the lanes and bars running down beside it); a family difference is the geometry's, never a
   length switch.
 - The centre is a rectangle in every family, `--c`/`--h` its height and `--w`/`--hx` its width: off a phone six river
-  tiles wide by 4.5 tall, on a phone the height left over the own row. Its score rows and their inset follow the
-  shorter of the two; the round and counts follow `--c` within the room `--w` leaves. The geometry fits the centre and the rivers together, at the spec's minimums (Proportions).
+  tiles wide by 4.5 tall, on a phone the height left over the own row. The optional dora row takes the top of that space, with a 48px floor for the
+  panel beneath it. Both placements size their scores from that panel height; the round and counts follow `--c` within the room `--w` leaves. The geometry fits the centre and the rivers together, at the spec's minimums (Proportions).
 - Lengths CSS computes are registered with `@property` (`<length>`), so each computes once to pixels; an
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
 - **The table's pieces are flat.** `.board-surface`, inside `.board-table`, as tall as the board and standing at its

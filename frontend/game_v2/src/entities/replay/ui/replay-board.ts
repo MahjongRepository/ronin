@@ -1,3 +1,4 @@
+import { type SetBoardAppearance } from "@ronin/shared/board-appearance";
 import { type TemplateResult, html, nothing } from "lit-html";
 
 import { GameMenu } from "@/entities/client";
@@ -62,7 +63,7 @@ export interface ReplayBoardHandlers {
     readonly toggleAnimations: () => void;
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
-    readonly setTileLabels: (on: boolean) => void;
+    readonly setBoardAppearance: SetBoardAppearance;
 }
 
 export interface ReplayBoardProps {
@@ -191,9 +192,9 @@ export function ReplayBoard(props: ReplayBoardProps): TemplateResult {
             animationsOn: screen.animationsOn,
             backdrop: true,
             leave: { href: lobby, kind: "link" },
+            onBoardAppearance: handlers.setBoardAppearance,
             onClose: handlers.closeSettings,
             onLanguage: handlers.setLanguage,
-            onTileLabels: handlers.setTileLabels,
             onToggleAnimations: handlers.toggleAnimations,
             onToggleOpen: handlers.toggleSettings,
             onToggleSound: handlers.toggleSound,

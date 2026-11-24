@@ -2,7 +2,7 @@
 
 .board-dora {
     --board-tile-w: var(--dora-w);
-    --board-tile-h: calc(var(--dora-w) * 4 / 3);
+    --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
 
     position: absolute;
     top: var(--counters-top);
@@ -24,4 +24,137 @@
 .board-dora__tile {
     flex: none;
     line-height: 0;
+}
+
+.game-board[data-compass-dora] {
+    --river-gap-trim: clamp(0px, var(--geo-g) - 5px, 2px);
+    --river-gap-extra: 2px;
+}
+
+.game-board[data-compass-dora] .board-zones {
+    --zone-top-y: calc(
+        var(--geo-shown-centre-tl-y) + var(--oy) + var(--tt) + var(--geo-compass-inset)
+    );
+    --zone-bottom-y: calc(
+        var(--geo-shown-centre-bl-y) + var(--oy) + var(--tt) - var(--geo-compass-inset)
+    );
+}
+
+.game-board[data-compass-dora] .board-callout--left {
+    margin-left: calc(-1 * var(--river-gap-extra));
+    margin-top: var(--geo-compass-inset);
+}
+
+.game-board[data-compass-dora] .board-callout--right {
+    margin-left: var(--river-gap-extra);
+    margin-top: calc(-1 * var(--geo-compass-inset));
+}
+
+.game-board[data-compass-dora] .board-callout--top {
+    margin-top: calc(var(--geo-compass-inset) + var(--river-gap-trim) - var(--river-gap-extra));
+}
+
+.game-board[data-compass-dora] .board-callout--bottom {
+    margin-top: calc(var(--river-gap-extra) - var(--geo-compass-inset) - var(--river-gap-trim));
+}
+
+.game-board[data-compass-dora] .board-surface {
+    --h: calc(var(--geo-h) - var(--geo-compass-inset));
+
+    .board-rivers {
+        --g: calc(var(--geo-g) + var(--river-gap-extra));
+        --g-top: calc(var(--geo-g-top) + var(--river-gap-extra));
+    }
+
+    :is(.board-river--top, .board-river--bottom) {
+        --h: calc(var(--geo-h) - var(--geo-compass-inset) - var(--river-gap-trim));
+    }
+
+    > .board-dora {
+        --board-tile-w: var(--geo-compass-dora-width);
+
+        top: var(--geo-compass-top);
+        left: calc(var(--cx) - 2.5 * var(--geo-compass-dora-width));
+        width: max-content;
+        height: auto;
+        padding: 0;
+        background: none;
+        box-shadow: none;
+        transform: var(--geo-camera-centre);
+
+        .board-dora__tiles {
+            filter: none;
+        }
+    }
+
+    > .board-center {
+        --c: var(--geo-compass-panel-height);
+        --row-h: var(--score-size);
+        --turn-bar-h: max(1px, calc(var(--c) * 0.022));
+        --edge-gap: calc(var(--turn-bar-h) + max(1px, var(--c) * 0.009));
+        --round-floor: 12px;
+        --stick-h: max(3px, calc(var(--c) * 0.025));
+        --stick-gap: max(1px, calc(var(--c) * 0.009));
+        --info-gap: clamp(0px, (var(--c) - 64px) * 0.02, 3px);
+        --counts-size: max(10px, min(var(--c) * 0.125, (var(--w) - 2 * var(--row-depth)) / 7));
+
+        top: calc(var(--geo-compass-top) + var(--geo-compass-dora-row));
+        container: compass / size;
+
+        &:has(.board-center__live) {
+            container-name: compass live-centre;
+        }
+    }
+
+    .board-center__info {
+        --round-room: calc(
+            var(--c) - 2 * var(--row-depth) - max(12px, var(--counts-size)) - var(--info-gap)
+        );
+
+        inset: 0 var(--row-depth);
+        pointer-events: none;
+    }
+
+    .board-center__live {
+        pointer-events: auto;
+    }
+
+    .board-center__round {
+        --round-label-ems: 4.3;
+
+        font-size: max(
+            var(--round-floor),
+            min(
+                var(--round-room),
+                var(--c) * 0.24,
+                (var(--w) - 2 * var(--row-depth)) / var(--round-label-ems)
+            )
+        );
+
+        &:lang(ru) {
+            --round-label-ems: 5.1;
+        }
+    }
+
+    .board-center__counts {
+        font-size: var(--counts-size);
+    }
+}
+
+@container compass (height < 64px) {
+    .board-center__seat {
+        --edge-gap: 2px;
+    }
+
+    :is(.board-center__seat--top, .board-center__seat--bottom) .board-center__riichi {
+        left: 18%;
+        bottom: 5px;
+        width: 10px;
+    }
+
+    .game-board[data-compass-dora] .board-surface .board-center__info {
+        --round-room: calc(var(--c) - 2 * var(--row-h) - max(12px, var(--counts-size)) - 2px);
+
+        gap: 0;
+    }
 }

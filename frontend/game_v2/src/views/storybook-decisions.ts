@@ -1,3 +1,4 @@
+import { type SetBoardAppearance, applyBoardAppearance } from "@ronin/shared/board-appearance";
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import {
@@ -22,7 +23,7 @@ import {
     stepPlayUi,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
-import { type TileSpriteStatus, applyTileLabels } from "@/entities/tile";
+import { type TileSpriteStatus } from "@/entities/tile";
 import ADDED_KAN_SEAT_1 from "@/fixtures/seat-scenarios/added_kan_seat_1.json";
 import ANCHOR_SEAT_1 from "@/fixtures/seat-scenarios/anchor_seat_1.json";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
@@ -565,7 +566,7 @@ function pickStory(event: Event, show: (story: DecisionStoryKey) => void): void 
 interface PageLanguageHandlers {
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
-    readonly onTileLabels: (on: boolean) => void;
+    readonly onBoardAppearance: SetBoardAppearance;
 }
 
 /** The page's controls: the story picker's and the board's. */
@@ -577,7 +578,7 @@ interface StoryHandlers extends PageLanguageHandlers {
 function storyBoard(
     { state, ui }: StoryScreen,
     onCommand: (command: PlayCommand) => void,
-    { onLanguage, onTileLabels, onWinds }: PageLanguageHandlers,
+    { onLanguage, onBoardAppearance, onWinds }: PageLanguageHandlers,
 ): TemplateResult {
     return PlayBoard({
         clock: browserClock,
@@ -586,9 +587,9 @@ function storyBoard(
             history: getLobbyHistoryUrl(),
             replay: replayPageUrl(state.table.gameId, state.viewerSeat),
         },
+        onBoardAppearance,
         onCommand,
         onLanguage,
-        onTileLabels,
         onWinds,
     });
 }
@@ -597,13 +598,13 @@ const GALLERY_PATH = "/play/storybook/decisions";
 
 function storybookTemplate(
     screen: StoryScreen,
-    { onCommand, onLanguage, onTileLabels, onWinds, show }: StoryHandlers,
+    { onCommand, onLanguage, onBoardAppearance, onWinds, show }: StoryHandlers,
 ): TemplateResult {
     const { sent, story } = screen;
     return html`
     <div class="board-page decisions-storybook">
       <div class="board-page__board">
-        ${storyBoard(screen, onCommand, { onLanguage, onTileLabels, onWinds })}
+        ${storyBoard(screen, onCommand, { onBoardAppearance, onLanguage, onWinds })}
       </div>
       <div class="board-page__aside">
         <a class="board-storybook__btn" href="${STORYBOOK_INDEX}">Back</a>
@@ -727,12 +728,12 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
     const gallery = named === null;
     let screens = named === null ? galleryScreens() : [storyScreen(named)];
     const page: PageLanguageHandlers = {
-        onLanguage: (locale) => {
-            applyPageLocale(locale);
+        onBoardAppearance: (setting, on) => {
+            applyBoardAppearance(setting, on);
             draw();
         },
-        onTileLabels: (on) => {
-            applyTileLabels(on);
+        onLanguage: (locale) => {
+            applyPageLocale(locale);
             draw();
         },
         onWinds: (script) => {

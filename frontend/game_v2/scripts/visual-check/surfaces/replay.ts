@@ -31,6 +31,7 @@ import {
     LAPTOP_WINDOW,
     MID_DESKTOP,
     NARROW_DESKTOP,
+    SAFARI_PHONE,
     SHORT_TABLET,
     UPRIGHT_PHONE,
     WORST_CASES,
@@ -249,6 +250,24 @@ async function stepReplayToLocalMelds(page: Page): Promise<void> {
     throw new Error(`the replay never showed ${REPLAY_LOCAL_MELDS} local melds`);
 }
 
+async function enableCompassDora(page: Page): Promise<void> {
+    const score = page.locator(".board-center__score-line").first();
+    function scoreSize(): Promise<string> {
+        return score.evaluate((element) => getComputedStyle(element).fontSize);
+    }
+    await page.locator(".game-board[data-board-family]").waitFor();
+    const cornerSize = await scoreSize();
+    await page.getByRole("button", { exact: true, name: "Settings" }).click();
+    await page.getByRole("switch", { checked: false, name: /Dora above compass/u }).click();
+    await page.getByRole("switch", { checked: true, name: /Dora above compass/u }).press("Escape");
+    const middleSize = await scoreSize();
+    if (middleSize !== cornerSize) {
+        throw new Error(
+            `score size changed from ${cornerSize} to ${middleSize} with dora above compass`,
+        );
+    }
+}
+
 /**
  * The replay's worst cases: its first stop wherever the live board's geometry is compared with it (the notch phone's
  * insets aside), a desktop's status where its lines bind (a damaged recording's), the open round list's desktop rows, a panel over the short tablet's board, and every other
@@ -256,6 +275,12 @@ async function stepReplayToLocalMelds(page: Page): Promise<void> {
  * incomplete recording, under the damaged one's longer words).
  */
 const PAGES: readonly PageCase[] = [
+    {
+        ...replayCase("mid", [".game-board[data-compass-dora] .board-dora .tile__body"]),
+        at: [MID_DESKTOP, SAFARI_PHONE],
+        name: "replay-compass-dora",
+        prepare: enableCompassDora,
+    },
     {
         at: [UPRIGHT_PHONE],
         async check({ page, report }) {

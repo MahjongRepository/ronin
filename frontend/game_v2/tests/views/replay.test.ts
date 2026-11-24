@@ -1,3 +1,8 @@
+import {
+    COMPASS_DORA_KEY,
+    applyBoardAppearance,
+    restoreBoardAppearance,
+} from "@ronin/shared/board-appearance";
 import { afterEach, assert, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
@@ -343,8 +348,8 @@ function mountReplay(
         openUrl: (url) => opened.push(url),
         prefersReducedMotion: () => false,
         prefs: store,
+        setBoardAppearance: applyBoardAppearance,
         setLanguage,
-        setTileLabels: () => {},
         setWinds: () => {},
         shortcuts: "other",
         sound: deps,
@@ -1114,6 +1119,41 @@ describe("mountReplayView - view", () => {
             [13, 0],
             [13, 13],
         ]);
+    });
+});
+
+describe("mountReplayView - dora placement", () => {
+    async function openSettings() {
+        document.documentElement.removeAttribute("data-compass-dora");
+        restoreBoardAppearance();
+        const { host } = await mountLoadedReplay("riichi", "?round=0&step=10");
+        button(host, ".game-menu__toggle").click();
+        const toggle = button(host, ".game-menu__compass-dora");
+        return {
+            placement: () => [
+                toggle.getAttribute("aria-checked"),
+                element(host, ".game-board").hasAttribute("data-compass-dora"),
+            ],
+            position: () => position(host),
+            toggle,
+        };
+    }
+
+    it("keeps the dora above the compass on the next visit and switches back at the same step", async () => {
+        onTestFinished(() => {
+            localStorage.removeItem(COMPASS_DORA_KEY);
+            restoreBoardAppearance();
+        });
+        const first = await openSettings();
+        expect(first.placement()).toEqual(["false", false]);
+        first.toggle.click();
+        expect(first.placement()).toEqual(["true", true]);
+
+        const next = await openSettings();
+        expect(next.placement()).toEqual(["true", true]);
+        next.toggle.click();
+        expect(next.placement()).toEqual(["false", false]);
+        expect(next.position()).toBe("East 1 Step 11 of 28");
     });
 });
 

@@ -1,12 +1,13 @@
+import { type SetBoardAppearance } from "@ronin/shared/board-appearance";
 import {
     AnimationsRow,
+    BoardAppearanceRows,
     InputRows,
     type InputRowsProps,
     KeepAutoWinRow,
     LanguageRow,
     SoundRow,
     type SwitchRowProps,
-    TileLabelsRow,
     WindsRow,
 } from "@ronin/shared/settings-rows";
 import { type TemplateResult, html, nothing } from "lit-html";
@@ -35,7 +36,7 @@ interface GameMenuProps {
     readonly onToggleAnimations: () => void;
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
-    readonly onTileLabels: (on: boolean) => void;
+    readonly onBoardAppearance: SetBoardAppearance;
     /** The keyboard and mouse settings: the right-click switch and the controls' help it opens over the board. */
     readonly input?: InputRowsProps & { readonly onShowControls: () => void };
     /** Whether Auto win carries into the next round; a live game's alone. */
@@ -112,7 +113,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
         onClose,
         onLanguage,
         onToggleAnimations,
-        onTileLabels,
+        onBoardAppearance,
         onToggleSound,
         onWinds,
         soundOn,
@@ -122,7 +123,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
         <div class="game-menu__panel" role="group" aria-label=${t("game.settings.title")}>
             ${SoundRow(MENU_BLOCK, { on: soundOn, onToggle: onToggleSound })}
             ${AnimationsRow(MENU_BLOCK, { on: animationsOn, onToggle: onToggleAnimations })}
-            ${TileLabelsRow(MENU_BLOCK, onTileLabels)}
+            ${BoardAppearanceRows(MENU_BLOCK, onBoardAppearance)}
             ${props.keepAutoWin === undefined ? nothing : KeepAutoWinRow(MENU_BLOCK, props.keepAutoWin)}
             ${props.input === undefined ? nothing : InputRows(MENU_BLOCK, props.input)}
             ${LanguageRow(MENU_BLOCK, onLanguage)}

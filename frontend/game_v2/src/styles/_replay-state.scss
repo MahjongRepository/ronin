@@ -726,12 +726,12 @@ $round-list-clear: 8px;
     container: live-centre / size;
 }
 
-@container live-centre (height < 100px) {
+@container live-centre (height < 100px) or (aspect-ratio > 1.5) {
     .board-center__info {
         display: grid;
         grid-template:
-            "round live" auto
-            "counts counts" auto
+            "round round" auto
+            "counts live" auto
             / auto auto;
         place-content: center;
         gap: var(--info-gap) 3px;
@@ -739,15 +739,17 @@ $round-list-clear: 8px;
 
     .board-center__round {
         grid-area: round;
+        justify-self: center;
     }
 
     .board-center__counts {
         grid-area: counts;
-        justify-self: center;
+        justify-self: end;
     }
 
     .board-center__live {
         grid-area: live;
+        place-self: center start;
         padding: 0.25em;
 
         &::after {

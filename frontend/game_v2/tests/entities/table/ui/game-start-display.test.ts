@@ -22,9 +22,9 @@ function renderBoard(state: LiveClient): HTMLElement {
         PlayBoard({
             clock: PAGE_CLOCK,
             display: playDisplay(state, NO_PLAY_UI),
+            onBoardAppearance: () => {},
             onCommand: () => {},
             onLanguage: () => {},
-            onTileLabels: () => {},
             onWinds: () => {},
         }),
         host,

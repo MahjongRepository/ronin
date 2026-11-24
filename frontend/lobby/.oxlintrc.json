@@ -27,7 +27,7 @@
                     "KeepAutoWinRow",
                     "LanguageRow",
                     "SoundRow",
-                    "TileLabelsRow",
+                    "BoardAppearanceRows",
                     "WindsRow"
                 ]
             }

@@ -1,8 +1,8 @@
 import { encode } from "@msgpack/msgpack";
+import { applyBoardAppearance } from "@ronin/shared/board-appearance";
 
 import { DEFAULT_MOTION_SETTING, type GameSound } from "@/entities/client";
 import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/replay";
-import { applyTileLabels } from "@/entities/tile";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Clock, browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl, replayPageUrl } from "@/shared/config";
@@ -202,8 +202,8 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
             prefersReducedMotion: () => matchMedia("(prefers-reduced-motion: reduce)").matches,
             prefs: { load: () => story.prefs ?? DEFAULT_REPLAY_PREFS, save: () => {} },
             roundListOpen: story.roundListOpen ?? false,
+            setBoardAppearance: applyBoardAppearance,
             setLanguage: applyPageLocale,
-            setTileLabels: applyTileLabels,
             setWinds: applyWindScript,
             shortcuts: shortcutKeysOf(navigator.userAgent),
             sound: SILENT,

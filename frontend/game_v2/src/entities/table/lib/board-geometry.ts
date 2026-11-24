@@ -430,6 +430,11 @@ function riverRows(rw: number, gap: number): number {
     return gap + (CORE_TILES / 2 - RIVER_GAP_SHARE) * rw;
 }
 
+const COMPASS_SLOT_PADDING = 3;
+const COMPASS_DORA_GAP = 6;
+const COMPASS_DORA_SCALE = 0.9;
+const COMPASS_HEIGHT_FLOOR = 48;
+
 /**
  * The core's lengths: the centre (`cx`/`cy` its middle, `c`/`h` its height and half, `w`/`hx` its width and half), the
  * river tile, the gaps between the centre and the rivers (the top one's `g-top`), and the rivers' reserved reach, a
@@ -454,11 +459,22 @@ function coreLengths(
         topGap,
     }: Readonly<Record<"drop" | "gap" | "latestGap" | "rightLift" | "topGap", number>>,
 ): [string, number][] {
+    const slotWidth = width / RIVER_ROW_SIZE;
+    const slotHeight = slotWidth * (TILE_ASPECT * LYING_Y_SHARE + LYING_BODY.edge);
+    const panelRoom = height - slotHeight - COMPASS_SLOT_PADDING;
+    const panelHeight = Math.max(COMPASS_HEIGHT_FLOOR, panelRoom);
+    const indicatorRow = slotHeight * COMPASS_DORA_SCALE + COMPASS_DORA_GAP;
+    const compassMid = cy + (gap - topGap + rw * LYING_BODY.edge) / 2;
     const hx = width / 2;
     const sideReach = (SIDE_REACH_TILES / 2) * rw + latestGap;
     const runOnReach = RUN_ON_REACH_TILES * rw + latestGap;
     return [
         ["c", height],
+        ["compass-dora-width", slotWidth * COMPASS_DORA_SCALE],
+        ["compass-dora-row", indicatorRow],
+        ["compass-inset", (panelRoom - panelHeight) / 2],
+        ["compass-panel-height", panelHeight],
+        ["compass-top", compassMid - (indicatorRow + panelHeight) / 2],
         ["cx", cx],
         ["cy", cy],
         ["g", gap],
@@ -3034,10 +3050,9 @@ function handPlateLengths(
         ? (height - pillHeight) / 2
         : Math.min(height - pillHeight, Math.min(backBottom, faceBottom) - pillHeight);
     const farY = (below ? top.bottom + PLATE_GAP : backBottom - pillHeight) - topPillInset;
-    const row =
-        below && farX + wanted + PLATE_GAP > rightX
-            ? Math.max(sideY, farY + height)
-            : (rail?.top ?? sideY);
+    const stacked = below && farX + wanted + PLATE_GAP > rightX;
+    const row = stacked ? Math.max(sideY, farY + height) : (rail?.top ?? sideY);
+    const sidePillLift = phone && stacked ? Math.min(row - sideY, (height - pillHeight) / 2) : 0;
     const ownY = Math.floor(hand.top - at("own-meld-rise")) - Math.ceil(clearance);
 
     const positions = {
@@ -3058,6 +3073,7 @@ function handPlateLengths(
         ["plate-text", text],
         ["plate-top-text", farText],
         ["plate-side-text", rail?.text ?? text],
+        ["plate-side-pill-lift", sidePillLift],
         ["plate-pill-h", pillHeight],
         ["plate-top-pill-inset", topPillInset],
         ["plate-top-revealed-y", below ? farY : faceBottom - pillHeight - topPillInset],

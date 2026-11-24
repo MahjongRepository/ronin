@@ -76,6 +76,10 @@ export interface BoardMeasure {
     readonly zones: Box | null;
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
+    readonly compassDora: {
+        readonly indicators: readonly Box[];
+        readonly rivers: readonly GroupedBox[];
+    } | null;
     readonly family: string;
     /** The play switches' form the geometry emitted (`data-board-switches`). */
     readonly switchesForm: string;
@@ -423,6 +427,12 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             centerTexts,
             chrome: board.getAttribute("data-board-chrome"),
             clippedWords,
+            compassDora: board.hasAttribute("data-compass-dora")
+                ? {
+                      indicators: [...board.querySelectorAll(".board-dora .tile__body")].map(box),
+                      rivers: bySeat(board, ".board-river .tile__body", ".board-river"),
+                  }
+                : null,
             cutNames,
             decisionBand: band === null ? null : { box: box(band), buttons: decisionActions },
             edgeShare: Number.parseFloat(

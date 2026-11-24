@@ -1,3 +1,4 @@
+import { pageCompassDora } from "@ronin/shared/board-appearance";
 import { type TemplateResult, html, nothing } from "lit-html";
 import { type DirectiveResult } from "lit-html/directive.js";
 import { keyed } from "lit-html/directives/keyed.js";
@@ -47,6 +48,7 @@ interface LocalHandInput {
 }
 
 interface GameBoardProps {
+    readonly compassDora?: boolean;
     readonly matchResult?: boolean;
     readonly motion?: BoardMotionCue;
     /** Whether the player leaves the board's animations on; on when omitted. */
@@ -440,6 +442,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
     return html`
         <div
             class="${boardClass}"
+            ?data-compass-dora=${props.compassDora ?? pageCompassDora()}
             data-motion=${animationsOn ? nothing : "off"}
             ${props.input ?? nothing}
             ${sizeBoard(

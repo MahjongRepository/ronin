@@ -1,3 +1,4 @@
+import { type SetBoardAppearance } from "@ronin/shared/board-appearance";
 import { type TemplateResult, html, nothing } from "lit-html";
 import { repeat } from "lit-html/directives/repeat.js";
 
@@ -56,7 +57,7 @@ export interface PlayBoardProps {
     readonly onCommand: (command: PlayCommand) => void;
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
-    readonly onTileLabels: (on: boolean) => void;
+    readonly onBoardAppearance: SetBoardAppearance;
     /** What the page adds to the corner before the settings (the debug log). */
     readonly menuExtra?: TemplateResult;
     /** The game end's links; without them it offers only the game's last result and the way back. */
@@ -513,7 +514,7 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
  * the board, the board under it is inert. Each new showing of calls is read out once.
  */
 export function PlayBoard(props: PlayBoardProps): TemplateResult {
-    const { clock, display, menuExtra, onCommand, onLanguage, onTileLabels, onWinds } = props;
+    const { clock, display, menuExtra, onCommand, onLanguage, onBoardAppearance, onWinds } = props;
     const { overlay } = display;
     const inert = overlay?.blocksBoard ?? false;
     function onTile(tileId: number): void {
@@ -554,9 +555,9 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
                 kind: "leave",
                 onLeave: () => onCommand(display.leave.command),
             },
+            onBoardAppearance,
             onClose: () => onCommand(CLOSE_SETTINGS),
             onLanguage,
-            onTileLabels,
             onToggleAnimations: () => onCommand(TOGGLE_ANIMATIONS),
             onToggleOpen: () => onCommand(TOGGLE_SETTINGS),
             onToggleSound: () => onCommand(TOGGLE_SOUND),

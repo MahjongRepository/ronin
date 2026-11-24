@@ -962,6 +962,24 @@ describe("boardGeometry", () => {
 
 describe("boardGeometry's rivers", () => {
     it.each([
+        [1440, 900],
+        [896, 275],
+    ])("centres the wall and compass between the painted river tiles at %ix%i", (width, height) => {
+        const { lengths } = windowGeometry({ height, width });
+        function length(name: string): number {
+            return lengths[name] ?? Number.NaN;
+        }
+        const halfHeight = length("h") - length("compass-inset");
+        const topRiverFoot =
+            length("cy") - halfHeight - length("g-top") + LYING_BODY.edge * length("rw");
+        const bottomRiverTop = length("cy") + halfHeight + length("g");
+        const wallTop = length("compass-top");
+        const panelFoot = wallTop + length("compass-dora-row") + length("compass-panel-height");
+
+        expect(wallTop - topRiverFoot).toBeCloseTo(bottomRiverTop - panelFoot);
+    });
+
+    it.each([
         [667, 375],
         [1366, 657],
         [1728, 988],

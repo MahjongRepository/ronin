@@ -1,3 +1,4 @@
+import { pageCompassDora } from "@ronin/shared/board-appearance";
 import { type TemplateResult, html, render } from "lit-html";
 
 import {
@@ -151,6 +152,7 @@ const LONG_NOTICE_TEXT =
     "The game server sent a message this page could not read, so the table may be wrong until the server sends it again; play goes on.";
 
 interface BoardStoryState {
+    readonly compassDora: boolean;
     readonly debug: boolean;
     /** The long notice shows in the notices' place, kept in the page's `?notice=long`. */
     readonly notice: boolean;
@@ -1089,6 +1091,7 @@ interface BoardStoryHandlers {
     readonly showViewer: (seat: string) => void;
     readonly showCallout: (call: string) => void;
     readonly showOffers: (offers: string) => void;
+    readonly toggleCompassDora: () => void;
     readonly toggleDebug: () => void;
     readonly toggleOverlay: (mode: OverlayMode) => void;
     readonly openNotice: (open: boolean) => void;
@@ -1227,6 +1230,7 @@ function storybookBoardTemplate(
                 ${GameBoard({
                     actions: offers === null ? undefined : DecisionControls(offers, () => {}),
                     callouts: storyCallouts(story.callout, state),
+                    compassDora: story.compassDora,
                     debug: story.debug,
                     decisionCapacity: offers?.actions.length ?? 0,
                     inert: sheet !== undefined,
@@ -1251,6 +1255,11 @@ function storybookBoardTemplate(
                     class="board-storybook__btn ${activeClass(story.debug)}"
                     @click=${handlers.toggleDebug}
                 >Debug</button>
+                <button
+                    class="board-storybook__btn ${activeClass(story.compassDora)}"
+                    aria-pressed=${story.compassDora}
+                    @click=${handlers.toggleCompassDora}
+                >Dora above compass</button>
                 <button
                     class="board-storybook__btn ${activeClass(story.overlay === "round_end")}"
                     @click=${() => handlers.toggleOverlay("round_end")}
@@ -1302,8 +1311,10 @@ function storybookBoardTemplate(
 /** Mount the board storybook into `host`; its story and overlay are kept in the page's `?state=` and `?overlay=`. */
 export function mountStorybookBoard(host: HTMLElement): () => void {
     const query = new URLSearchParams(window.location.search);
+    const defaultDora = pageCompassDora() ? "compass" : "corner";
     let story: BoardStoryState = {
         callout: parseStoryCall(query.get("callout")),
+        compassDora: (query.get("dora") ?? defaultDora) === "compass",
         debug: false,
         leftoverLost: query.get("leftover") === "lost",
         notice: query.get("notice") === "long",
@@ -1360,6 +1371,11 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
             const viewerSeat = parseViewerParam(value);
             syncQueryParam("viewer", String(viewerSeat), "0");
             show({ ...story, viewerSeat });
+        },
+        toggleCompassDora() {
+            const compassDora = !story.compassDora;
+            syncQueryParam("dora", compassDora ? "compass" : "corner", defaultDora);
+            show({ ...story, compassDora });
         },
         toggleDebug: () => show({ ...story, debug: !story.debug }),
         toggleOverlay(mode) {

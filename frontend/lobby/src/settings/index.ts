@@ -3,6 +3,7 @@ import {
     DEFAULT_AUTO_WIN_SETTING,
     readAutoWinSetting,
 } from "@ronin/shared/auto-win-setting";
+import { applyBoardAppearance } from "@ronin/shared/board-appearance";
 import {
     DEFAULT_INPUT_SETTING,
     INPUT_SETTING_KEY,
@@ -21,7 +22,6 @@ import {
     SOUND_SETTING_KEY,
     readSoundSetting,
 } from "@ronin/shared/sound-setting";
-import { applyTileLabels } from "@ronin/shared/tile-labels";
 import { applyWindScript } from "@ronin/shared/winds";
 
 import { startApiTokenSection } from "@/settings/api-token";
@@ -74,11 +74,11 @@ export function mountSettingsView(host: HTMLElement, deps: SettingsViewDeps): Mo
                     autoWinStore.save({ keepBetweenRounds: !autoWin.keepBetweenRounds }),
                 ),
             },
-            onLanguage: deps.setLanguage,
-            onTileLabels: (on) => {
-                applyTileLabels(on);
+            onBoardAppearance: (setting, on) => {
+                applyBoardAppearance(setting, on);
                 render();
             },
+            onLanguage: deps.setLanguage,
             onWinds: (script) => {
                 applyWindScript(script);
                 render();

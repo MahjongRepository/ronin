@@ -1,13 +1,14 @@
+import { type SetBoardAppearance } from "@ronin/shared/board-appearance";
 import { type Locale } from "@ronin/shared/locale";
 import {
     AnimationsRow,
+    BoardAppearanceRows,
     InputRows,
     type InputRowsProps,
     KeepAutoWinRow,
     LanguageRow,
     SoundRow,
     type SwitchRowProps,
-    TileLabelsRow,
     WindsRow,
 } from "@ronin/shared/settings-rows";
 import { type WindScript } from "@ronin/shared/winds";
@@ -31,7 +32,7 @@ export interface SettingsProps {
     readonly input: InputRowsProps;
     readonly keepAutoWin: SwitchRowProps;
     readonly onLanguage: (locale: Locale) => void;
-    readonly onTileLabels: (on: boolean) => void;
+    readonly onBoardAppearance: SetBoardAppearance;
     readonly onWinds: (script: WindScript) => void;
     readonly sound: SwitchRowProps;
 }
@@ -46,7 +47,7 @@ const TAB_LABELS: Record<SettingsTab, MessageKey> = {
 function gameSettingsTemplate(props: SettingsProps): TemplateResult {
     return html`<div class="${BLOCK}__list">
         ${SoundRow(BLOCK, props.sound)} ${AnimationsRow(BLOCK, props.animations)}
-        ${TileLabelsRow(BLOCK, props.onTileLabels)} ${KeepAutoWinRow(BLOCK, props.keepAutoWin)}
+        ${BoardAppearanceRows(BLOCK, props.onBoardAppearance)} ${KeepAutoWinRow(BLOCK, props.keepAutoWin)}
         ${InputRows(BLOCK, props.input)} ${LanguageRow(BLOCK, props.onLanguage)}
         ${WindsRow(BLOCK, props.onWinds)}
     </div>`;

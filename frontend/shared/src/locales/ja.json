@@ -1,5 +1,6 @@
 {
     "settings.animations": "アニメーション",
+    "settings.compass_dora": "ドラ表示牌を点棒表示の上に置く",
     "settings.keep_auto_win": "自動和了を次局も維持",
     "settings.key_hints": "キーのヒント",
     "settings.language": "言語",

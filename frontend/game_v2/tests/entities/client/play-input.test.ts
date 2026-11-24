@@ -78,9 +78,9 @@ class InputBoard {
             PlayBoard({
                 clock: inputClock,
                 display: playDisplay(this.state, this.ui),
+                onBoardAppearance: () => {},
                 onCommand: this.onCommand,
                 onLanguage: () => {},
-                onTileLabels: () => {},
                 onWinds: () => {},
             }),
             this.host,
