@@ -7,12 +7,12 @@ $plate-seats: bottom, right, top, left;
     z-index: layer(furniture);
     display: flex;
     align-items: center;
-    width: auto;
+    width: var(--plate-w);
     min-width: 40px;
     min-height: var(--badge-h);
     margin: 0;
     padding: 0;
-    font-size: var(--text);
+    font-size: var(--geo-plate-text);
     font-weight: 600;
     line-height: 1.2;
     text-align: left;
@@ -29,12 +29,25 @@ $plate-seats: bottom, right, top, left;
     }
 
     @include phone-board {
-        font-size: 10px;
+        justify-content: center;
     }
 
     &:focus-visible {
         outline: 3px solid var(--ronin-accent);
         outline-offset: 2px;
+    }
+}
+
+.nameplate:is(.nameplate--left, .nameplate--right) {
+    font-size: var(--geo-plate-side-text);
+}
+
+.nameplate--top {
+    align-items: flex-start;
+    padding-top: var(--geo-plate-top-pill-inset);
+
+    .board-layout:has(.board-strip--top-hand.board-strip--revealed) & {
+        top: var(--geo-plate-top-revealed-y);
     }
 }
 
@@ -44,8 +57,8 @@ $plate-seats: bottom, right, top, left;
     flex-shrink: 0;
     justify-content: center;
     align-items: center;
-    width: min(var(--plate-w), 8em);
-    height: var(--pill-h);
+    width: var(--plate-w);
+    height: var(--geo-plate-pill-h);
     padding: 0 6px;
     font-weight: 500;
     white-space: nowrap;
@@ -58,9 +71,10 @@ $plate-seats: bottom, right, top, left;
     }
 
     @include phone-board {
-        width: min(var(--plate-w), 7.2em);
-        height: calc(var(--pill-h) * 0.7);
-        padding-bottom: var(--cue-w);
+        --cue-w: 1px;
+
+        padding: 0 2px var(--cue-w);
+        line-height: 1;
     }
 
     &::after {
@@ -85,10 +99,10 @@ $plate-seats: bottom, right, top, left;
 
 .nameplate__stick {
     position: absolute;
-    top: calc(100% + 3px);
+    top: calc(100% + var(--geo-plate-stick-drop));
     left: 50%;
     display: none;
-    width: max(2.2em, var(--c) * 0.45);
+    width: min(100%, var(--geo-plate-stick-w));
     transform: translateX(-50%);
 
     .board-stick-icon {
@@ -102,25 +116,12 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-.nameplate:is(.nameplate--top, .nameplate--left) {
-    justify-content: flex-end;
-}
-
-.nameplate:is(.nameplate--right, .nameplate--bottom) {
-    justify-content: flex-start;
-}
-
-@each $seat in top, left {
+@each $seat in $plate-seats {
     .nameplate--#{$seat} {
-        top: var(--geo-shown-plate-#{$seat}-y);
-        right: calc(100% - var(--geo-shown-plate-#{$seat}-x));
-    }
-}
+        --plate-w: var(--geo-plate-#{$seat}-w);
 
-@each $seat in right, bottom {
-    .nameplate--#{$seat} {
-        top: var(--geo-shown-plate-#{$seat}-y);
-        left: var(--geo-shown-plate-#{$seat}-x);
+        top: var(--geo-plate-#{$seat}-y);
+        left: var(--geo-plate-#{$seat}-x);
     }
 }
 

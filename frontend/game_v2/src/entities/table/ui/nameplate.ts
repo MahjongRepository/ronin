@@ -43,7 +43,7 @@ function viewWords(position: SeatPosition): string {
 }
 
 /**
- * A seat's badge: its player's name alone on one line, its states each on its own channel so any of them combine: the
+ * A seat's badge: its player's name alone, its states each on its own channel so any of them combine: the
  * name's ink red while its player is away (the reason in its title and label), a rim in the riichi stick's ivory after
  * a riichi, a bar along its bottom edge whose turn it is. Its score is the centre's, on the seat's side, which shows
  * the other seats' scores as differences from its own while a pointer hovers the badge. Where pressing it views the

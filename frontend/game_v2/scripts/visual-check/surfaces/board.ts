@@ -37,6 +37,7 @@ import {
 } from "../model.ts";
 import { MIN_TEXT_PX } from "../text.ts";
 import {
+    CHROME_PHONE,
     FLOOR,
     FULLSCREEN_PHONE,
     LAPTOPS,
@@ -44,6 +45,7 @@ import {
     MID_DESKTOP,
     NARROW_DESKTOP,
     NOTCH_PHONE,
+    SAFARI_PHONE,
     SQUARE_DESKTOP,
     ULTRAWIDE,
     UPRIGHT_PHONE,
@@ -162,7 +164,7 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        at: [...WORST_CASES, ULTRAWIDE],
+        at: [...WORST_CASES, ULTRAWIDE, SAFARI_PHONE, CHROME_PHONE],
         longNames: true,
     },
     {
@@ -271,7 +273,7 @@ function checkBoardContent(board: BoardMeasure, report: PageReport): void {
         board.tiles.length > 0 && board.hiddenTiles === 0,
         `${board.hiddenTiles} hidden tile(s)`,
     );
-    const outside = board.tiles.filter((tile) => !contains(board.board, tile));
+    const outside = board.tiles.filter(({ box }) => !contains(board.board, box));
     report.expect(outside.length === 0, `${outside.length} tile(s) outside the board`);
     const strayPlates = board.nameplates.filter((plate) => !contains(board.board, plate));
     report.expect(strayPlates.length === 0, `${strayPlates.length} nameplate(s) outside the board`);
@@ -711,11 +713,10 @@ function withDrawnEdge(quad: readonly Point[], share: number): readonly Point[] 
 }
 
 function checkPlatesClear(board: BoardMeasure, report: PageReport): void {
-    const tiles = [...board.riverTiles, ...board.stripTiles];
     const stickGap = board.family === "phone" ? PHONE_STICK_TILE_GAP : STICK_TILE_GAP;
     function touching(parts: readonly GroupedBox[], gap: number, part: string): string[] {
         return parts.flatMap(({ box: shown, group }) =>
-            tiles
+            board.tiles
                 .filter(({ box: tile }) => near(shown, tile, gap))
                 .map((tile) => `${group} ${part} x ${tile.group} tile`),
         );
@@ -753,28 +754,8 @@ function checkStripsApart(board: BoardMeasure, report: PageReport): void {
     );
 }
 
-/**
- * The badges set from their box's right side: a phone's right and top ones, a desktop's right and own ones (the top one
- * stands right of its hand's start, set from its left).
- */
-const RIGHT_SET_BADGES: Readonly<Record<string, ReadonlySet<string>>> = {
-    desktop: new Set(["right", "bottom"]),
-    phone: new Set(["top"]),
-};
-
-/** Each badge's fixed point: its box's side its place is set from, and its top (the own badge's foot). */
 function badgeAnchors(board: BoardMeasure): Readonly<Record<string, readonly [number, number]>> {
-    const rightSet = RIGHT_SET_BADGES[board.family] ?? new Set<string>();
-    return Object.fromEntries(
-        board.badges.map(({ box, group }) => {
-            const side = rightSet.has(group) ? box.left + box.width : box.left;
-            const point: readonly [number, number] = [
-                side,
-                group === "bottom" ? box.top + box.height : box.top,
-            ];
-            return [group, point];
-        }),
-    );
+    return Object.fromEntries(board.badges.map(({ box, group }) => [group, [box.left, box.top]]));
 }
 
 /**
@@ -1206,11 +1187,19 @@ async function checkBoard({
     checkHandReach(board, report);
     checkHandScale(board, report);
     checkDerivedProportions(board, viewport.name, report);
-    if (options.longNames !== true && keepsNamesWhole(viewport, screen)) {
+    report.expect(
+        board.wrappedNames.length === 0,
+        `names wrapping onto multiple lines: ${board.wrappedNames.join(", ")}`,
+    );
+    if (board.family === "phone") {
+        const shortenedBots = board.cutNames.filter((name) => /^ai-tsumogiri-\d$/u.test(name));
         report.expect(
-            board.cutNames.length === 0,
-            `badge name(s) shortened though ordinary: ${board.cutNames.join(", ")}`,
+            shortenedBots.length === 0,
+            `bot names cut short: ${shortenedBots.join(", ")}`,
         );
+    }
+    if (options.longNames !== true && keepsNamesWhole(viewport, screen)) {
+        report.expect(board.cutNames.length === 0, `names cut short: ${board.cutNames.join(", ")}`);
     }
 }
 

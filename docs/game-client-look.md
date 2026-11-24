@@ -35,10 +35,8 @@ The derived proportions are the three reference viewports' values under the sizi
   lying tile, on the table and off it (a result, a decision's chip), is foreshortened along the screen's y axis and
   shows a thick edge at its end toward the screen's bottom; tiles lying together overlap far to near, the nearer face
   covering the edge they share, so an edge shows only where nothing lies nearer (a row's last tiles, an incomplete
-  row, the latest discard held apart), and one soft shadow per group grounds them. The felt, the
-  plates and calls (at the points the table anchors them to, a plate standing on its edge toward the core, a top row plate raised further
-  where its riichi stick would come within 10px of the core, 6 on a phone) lie flat with it. One static place per
-  piece, no per-frame work. Decision: one light for every
+  row, the latest discard held apart), and one soft shadow per group grounds them. The felt, the nameplates beside the hands and the callouts
+  lie flat with it. One static place per piece, no per-frame work. Decision: one light for every
   seat: every tile is one generated body (`entities/tile/lib/tile-body.ts`, `npm run bodies`), drawn
   for its pose on the screen, never by the stylesheet, so the light stays at the screen's top-left and the edge
   toward the screen's bottom whatever the seat: a body turned with its seat's frame is turned back, and a tile picks
@@ -136,17 +134,16 @@ The derived proportions are the three reference viewports' values under the sizi
 ## Composition (decisions)
 
 ```
-+----------+-----------------------------------------------+----------+
-| dora     |   [top melds] [ top hand ]                    |   cog    |
-| round    | l   [T plate]  [ top river ]  [R plate]       |          |
-|          | e                                           r |          |
-|          | f        [L river] [centre] [R river]       i |          |
-|          | t   [L plate]  [bottom river] [own plate]   g |          |
-|          |   [toasts]    [kan][pon][chi][pass][timer]  h |          |
-| furiten  |               (replay: moves, options)      t |          |
-| switches |                                               |          |
-|          |[ OWN HAND ...................... ][melds]     |          |
-+----------+-----------------------------------------------+----------+
++------------+------------------------------------------------+------------+
+| dora       |   [top melds] [top hand] [top name]            | cog        |
+| round      | l               [top river]                 r  |            |
+|            | e                                           i  | right name |
+| left name  | f       [left river] [centre] [right river] g  |            |
+|            | t                                           h  |            |
+|            |   [toasts]      [bottom river]              t  |            |
+| furiten    |   [own name]     [kan][pon][chi][pass][timer]  |            |
+| switches   |   [OWN HAND ...................... ][melds]    |            |
++------------+------------------------------------------------+------------+
   left bar   table: own row between the side lanes         right bar
 ```
 
@@ -189,13 +186,13 @@ The counters stand in the table's top-left corner over the left lane and the top
 starting 12px past them, and the cog at the right lane's top. The play switches, the furiten mark and a replay's
 status stand in one of two places:
 
-- **Corner**: at the left lane's foot, the switches ending over the own row's plate foot, two by two where the lane
+- **Corner**: at the left lane's foot, the switches ending above the own tiles' foot, two by two where the lane
   holds them, else the joined column, the furiten mark over them. The side strips' lines start below the counters and
   the cog and end above the furiten mark.
 - **Pocket**: in the free pocket left of the top river and above the left river, past the left lane and below the top
   strip, clear of the table's left strip and rivers: the switches at its bottom-left, two by two where it holds
   them, else the joined column, the furiten mark over them and the field above. The side strips' lines start below the
-  counters and the cog and run to the own row, as a barred board's. The controls may stand over the top seat's plate and
+  counters and the cog and run to the own row, as a barred board's. The controls may stand over the left seat's plate and
   its riichi stick, which are furniture.
 
 The board takes whichever reaches the larger river tile; at the same river tile a fitting corner wins. The table is as
@@ -225,8 +222,7 @@ the lanes stand beside the own row it crosses the edge into the air beside the l
 at the left rail's foot by the screen's edge: the two-by-two block where the rail holds it, else the joined column,
 or, where the rail holds no column or the column would leave the notices no field, the block above the own row at the
 felt's edge; the furiten mark stands above them and the notices between, at the left bar's width (over the felt's
-edge to short of the left strip). The plates stand in the core's corners as on a
-desktop (Badges). Over a panel the notices and a replay's status stay in their field and stand over it,
+edge to short of the left strip). The names stand beside their hands (Badges). Over a panel the notices and a replay's status stay in their field and stand over it,
 reserving no room of their own.
 
 Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: the
@@ -244,9 +240,8 @@ them. The cost is the spatial picture: how much wall is left and where the dead 
 as a number, not seen, so the count turns red from ten tiles left.
 
 - **Core**: the centre and the four rivers in their pinwheel, compact and centred in the table, sized by the
-  board's height. Its corners hold the plates as one rectangle (Badges); off a phone its bottom-left corner, under
-  the left river's longest reach, also holds the notices as toasts, over the plate there, and the decisions stand in
-  a band along the own row's top from the bottom river's start, over the bottom river and the own plate.
+  board's height. On a desktop its bottom-left corner holds notices below the left river's longest reach.
+  Decisions stand along the own row's top, starting at the bottom river's left edge.
 - **Perimeter**: each opponent's strip at the table's edge on its side, the top one along the table's top between
   the side lanes, every side strip clear of the own row's span. The felt between a side hand and its river is
   about four river tiles on a landscape window (the own tile's 1.45 cap keeps the table that narrow) and about two
@@ -312,8 +307,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   but visible gap separates a river from the centre and from its neighbours (off a phone 0.15 of a river tile,
   the top river's past the tile edge its rows drop toward the centre); tiles touch inside a
   river, rivers never touch each other. The right river stands higher by its first tile's edge less that gap and
-  3px, so a bottom first row a sideways tile runs past the centre's corner passes under that edge 3px clear (a full
-  edge would bring the right plate's riichi stick within 10px of the river's top). Decision, departing from the run-on convention for side
+  3px, so a bottom first row a sideways tile runs past the centre's corner passes under that edge 3px clear. Decision, departing from the run-on convention for side
   rivers only: past eighteen discards a side river wraps its overflow into a fourth row toward its
   seat's edge, since a third row running on along a phone's short side would cross the hand; a top
   or bottom river keeps the convention, its third row running on along its line. In real play a river
@@ -411,29 +405,24 @@ as a number, not seen, so the count turns red from ten tiles left.
   centred on the table; its line runs from the hand's right end leftward to the left lane's inner edge, never over
   the left lane. Its melds stay above the core, scaling where the line cannot hold them at the river tile, and
   an added kan's stack shrinks into the room above the top river.
-- **Badges.** One shape for every seat, state and size: the name alone in a one-line band of one fixed width,
+- **Badges.** One shape for every seat, state and size: the name alone in a band sized to the space beside the hand,
   a faint darkening of the felt with muted ink, so the names stay quiet table furniture and never draw the eye
   from the tiles. A plate is furniture (Three tiers): every tile, meld, river and control may stand over it, a
-  replay's badge then pressable only where it shows. A name too long for the band is shortened in the middle (a phone or a best-effort desktop window may shorten
-  ordinary names too) so its end, which tells AI players apart,
-  stays. Its states each take a channel of their own and never change the band's outline or ink: away (an AI stands
+  replay's badge then pressable only where it shows. The bands shorten long names in the middle so their ends, which tell AI players apart, stay visible. Its states each take a channel of their own and never change the band's outline or ink: away (an AI stands
   in for a human who left or never came, the human identity kept, cleared when they return) turns the name's ink
   red, its reason in the badge's tooltip and screen-reader label, red being reserved for it among the badge's
-  states; riichi, a riichi stick as long as the centre's, centred under the band, drawn over the felt so it moves nothing;
+  states; riichi, a riichi stick up to the band's width, otherwise as long as the centre's, centred under the band, drawn over the felt so it moves nothing;
   the seat in turn, the green bar along the band's whole bottom edge (Turn cue). A seated AI player is unmarked on the board (its
   name, the seating and the game end tell it). The band is one height per tier, its box at least the control floor
-  tall around it; a phone draws its band at 0.7 of that height and at most 7.2em wide in 10px text, inside the
-  same box, so the layout and the tap target stay the tier's. Decision: on every board the four plates stand as one rectangle in the core's corners:
-  top-left the top seat's, top-right the right seat's, bottom-left the left seat's, bottom-right the own
-  one. The left pair's right edges stand a gap short of the top river's run-on and of the centre, the right pair's
-  left edges a gap past the bottom river's run-on and the centre, mirrored about the centre's middle; the top row a
-  gap above the centre and the right river's reserved top, the bottom row a gap under the centre and the left river's
-  reserve (a riichi tile, the latest discard's gap and a tile's edge counted), mirrored about the centre's middle
-  where the core's top and the own row allow, each row level otherwise. The band is as wide as the narrowest corner
-  holds, at most eight of its ems. Places are fixed per viewport and viewpoint, never following how many tiles a
-  seat holds. The corners place it clear of the tiles of an ordinary
-  round, never of a river past its reserve, a meld line or a control that reaches it: those cover it, and no plate
-  moves out of its corner for them. Decision: the badge carries no wind or score; the
+  tall around it. Phone bands are a single line of 10px text, up to 80px wide. The replay tap target is at least 40px in both dimensions. The top name sits beside the right end of the top hand. The band's bottom edge lines up with the bottom of the tile bodies for both concealed and revealed hands. When the gap is too narrow on a phone, the band sits just below that end.
+  The local name sits just above the own hand, with room for its riichi stick. Both side names share a row
+  about a fifth of the way down the side strips. Centre each side name in its rail when both rails have room for the
+  name and riichi stick clear of the controls. Use the nearest clear row. Phones keep their 10px text; on
+  larger boards rail text can shrink to three quarters of the board text, with a 14px minimum. Where the rails are too tight,
+  place both names just inside the hands, with the left name aligned to the local name's left edge.
+  The left name clears the left river and any play
+  switches in that pocket. Anchors stay fixed as hands shorten or offers open. A crowded prompt or notice may briefly
+  cover a name. Decision: the badge carries no wind or score; the
   centre holds every seat's score, and hovering a badge shows the other seats' scores in the centre as differences
   from it (kept from the current board); hovering the centre does the same for the bottom seat's badge.
   In a live game the badge takes no press, no pointer cursor and no text selection; a replay's badge is a control
@@ -518,7 +507,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   without looking. While the own seat has called no meld, the controls end where the hand's thirteenth tile ends and
   the timer stands past it, over the drawn tile; with a meld they keep the band's right end. Its controls are 0.85 of a
   river tile tall, never under 48px, so a larger window never draws them
-  smaller, along one row that grows left over the bottom river and the own plate, wrapping upward only where the
+  smaller, along one row that grows left over the bottom river, wrapping upward only where the
   band's width is used up (a narrow window, a long label). By design the cluster stands over the own river's tiles
   on its solid controls with a soft shadow, and on a short window a wrapped decision's top row rises over the right
   river's first tiles; neither the table nor the stack reserves room for either. Decision: covering the own river
@@ -718,7 +707,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   quietest, last among the ongoing ones): decision, off a phone they stand as toasts of up to two lines, their text the
   board's share and never under 14px, in the core's bottom-left corner: past the left strip's lane to short of the
   bottom river's first tile, under the left river's longest reach and over the own row's melds' rise, stacked down
-  from its top, over the left plate. The left bar (105 to 150px wide on primary desktops)
+  from its top, toward the own plate. The left bar (105 to 150px wide on primary desktops)
   squeezed them to 12px and wrapped them, so that felt, which no tile or control reaches at any size, holds
   them; a toast wraps to
   a second line where its words need it, and a stack the felt cannot hold shows its first toasts, the last one shown
@@ -998,9 +987,8 @@ river tiles and at least 100px. The core's side is
 the centre plus eight river tiles, two gaps between the centre and the rivers (0.3 of a river tile on a phone, 0.15
 off one, the top one past its rows' tile edge) and the top and bottom rivers' latest-discard gaps, so no river's latest discard stands past it, across each axis's
 own side of the panel; the side rivers' wrapped fourth rows are reserved beside it, so the core is about 17.3
-river tiles wide off a phone. Its corners, which the pinwheel leaves empty, hold the four plates and, off a phone,
-the notices' toasts (bottom-left, under the left river's
-longest reach); the decisions stand along the own row's top, from the bottom river's start over it to the right
+river tiles wide off a phone. On a desktop the notices occupy the bottom-left corner under the left river's
+longest reach. The names stand at the perimeter beside the hands. The decisions stand along the own row's top, from the bottom river's start over it to the right
 river. A phone's play switches stand at the left rail's
 foot and a replay's moves in the right rail, so a replay's board is the live game's there too.
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
@@ -1099,8 +1087,7 @@ A review opens each anchor checkpoint at the three viewports and answers, in wri
 
 1. Can a player see the four zones and tell every tile's owner at a glance?
 2. Is the player's next task the most prominent thing on screen, and the table still scannable?
-3. Is each seat's identity in the place the reference fixed for it, the same in every checkpoint: the four plates
-   one rectangle in the core's corners, mirrored about the centre?
+3. Is each seat's identity in the place the reference fixed for it, beside the same hand in every checkpoint, including open offers?
 4. Do the rivers read as six-wide rows with space around each river and no two rivers touching?
 5. Is there one strong cue for the seat in turn, is the latest discard found at a glance (apart while a call on it
    is decided, in line otherwise), and are

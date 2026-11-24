@@ -27,7 +27,7 @@ const ROOMS: StripRooms = {
     left: SIDE,
     right: SIDE,
     rw: 20,
-    top: { anchor: 300, badgeDepth: 100, depth: 100, lane: 0, start: 0 },
+    top: { anchor: 300, depth: 100, start: 0 },
 };
 
 function windowStrips(box: BoardBox): StripRooms {
@@ -167,13 +167,11 @@ describe("stripLayout", () => {
         ).toBeCloseTo(left.line, 6);
     });
 
-    it("keeps the top strip at the river tile where its stacked kan stands past the badge's lane", () => {
-        const top = { ...ROOMS.top, anchor: 400, badgeDepth: 30, lane: 300 };
+    it("keeps the top strip at the river tile where the stacked kan fits above the river", () => {
+        const top = { ...ROOMS.top, anchor: 400 };
         const content: StripContent = { drawn: true, hand: 8, melds: [CHI, ADDED_KAN] };
         const { melds } = stripLayout("top", content, { ...ROOMS, top });
         expect(melds.map((meld) => meld.tile)).toEqual([ROOMS.rw, ROOMS.rw]);
-        expect(melds[0]?.along).toBeLessThan(top.lane);
-        expect(melds[1]?.along).toBeGreaterThan(top.lane);
     });
 
     it("slides the top strip's melds in by its line's inset at their size while a drawn tile fits beside the hand, else shrinks them", () => {

@@ -6,19 +6,6 @@ import { CALLOUT_SPOTS } from "./callouts";
 
 const CAMERA_WIDTHS = 2;
 
-/**
- * A plate's riichi stick hangs this far under its pill (px), as long as the centre's stick (this share of the centre's
- * side) but never shorter than this many of the plate's text, at 6/48 tall.
- */
-const STICK_DROP = 3;
-const STICK_LENGTH_BY_CENTRE = 0.45;
-const STICK_LENGTH_BY_TEXT = 2.2;
-const STICK_ASPECT = 6 / 48;
-
-/** A riichi stick keeps at least this far off the core under it on a desktop, and on a phone (px). */
-const STICK_GAP = 10;
-const PHONE_STICK_GAP = 6;
-
 const TABLE_PIECES = [
     "centre",
     "dora",
@@ -156,28 +143,6 @@ function calloutSpot(plane: BoardGeometry, seat: SeatPosition): PlanePoint {
     return spots[seat];
 }
 
-/** Whether a seat's plate stands in the top row of plates (over the core's top corners) or the bottom row. */
-function topRowPlate(seat: SeatPosition): boolean {
-    return seat === "top" || seat === "right";
-}
-
-/**
- * A plate's anchor: its inner edge at its box's edge toward the rivers beside it (a top row plate's bottom, its riichi
- * stick's side; a bottom row plate's top), which the flat plate then stands on, so the camera keeps that edge's gap.
- */
-function plateAnchor(plane: BoardGeometry, seat: SeatPosition): PlanePoint {
-    const at = lengthOf(plane);
-    const inner = plane.box.width - at("plate-left-right");
-    const height = at("badge-h");
-    const anchors: Readonly<Record<SeatPosition, PlanePoint>> = {
-        bottom: { left: at("plate-right-left"), top: at("plate-bottom-top") },
-        left: { left: inner, top: at("plate-bottom-top") },
-        right: { left: at("plate-right-left"), top: at("plate-top-top") + height },
-        top: { left: inner, top: at("plate-top-top") + height },
-    };
-    return anchors[seat];
-}
-
 function px(value: number): string {
     return `${value}px`;
 }
@@ -212,76 +177,7 @@ function topHandValues(view: TableView): [string, string][] {
 
 const SCREEN_ONLY_LENGTHS = new Set(["table-h", "table-top"]);
 
-function platePlace(view: TableView, screen: BoardGeometry, seat: SeatPosition): PlanePoint {
-    const shown = plateAnchor(view.plane, seat);
-    if (!topRowPlate(seat)) {
-        return { left: shown.left, top: shown.top };
-    }
-    const top = shown.top - (screen.lengths["badge-h"] ?? 0);
-    const stick = stickUnder(screen, { left: shown.left, seat, top });
-    const nearest = Math.min(
-        Infinity,
-        ...(["centre", "river-left", "river-right", "river-top"] as const)
-            .map((piece) => shownReach(view, piece))
-            .filter(
-                (piece) =>
-                    piece.left < stick.right &&
-                    stick.left < piece.right &&
-                    piece.bottom > stick.foot - 1,
-            )
-            .map((piece) => piece.top),
-    );
-    const least = screen.family === "phone" ? PHONE_STICK_GAP : STICK_GAP;
-    return { left: shown.left, top: top - Math.ceil(Math.max(0, stick.foot + least - nearest)) };
-}
-
-/**
- * A piece as far as its tiles can reach on the screen: a river row holding a sideways riichi tile runs a tile's height
- * instead of its width, past the river's box on the side it runs to (the right river's top, the top river's left).
- */
-function shownReach(
-    view: TableView,
-    piece: "centre" | "river-left" | "river-right" | "river-top",
-): BoardRect {
-    const flat = view.pieces[piece];
-    const sideways = (TILE_ASPECT - 1) * (view.plane.lengths["rw"] ?? 0);
-    if (piece === "river-right") {
-        return { ...flat, top: flat.top - sideways * LYING_Y_SHARE };
-    }
-    if (piece === "river-top") {
-        return { ...flat, left: flat.left - sideways };
-    }
-    return flat;
-}
-
-/**
- * A top row plate's riichi stick's foot and the span its plate covers, for its plate's box at `top`: the pill centred
- * in the box, the stick hanging under it.
- */
-function stickUnder(
-    screen: BoardGeometry,
-    {
-        left,
-        seat,
-        top,
-    }: { readonly left: number; readonly seat: SeatPosition; readonly top: number },
-): { readonly foot: number; readonly left: number; readonly right: number } {
-    const at = lengthOf(screen);
-    const pillTop = top + (at("badge-h") - at("pill-h")) / 2;
-    const reachesLeft = seat === "top";
-    return {
-        foot:
-            pillTop +
-            at("pill-h") +
-            STICK_DROP +
-            Math.max(STICK_LENGTH_BY_TEXT * at("text"), STICK_LENGTH_BY_CENTRE * at("c")) *
-                STICK_ASPECT,
-        left: reachesLeft ? left - at("plate-w") : left,
-        right: reachesLeft ? left : left + at("plate-w"),
-    };
-}
-
-function boardViewValues(view: TableView, screen: BoardGeometry): [string, string][] {
+function boardViewValues(view: TableView): [string, string][] {
     const { centre, "strip-left": stripLeft, "strip-right": stripRight } = view.pieces;
     const shownCorners = {
         bl: { left: centre.left, top: centre.bottom },
@@ -298,9 +194,6 @@ function boardViewValues(view: TableView, screen: BoardGeometry): [string, strin
         ),
         ...SEAT_POSITIONS.flatMap((seat) =>
             pointValues(`--geo-shown-callout-${seat}`, calloutSpot(view.plane, seat)),
-        ),
-        ...SEAT_POSITIONS.flatMap((seat) =>
-            pointValues(`--geo-shown-plate-${seat}`, platePlace(view, screen, seat)),
         ),
     ];
 }

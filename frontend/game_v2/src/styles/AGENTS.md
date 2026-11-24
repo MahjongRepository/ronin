@@ -27,9 +27,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   named line); `.board-layout` and `.board-table` lay them out and each slot takes its `grid-area`, aligned the way its
   contents stand in it. A slot's place is never a CSS formula: what its contents read (`--actions-*`,
   `--switch-*`, the field's height and a desktop's toasts', which the notices' clamp reads as `max-height`) comes from the geometry too.
-  The core's pinwheel (centre, rivers), the plates (one rectangle in the core's corners on every board, its two
-  columns and two rows the geometry's) and the
-  counters stand absolutely
+  The core's pinwheel (centre, rivers), each nameplate beside its hand and the counters stand absolutely
   over the grid, by the geometry's lengths, and so does a replay's status over a smaller board's panel.
 - **A width-bound desktop's table is a frame of its own.** Where the board is taller than its table needs, the
   geometry emits `--geo-table-top` and `--geo-table-h`, and `.board-layout` stands there, that tall: every length,
@@ -100,7 +98,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   top, holds the rivers, the centre, the opponents' strips and the counters; each takes the transform `tableView`
   (`entities/table/lib/table-view.ts`) emits for it (`--geo-camera-*`) from its top left corner, which only moves it
   to the table's top, and the lengths the directive writes on the surface itself. So every piece is shown as laid: the
-  overlays (`--geo-shown-*`: the plates, calls and the felt's fields), motion snapshots and the checks read the boxes the
+  overlays (`--geo-shown-*`: the calls and the felt's fields), motion snapshots and the checks read the boxes the
   browser paints, with no projection to take back. The view seam is a deferred no-op: a piece's transform stays one
   static value per resize, never per frame. The surface makes no stacking context and clips nothing. Its full-board
   layers (the surface, the rivers, the strips) pass the pointer through, so the plates under them take presses; a

@@ -259,7 +259,7 @@ class SizeBoard extends AsyncDirective {
                 ...Object.entries(laid).map(
                     ([name, length]) => [`--${name}`, `${length}px`] as const,
                 ),
-                ...boardViewValues(view, geometry),
+                ...boardViewValues(view),
             ]),
             this.written,
         );

@@ -1165,94 +1165,11 @@ function phoneReplayPlace({
 }
 
 /**
- * The plates' rectangle: the left pair's right edges and the right pair's left edges `across` off the centre's middle,
- * each pill `width` wide at most; the top row's pills' top and the bottom row's (px); the tap box's padding; and whether
- * the rows hold a pill above the right river's reserved top and above the own row.
- */
-interface PlateRect {
-    readonly across: number;
-    readonly bottom: number;
-    readonly fits: boolean;
-    readonly pad: number;
-    readonly top: number;
-    readonly width: number;
-}
-
-/**
- * The plates as one rectangle in the core's corners: the top seat's top-left, the right seat's top-right,
- * the left seat's bottom-left and the own one bottom-right. The columns stand a gap past the top river's run-on and the
- * centre on the left and past the bottom river's run-on and the centre on the right, mirrored about the centre's middle;
- * the rows a gap above the centre and the right river's reserved top and under the centre and the left river's reserve,
- * mirrored about it where the core's top and `rowLimit` (the own row's line end) let them, each row level otherwise.
- */
-function plateRect(at: (name: string) => number, pillH: number, rowLimit: number): PlateRect {
-    const rw = at("rw");
-    const cx = at("cx");
-    const cy = at("cy");
-    const lane = sideLane(rw);
-    const pad = (plateBoxHeight({ pillH }) - pillH) / 2;
-    const centreTop = cy - at("h");
-    const centreBottom = cy + at("h");
-    const leftRiverEnd =
-        cy -
-        at("h") +
-        ROW_BEFORE_SIDEWAYS * LYING_Y_SHARE * rw +
-        at("rh") * LYING_Y_SHARE +
-        at("latest-drop-gap") +
-        TILE_EDGE_SHARE * rw;
-    const rightRiverTop =
-        cy +
-        at("h") -
-        at("river-right-lift") -
-        ROW_BEFORE_SIDEWAYS * LYING_Y_SHARE * rw -
-        at("rh") * LYING_Y_SHARE -
-        at("latest-drop-gap");
-    const leftLimit = Math.min(at("reach-top-left"), cx - at("hx")) - PLATE_GAP;
-    const rightLimit = Math.max(at("reach-bottom-right"), cx + at("hx")) + PLATE_GAP;
-    const across = Math.max(cx - leftLimit, rightLimit - cx);
-    const topLimit = Math.min(centreTop, rightRiverTop) - PLATE_GAP;
-    const bottomFloor = Math.max(leftRiverEnd, centreBottom) + PLATE_GAP;
-    const bottomLimit = rowLimit - pad;
-    const down = Math.max(cy - topLimit, bottomFloor - cy);
-    const mirrored = cy - down - pillH >= at("core-top") && cy + down + pillH <= bottomLimit;
-    const top = mirrored ? cy - down - pillH : Math.max(at("core-top"), topLimit - pillH);
-    const bottom = mirrored ? cy + down : Math.min(bottomFloor, bottomLimit - pillH);
-    return {
-        across,
-        bottom,
-        fits:
-            at("core-top") + pillH <= Math.min(centreTop, rightRiverTop - PLATE_GAP) + 0.001 &&
-            bottomLimit - pillH >= Math.max(leftRiverEnd, centreBottom) - 0.001,
-        pad,
-        top,
-        width: Math.min(
-            cx - across - (at("col-left") + lane + PLATE_GAP),
-            at("col-right") - lane - PLATE_GAP - (cx + across),
-        ),
-    };
-}
-
-function plateLengths(
-    width: number,
-    at: (name: string) => number,
-    rect: PlateRect,
-): [string, number][] {
-    return [
-        ["plate-bottom-top", rect.bottom - rect.pad],
-        ["plate-left-right", width - (at("cx") - rect.across)],
-        ["plate-right-left", at("cx") + rect.across],
-        ["plate-top-top", rect.top - rect.pad],
-        ["plate-w", rect.width],
-    ];
-}
-
-/**
  * A phone's lengths at a river and own tile, in px; whether its places fit them: the centre at its least height, both
  * side strips' lines a full concealed hand long (three pons may reach into the top margin) from the top margin to the
  * bars' foot (above the own row, or `beside` it at the board's foot), both bars as wide as the wider one's contents need,
  * the felt (`phoneFelt`) within its rails holding the own row and its air, the own tile no larger than the felt's wanted
- * width holds a full hand in, the plates' rows holding a pill above the right river's reserved top and above the own row
- * (`plateRect`); and whether the decisions' band holds `call_prompt`'s rows and a replay's controls their place.
+ * width holds a full hand in, and whether the decisions' band holds `call_prompt`'s rows and a replay's controls their place.
  */
 function phoneLayout(
     frame: BoardFrame,
@@ -1367,14 +1284,12 @@ function phoneLayout(
         ]);
     }
     const at = lengthsAt(lengths);
-    const plates = plateRect(at, chrome.pillH, rowTop);
     const band = phoneActions(at);
     const lanesFit =
         spareRoom >= PHONE_CENTRE_MIN_HEIGHT &&
         fullReach(rw, "left") <= rowTop - m &&
         ponsReach(rw, frame.faceFloor) <= foot &&
-        column.left >= barLeast - 0.001 &&
-        plates.fits;
+        column.left >= barLeast - 0.001;
     const ownCap = beside
         ? Infinity
         : Math.floor((phoneFeltWanted({ height, rail, width }) - 2 * FELT_AIR) / FULL_HAND);
@@ -1674,6 +1589,7 @@ interface BoardTracks {
  * opponents' strips lay their melds out in.
  */
 interface BoardShell {
+    readonly sideNameRail: BoardRect | null;
     readonly areas: Readonly<Record<ShellSlot, BoardRect> & Partial<Record<"toasts", BoardRect>>>;
     readonly lengths: readonly [string, number][];
     readonly strips: StripRooms;
@@ -1855,13 +1771,10 @@ const CENTRE_EDGE_GIVE = 1;
 
 const PHONE_TOP_EDGE_CLEAR = 3;
 
-/** The top strip's melds keep this far above the top badge (px). */
-const TOP_BADGE_CLEAR = 6;
-
 /**
  * Where an opponent's side strips stand, by their family's places (px): the left line from `leftStart` down to
  * `leftEnd`, its melds kept off the own row from `lineClear` past that end down to the board's foot; the right one from
- * its origin `rightEnd` up to `rightStart`; and the top plate's box's top, which the top strip's melds keep above.
+ * its origin `rightEnd` up to `rightStart`.
  */
 interface StripPlaces {
     readonly leftStart: number;
@@ -1870,7 +1783,6 @@ interface StripPlaces {
     readonly rightEnd: number;
     readonly lineClear: number;
     readonly ownStart: number;
-    readonly topBadgeTop: number;
     readonly topEnd: number;
     readonly topStart?: number;
 }
@@ -1926,9 +1838,7 @@ function opponentStrips(
             rw,
             top: {
                 ...top,
-                badgeDepth: places.topBadgeTop - TOP_BADGE_CLEAR - TILE_EDGE_SHARE * rw - m,
                 depth: at("core-top") - TOP_CORE_CLEAR - (frame.topGap ?? 0) - m,
-                lane: 0,
             },
         },
     };
@@ -2007,6 +1917,7 @@ function barReplayForm(columns: number): ReplayForm {
 
 /** What a family places in its controls' slots: their areas, the lengths their contents read, the switches' form. */
 interface ControlSlots {
+    readonly sideNameRail: BoardRect | null;
     readonly areas: Readonly<
         Record<"actions" | "corner" | "field" | "furiten" | "switches", BoardRect>
     >;
@@ -2028,19 +1939,11 @@ function wantedReplaySide(at: (name: string) => number): number {
 }
 
 /**
- * The own plate's pill as a desktop's flat table places it: its left edge and its top and foot (px); a replay's row may
- * graze its rounded edge by this much.
- */
-const PILL_GRAZE = 2;
-type OwnPill = Readonly<Record<"bottom" | "left" | "top", number>>;
-
-/**
  * A desktop replay's controls in the decisions' band, over the own hand: the moves and then the
  * options in one row along the band's foot from its start (the bottom river's), each at its wanted side where the band
- * holds them so large; null where the band holds no row at the control floor or the row would cover the own plate's
- * pill. The row stands over the bottom river's last row, which a replay's reader steps past.
+ * holds them so large; null where the band holds no row at the control floor. The row stands over the bottom river's last row, which a replay's reader steps past.
  */
-function replayRow({ at, tier }: ShellRoom, band: BoardRect, pill: OwnPill): ReplayBlock | null {
+function replayRow({ at, tier }: ShellRoom, band: BoardRect): ReplayBlock | null {
     const count = REPLAY_MOVES + REPLAY_OPTIONS;
     const gaps = replayRowGaps(tier.replayGap);
     const side = Math.floor(
@@ -2057,11 +1960,7 @@ function replayRow({ at, tier }: ShellRoom, band: BoardRect, pill: OwnPill): Rep
         right: band.left + width,
         top: band.bottom - side,
     };
-    const clearOfPill =
-        rect.right <= pill.left ||
-        rect.top >= pill.bottom - PILL_GRAZE ||
-        rect.bottom <= pill.top + PILL_GRAZE;
-    return side >= REPLAY_CONTROL_FLOOR && clearOfPill ? { rect, side, width } : null;
+    return side >= REPLAY_CONTROL_FLOOR ? { rect, side, width } : null;
 }
 
 function replayRowGaps(gap: number): number {
@@ -2238,11 +2137,9 @@ function desktopLaneControls(
     decisions: ReturnType<typeof desktopActions>,
     {
         linesEnd,
-        ownPill,
         stack,
     }: {
         readonly linesEnd: number;
-        readonly ownPill: OwnPill;
         readonly stack: BarlessStack;
     },
 ): ReturnType<typeof desktopBars> {
@@ -2266,7 +2163,7 @@ function desktopLaneControls(
     };
     const field = { ...across, bottom: furiten.top - FURITEN_GAP, top: rect.top };
     const replaying = frame.slots.band === "replay";
-    const row = replayRow(room, decisions.rect, ownPill);
+    const row = replayRow(room, decisions.rect);
     const replay =
         row === null
             ? replayColumn(room, {
@@ -2308,6 +2205,7 @@ function desktopLaneControls(
             ...replayPanel,
         ],
         replay: replay.form,
+        sideNameRail: null,
         switches: switches.form,
     };
 }
@@ -2325,11 +2223,7 @@ function desktopLaneControls(
 function desktopBars(
     room: ShellRoom,
     decisions: ReturnType<typeof desktopActions>,
-    {
-        fieldTop,
-        ownPill,
-        switchesFoot,
-    }: { readonly fieldTop: number; readonly ownPill: OwnPill; readonly switchesFoot: number },
+    { fieldTop, switchesFoot }: { readonly fieldTop: number; readonly switchesFoot: number },
 ): ControlSlots & {
     readonly cogLeft: number;
     readonly felt: Readonly<Record<"left" | "right", number>>;
@@ -2368,7 +2262,7 @@ function desktopBars(
     };
     const nearRight = Math.min(rightBar.right, rightBar.left + BAR_REACH_RIVER_TILES * at("rw"));
     const replaying = frame.slots.band === "replay";
-    const row = replayRow(room, decisions.rect, ownPill);
+    const row = replayRow(room, decisions.rect);
     const inRow = row !== null;
     const replay =
         row === null
@@ -2418,6 +2312,12 @@ function desktopBars(
             ...namedLengths,
         ],
         replay: replay.form,
+        sideNameRail: {
+            bottom: Math.min(furiten.top, inRow ? height : replay.rect.top),
+            left: 0,
+            right: Math.min(leftBar.right, width - rightBar.left),
+            top: Math.max(fieldTop, BAR_GAP + at("menu-size")),
+        },
         switches: named === null ? "letters" : "names",
     };
 }
@@ -2636,6 +2536,12 @@ function phoneControls(room: ShellRoom): ControlSlots {
             ["replay-w", replay.width],
         ],
         replay: replay.form,
+        sideNameRail: {
+            bottom: replaying ? replay.rect.top : furitenBottom - FURITEN_H,
+            left: 0,
+            right: Math.min(feltLeft, width - feltRight),
+            top: m + Math.max(counters.counters.height, menuSize(at("rw"))),
+        },
         switches: switches.columns === 1 ? "letters" : "block",
     };
 }
@@ -2645,18 +2551,12 @@ function phoneControls(room: ShellRoom): ControlSlots {
  */
 const PLATE_GAP = 6;
 
-/** A plate's box is at least the control floor tall, its pill centred in it, so a replay's plate is a whole target (px). */
+/** A plate's box is at least the control floor tall so a replay's plate is a whole target (px). */
 const PLATE_TAP_FLOOR = 40;
 
 /** A plate's box: its pill, at least `PLATE_TAP_FLOOR` tall. */
 function plateBoxHeight({ pillH }: Pick<TierChrome, "pillH">): number {
     return Math.max(pillH, PLATE_TAP_FLOOR);
-}
-
-/** The plates' lengths and their top row's box's top, which the top strip's melds keep above. */
-interface PlatePlaces {
-    readonly lengths: readonly [string, number][];
-    readonly topBadgeTop: number;
 }
 
 /**
@@ -2890,38 +2790,6 @@ function laneFootTop({
     );
 }
 
-/** A desktop's plates (`plateRect`), their bottom row above the own row's melds' line end. */
-function desktopPlates(room: ShellRoom): PlatePlaces & { readonly ownPill: OwnPill } {
-    const { at, tier } = room;
-    const rect = plateRect(
-        at,
-        tier.pillH,
-        sideLineEnd(at("hand-top"), at("own-meld-rise"), STRIP_ROOM_GAP),
-    );
-    return {
-        lengths: plateLengths(room.frame.box.width, room.at, rect),
-        ownPill: {
-            bottom: rect.bottom + tier.pillH,
-            left: at("cx") + rect.across,
-            top: rect.bottom,
-        },
-        topBadgeTop: rect.top - rect.pad,
-    };
-}
-
-/** A phone's plates (`plateRect`), their bottom row above the own row's line end. */
-function phonePlates({ at, frame, tier }: ShellRoom): PlatePlaces {
-    const rect = plateRect(
-        at,
-        tier.pillH,
-        phoneRowTop({ handTop: at("hand-top"), ownMeldRise: at("own-meld-rise"), rw: at("rw") }),
-    );
-    return {
-        lengths: plateLengths(frame.box.width, at, rect),
-        topBadgeTop: rect.top - rect.pad,
-    };
-}
-
 /** The own row's area from `start` to `end` and the lengths it is placed by, its foreground from `lineEnd` down. */
 function ownRowSlot(
     at: (name: string) => number,
@@ -2958,7 +2826,7 @@ function desktopToasts(room: ShellRoom): BoardRect {
  * A desktop's slots: the opponents' strips, the own row between the side strips' lanes centred on the core, the
  * controls as its arrangement puts them, in the bars (`desktopBars`) or over the table (`desktopLaneControls`), under
  * the counters (`desktopCounters`), the decisions in a band along the own row's top (`desktopActions`), the notices in
- * the core's bottom-left corner (`desktopToasts`), and the plates in the core's corners (`desktopPlates`).
+ * the core's bottom-left corner (`desktopToasts`).
  */
 function desktopShell(room: ShellRoom, arrangement: DesktopArrangement): BoardShell {
     const { at } = room;
@@ -2976,10 +2844,8 @@ function desktopShell(room: ShellRoom, arrangement: DesktopArrangement): BoardSh
         rw: at("rw"),
     });
     const decisions = desktopActions(room);
-    const plates = desktopPlates(room);
     const placed = {
         fieldTop: counters.fieldTop,
-        ownPill: plates.ownPill,
         switchesFoot: rowFootPlateTop(room) - BAR_GAP,
     };
     const controls =
@@ -2987,7 +2853,6 @@ function desktopShell(room: ShellRoom, arrangement: DesktopArrangement): BoardSh
             ? desktopBars(room, decisions, placed)
             : desktopLaneControls(room, decisions, {
                   linesEnd: lines.end,
-                  ownPill: plates.ownPill,
                   stack: barlessStack(room, arrangement, placed),
               });
     const strips = opponentStrips(room, {
@@ -2997,7 +2862,6 @@ function desktopShell(room: ShellRoom, arrangement: DesktopArrangement): BoardSh
         ownStart,
         rightEnd: lines.end,
         rightStart: lines.start,
-        topBadgeTop: plates.topBadgeTop,
         topEnd: Math.min(topHandEnd(at), controls.cogLeft - PLATE_GAP),
         topStart: place === "corner" ? counters.right + FIELD_STRIP_GAP : undefined,
     });
@@ -3014,7 +2878,6 @@ function desktopShell(room: ShellRoom, arrangement: DesktopArrangement): BoardSh
             ["felt-left", controls.felt.left],
             ["felt-right", controls.felt.right],
             ...counters.counters,
-            ...plates.lengths,
             ...own.lengths,
             ["decision-bottom", decisions.rect.bottom],
             ["decision-top", decisions.rect.top],
@@ -3024,13 +2887,14 @@ function desktopShell(room: ShellRoom, arrangement: DesktopArrangement): BoardSh
             ["toasts-w", toasts.right - toasts.left],
         ],
         replay: controls.replay,
+        sideNameRail: controls.sideNameRail,
         strips: strips.strips,
         switches: controls.switches,
     };
 }
 
 /**
- * A phone's slots: the plates in the core's corners (`phonePlates`); the side strips at the table column's
+ * A phone's slots: the side strips at the table column's
  * edges, their lines from the top margin to the bars' foot, the top one between their lanes; the own row in the felt,
  * from a full hand centred on the board to the felt's air short of its right edge under both lanes, or between them
  * where they stand beside it; and the controls in the rails and bars and the decisions' band over the own row
@@ -3041,7 +2905,6 @@ function phoneShell(room: ShellRoom): BoardShell {
     const m = at("m");
     const ownStart = at("own-start");
     const lineEnd = at("lines-end");
-    const plates = phonePlates(room);
     const strips = opponentStrips(room, {
         leftEnd: lineEnd,
         leftStart: m,
@@ -3049,15 +2912,15 @@ function phoneShell(room: ShellRoom): BoardShell {
         ownStart,
         rightEnd: lineEnd,
         rightStart: m,
-        topBadgeTop: plates.topBadgeTop,
         topEnd: topHandEnd(at),
     });
     const controls = phoneControls(room);
     const own = ownRowSlot(at, { end: at("own-end"), lineEnd, start: ownStart });
     return {
         areas: { ...controls.areas, hand: own.area, ...strips.areas },
-        lengths: [...controls.lengths, ...plates.lengths, ...own.lengths],
+        lengths: [...controls.lengths, ...own.lengths],
         replay: controls.replay,
+        sideNameRail: controls.sideNameRail,
         strips: strips.strips,
         switches: controls.switches,
     };
@@ -3073,20 +2936,146 @@ function stripFacts(rw: number): [string, number][] {
     ];
 }
 
+const PHONE_PLATE_TEXT = 10;
+const PLATE_EMS = 8;
+const PHONE_RAIL_MIN_EMS = 7.6;
+const RAIL_PLATE_TEXT_FLOOR = 14;
+const RAIL_PLATE_TEXT_SHARE = 0.75;
+const PLATE_STICK_DROP = 3;
+const PLATE_STICK_ASPECT = 6 / 48;
+
+function fitSideNameRail(
+    rail: BoardRect | null,
+    {
+        foot,
+        phone,
+        preferredY,
+        text,
+    }: {
+        readonly foot: number;
+        readonly phone: boolean;
+        readonly preferredY: number;
+        readonly text: number;
+    },
+): {
+    readonly width: number;
+    readonly left: number;
+    readonly top: number;
+    readonly text: number;
+} | null {
+    if (rail === null) {
+        return null;
+    }
+    const railWidth = rail.right - rail.left;
+    const width = Math.min(PLATE_EMS * text, phone ? railWidth : railWidth - PLATE_GAP);
+    const minimumWidth = phone
+        ? PHONE_RAIL_MIN_EMS * text
+        : PLATE_EMS * Math.max(RAIL_PLATE_TEXT_FLOOR, RAIL_PLATE_TEXT_SHARE * text);
+    const first = rail.top + (phone ? 0 : PLATE_GAP);
+    const last = rail.bottom - foot;
+    if (width < minimumWidth || first > last) {
+        return null;
+    }
+
+    return {
+        left: rail.left + (railWidth - width) / 2,
+        text: phone ? text : width / PLATE_EMS,
+        top: Math.max(first, Math.min(last, preferredY)),
+        width,
+    };
+}
+
+function handPlateLengths(
+    { at, frame, tier }: ShellRoom,
+    { areas, sideNameRail }: BoardShell,
+): [string, number][] {
+    const { hand, "strip-left": left, "strip-right": right, "strip-top": top } = areas;
+    const phone = frame.family === "phone";
+    const text = phone ? PHONE_PLATE_TEXT : tier.text;
+    const wanted = PLATE_EMS * text;
+    const height = plateBoxHeight(tier);
+    const reservedPillHeight = phone ? tier.pillH * 0.7 : tier.pillH;
+    const pillHeight = phone ? reservedPillHeight * 0.7 : reservedPillHeight;
+    const stick = Math.max(2.2 * text, 0.45 * at("c"));
+    const stickOverhang = PLATE_STICK_DROP + stick * PLATE_STICK_ASPECT;
+    const stickFoot = (height + reservedPillHeight) / 2 + stickOverhang;
+    const stickGap = phone ? PLATE_GAP : 10;
+    const clearance = stickFoot + stickGap;
+
+    const ownX = left.right + PLATE_GAP;
+    const alongSide = right.top + (right.bottom - right.top) / 5 - height / 2;
+    const aboveSwitches =
+        areas.switches.left >= left.right ? areas.switches.top - clearance : Infinity;
+    const sideY = Math.max(0, Math.min(alongSide, at("cy") - at("h") - clearance, aboveSwitches));
+
+    const rail = fitSideNameRail(sideNameRail, {
+        foot: Math.max(height, stickFoot + (phone ? RAIL_GAP : PLATE_GAP)),
+        phone,
+        preferredY: sideY,
+        text,
+    });
+    const sideWidth = rail?.width ?? Math.min(wanted, at("reach-top-left") - PLATE_GAP - ownX);
+    const leftX = rail?.left ?? ownX;
+    const rightX = (rail ? frame.box.width - leftX : right.left - PLATE_GAP) - sideWidth;
+
+    const topX = top.right + stickGap;
+    const backBottom = top.top + at("rh") + at("rw") * TOP_HAND_BACK_EDGE_SHARE;
+    const faceBottom = top.top + at("rh") * LYING_Y_SHARE + at("rw") * LYING_BODY.edge;
+    const aboveRight = right.top >= top.top + pillHeight + stickOverhang + stickGap;
+    const cogLeft = (areas.corner.left + areas.corner.right - at("menu-size")) / 2;
+    const topEnd = Math.min(cogLeft, aboveRight ? right.right : right.left);
+    const besideWidth = topEnd - PLATE_GAP - topX;
+    const below = phone && besideWidth < wanted;
+    const farX = below ? Math.max(at("cx") + at("hx") + PLATE_GAP, top.right - wanted) : topX;
+    const topPillInset = below
+        ? (height - pillHeight) / 2
+        : Math.min(height - pillHeight, Math.min(backBottom, faceBottom) - pillHeight);
+    const farY = (below ? top.bottom + PLATE_GAP : backBottom - pillHeight) - topPillInset;
+    const row =
+        below && farX + wanted + PLATE_GAP > rightX
+            ? Math.max(sideY, farY + height)
+            : (rail?.top ?? sideY);
+    const ownY = Math.floor(hand.top - at("own-meld-rise")) - Math.ceil(clearance);
+
+    const positions = {
+        bottom: [ownX, ownY, wanted],
+        left: [leftX, row, sideWidth],
+        right: [rightX, row, sideWidth],
+        top: [farX, farY, below ? wanted : Math.min(wanted, besideWidth)],
+    } as const;
+    const places: [string, number][] = Object.entries(positions).flatMap(
+        ([seat, [leftEdge, topEdge, width]]) => [
+            [`plate-${seat}-x`, leftEdge],
+            [`plate-${seat}-y`, topEdge],
+            [`plate-${seat}-w`, width],
+        ],
+    );
+    return [
+        ...places,
+        ["plate-text", text],
+        ["plate-side-text", rail?.text ?? text],
+        ["plate-pill-h", pillHeight],
+        ["plate-top-pill-inset", topPillInset],
+        ["plate-top-revealed-y", below ? farY : faceBottom - pillHeight - topPillInset],
+        ["plate-stick-w", stick],
+        ["plate-stick-drop", PLATE_STICK_DROP],
+    ];
+}
+
 /** A family's slots from its lengths and, off a phone, its arrangement. */
 function boardShell(frame: BoardFrame, { arrangement, lengths }: LaidBoard): BoardShell {
     function at(name: string): number {
         return lengths[name] ?? 0;
     }
     const grown = grownChrome(frame.tier, chromeGrowth(frame.chrome, at("rw")));
-    const shell =
-        arrangement === null
-            ? phoneShell({ at, frame, tier: phoneChrome(at("rw")) })
-            : desktopShell(
-                  { at, frame, tier: atDecisionScale(grown, at("decision-h")) },
-                  arrangement,
-              );
-    return { ...shell, lengths: [...shell.lengths, ...stripFacts(at("rw"))] };
+    const tier =
+        arrangement === null ? phoneChrome(at("rw")) : atDecisionScale(grown, at("decision-h"));
+    const room = { at, frame, tier };
+    const shell = arrangement === null ? phoneShell(room) : desktopShell(room, arrangement);
+    return {
+        ...shell,
+        lengths: [...shell.lengths, ...stripFacts(at("rw")), ...handPlateLengths(room, shell)],
+    };
 }
 
 /** A named edge of a slot's area, on a line of its own after any other at its place where its area is empty. */

@@ -74,8 +74,8 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   depth is the tiles' own (lying bodies foreshortened along the screen's y axis, their edge toward the screen's bottom,
   one shadow per group). `lib/table-view.ts`'s `tableView` is that view of the geometry, and its seam
   (`boardViewValues`, `surfaceViewValues`: the pieces' `--geo-camera-*` transforms, the `--geo-shown-*` anchors of the
-  plates, calls and the felt's fields) is a deferred no-op kept for a later camera: the overlays still take their places from
-  it, never from the geometry's lengths, and a top row plate's raise clear of the core is computed there.
+  calls and the felt's fields) is a deferred no-op kept for a later camera. Nameplates use the shell geometry directly
+  so their anchors track the hand areas on resize and stay fixed throughout play.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.
 - Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors the Go server's (`backend/game_v2/internal/wire`); the shared golden pins both registries.  A damaged record stops playback at its preceding readable prefix and names its record position.

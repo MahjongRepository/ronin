@@ -39,7 +39,7 @@ export interface BoardMeasure {
         /** The panel's shown controls, which nothing may cover though a notice may stand over the panel. */
         readonly controls: readonly Box[];
     } | null;
-    readonly tiles: readonly Box[];
+    readonly tiles: readonly GroupedBox[];
     readonly hiddenTiles: number;
     /** The board's parts that never overlap, by group; not the cog, which reserves no room and stands over them. */
     readonly grouped: readonly GroupedBox[];
@@ -96,8 +96,8 @@ export interface BoardMeasure {
     /** The rivers' tiles by seat, each its corners as the table's camera shows them, clockwise from its top left. */
     readonly riverQuads: readonly GroupedQuad[];
     readonly stripTiles: readonly GroupedBox[];
-    /** The whole names of the badges that shorten theirs, their head cut by its ellipsis. */
     readonly cutNames: readonly string[];
+    readonly wrappedNames: readonly string[];
     /**
      * Each side strip's full hand (fourteen tiles, the drawn one apart) as its place reserves it, by seat: its corners as
      * the table's camera shows them, clockwise from its top left, none when its lengths could not be read.
@@ -159,14 +159,14 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 tile.closest(".board-overlay") === null &&
                 tile.closest(".decision-controls__tiles") === null,
         );
-        const grouped: GroupedBox[] = [];
-        for (const tile of tableTiles) {
+        const tilesByArea = tableTiles.map((tile) => {
             const area = tile.closest("[data-area], .board-dora");
-            grouped.push({
+            return {
                 box: box(tile),
                 group: area?.getAttribute("data-area") ?? "dora",
-            });
-        }
+            };
+        });
+        const grouped = [...tilesByArea];
         for (const center of board.querySelectorAll(".board-center")) {
             grouped.push({ box: box(center), group: "center" });
         }
@@ -341,10 +341,20 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             own: ownWidths.length === 0 ? null : Math.max(...ownWidths),
             river: riverTile === null ? null : tileWidth(riverTile),
         };
-        const cutNames = [...board.querySelectorAll(".nameplate .player-name")]
+        const names = [...board.querySelectorAll(".nameplate .player-name")];
+        const wrappedNames = names
+            .filter(
+                (name) =>
+                    name.scrollHeight > Number.parseFloat(getComputedStyle(name).lineHeight) + 1,
+            )
+            .map((name) => name.textContent.trim());
+        const cutNames = names
             .filter((name) => {
                 const head = name.querySelector(".player-name__head");
-                return head !== null && head.scrollWidth > head.getBoundingClientRect().width + 1;
+                return (
+                    name.scrollHeight > name.clientHeight + 1 ||
+                    (head !== null && head.scrollWidth > head.getBoundingClientRect().width + 1)
+                );
             })
             .map((name) => name.getAttribute("title") ?? "");
         const localTileElements = [
@@ -474,9 +484,10 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             switches,
             switchesForm: board.getAttribute("data-board-switches") ?? "",
             tileScale,
-            tiles: tableTiles.map(box),
+            tiles: tilesByArea,
             timer: timer === null ? null : box(timer),
             toggle: toggle === null ? null : box(toggle),
+            wrappedNames,
             zones: zones === null ? null : box(zones),
         };
     }, BOARD_TEXT);

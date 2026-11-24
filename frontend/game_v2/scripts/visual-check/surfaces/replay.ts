@@ -537,7 +537,9 @@ function checkReplayControls(
     report.expect(crowded.length === 0, `replay controls overlap: ${crowded.join(", ")}`);
     const ownRiver = state.desktop ? ownRiverUnderDecisions(board) : [];
     const table = [
-        ...board.tiles.filter((tile) => !ownRiver.some((under) => sameBox(under, tile))),
+        ...board.tiles
+            .map(({ box }) => box)
+            .filter((tile) => !ownRiver.some((under) => sameBox(under, tile))),
         ...board.nameplates,
         ...(board.center === null ? [] : [board.center]),
     ];
