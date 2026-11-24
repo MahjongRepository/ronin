@@ -115,12 +115,18 @@ class Gauge:
 
 
 def _service_memory(service: str) -> Gauge:
+    """
+    A service's working set, as ``docker stats`` shows it: the cgroup's memory less its inactive page cache.
+
+    ``memory.current`` alone counts the cached pages of the service's binary and files, which the kernel reclaims first;
+    for Traefik they are most of it. A sample from before the collector read ``memory.stat`` has no value.
+    """
     return Gauge(
         group=ChartGroup.SERVICES,
         name=f"{service}_memory",
         unit=ChartUnit.MIB,
         table="cgroup",
-        value="memory_current",
+        value="memory_current - memory_stat_inactive_file",
         series="path LIKE ?",
         series_params=(f"%/ronin-{service}.slice",),
     )

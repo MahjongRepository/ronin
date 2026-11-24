@@ -22,13 +22,14 @@ def _chart_states(report: dict) -> dict[str, str]:
     return {key: chart["state"] for key, chart in _charts(report).items()}
 
 
-def _service_memory_rows(service: str, timestamps, *, used_mib: int):
+def _service_memory_rows(service: str, timestamps, *, used_mib: int, inactive_file_mib: int = 0):
     return [
         {
             "timestamp": timestamp,
             "boot": "b1",
             "path": f"/sys/fs/cgroup/ronin.slice/ronin-{service}.slice",
             "memory_current": used_mib * MIB,
+            "memory_stat_inactive_file": inactive_file_mib * MIB,
             "memory_events_oom_kill": 0,
             "cpu_stat_usage_usec": timestamp * 500_000,
         }
@@ -145,7 +146,9 @@ class TestMonitoringDataCharts:
         create_metrics_db(metrics_db)
         now = int(time.time())
         insert_metric_rows(
-            metrics_db, "cgroup", _service_memory_rows("lobby", range(now - 3600, now, 60), used_mib=120)
+            metrics_db,
+            "cgroup",
+            _service_memory_rows("lobby", range(now - 3600, now, 60), used_mib=120, inactive_file_mib=95),
         )
         insert_metric_rows(
             metrics_db, "cgroup", _service_memory_rows("game", range(now - 3600, now - 1200 + 1, 60), used_mib=80)
@@ -170,6 +173,7 @@ class TestMonitoringDataCharts:
         report = response.json()
         charts = _charts(report)
         assert charts["services.lobby_memory"]["state"] == "current"
+        assert charts["services.lobby_memory"]["latest"]["value"] == 25
         assert charts["services.game_memory"]["state"] == "stale"
         assert charts["services.traefik_memory"]["state"] == "never_collected"
         assert charts["services.game_memory"]["latest"]["age_seconds"] // 60 == 20
