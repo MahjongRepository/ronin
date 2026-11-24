@@ -1,7 +1,7 @@
 import { assert, describe, expect, it } from "vitest";
 
 import { checkpointState, loadSeatScenario } from "#tests/fixtures/seat-transcripts";
-import { wireRuleRefusal, wireSessionError } from "#tests/fixtures/wire";
+import { WIRE_CALL_CLOSED, wireRuleRefusal, wireSessionError } from "#tests/fixtures/wire";
 import { decisionOf } from "@/entities/client";
 import { followDecision } from "@/entities/client/model/decision";
 import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
@@ -11,7 +11,10 @@ import {
     parseServerMessage,
 } from "@/shared/protocol";
 
-/** The first message of each type any generated transcript's seat received, with the refusals no transcript holds. */
+/**
+ * The first message of each type any generated transcript's seat received, with the refusals and the early call close
+ * no transcript holds.
+ */
 function messageOfEachType(waitId: number): ReadonlyMap<string, ParsedServerMessage> {
     const payloads = [
         ...[...SEAT_TRANSCRIPTS.keys()].flatMap((name) =>
@@ -19,6 +22,7 @@ function messageOfEachType(waitId: number): ReadonlyMap<string, ParsedServerMess
                 event.kind === "received" ? [event.payload] : [],
             ),
         ),
+        WIRE_CALL_CLOSED,
         wireRuleRefusal(waitId),
         wireSessionError(SESSION_ERROR_CODE.RATE_LIMITED, waitId),
     ];
@@ -50,6 +54,7 @@ describe("followDecision", () => {
 
         expect(closing.length + keeping.length).toBe(followed.length);
         expect(closing.toSorted()).toEqual([
+            "call_closed",
             "call_prompt",
             "discard",
             "draw",

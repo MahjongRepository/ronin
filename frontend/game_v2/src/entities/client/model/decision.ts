@@ -42,11 +42,12 @@ type AvailableAction = DrawEvent["availableActions"][number];
 /**
  * What each message does to the wait a decision answers, so a new message type must say: it closes when the server
  * moved on to a draw (the viewer's, or another seat's notice of one), a discard, a meld, the next prompt or turn, or out
- * of the round. A dora reveal, a riichi stick, a pao assigned, a seat control or furiten notice, an error and a session
- * message keep it.
+ * of the round, or closed the viewer's call prompt early. A dora reveal, a riichi stick, a pao assigned, a seat control
+ * or furiten notice, an error and any other session message keep it.
  */
 const DECISION_AFTER: Readonly<Record<ParsedServerMessage["type"], "close" | "keep">> = {
     ai_replacement: "keep",
+    call_closed: "close",
     call_prompt: "close",
     discard: "close",
     dora_revealed: "keep",

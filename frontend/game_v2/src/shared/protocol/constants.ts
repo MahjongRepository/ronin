@@ -88,6 +88,7 @@ export type GameAction = (typeof GAME_ACTION)[keyof typeof GAME_ACTION];
 // --- Session message types (string `type` field) ---
 
 export const SESSION_MESSAGE_TYPE = {
+    CALL_CLOSED: "call_closed",
     ERROR: "session_error",
     GAME_JOINED: "game_joined",
     GAME_RECONNECTED: "game_reconnected",

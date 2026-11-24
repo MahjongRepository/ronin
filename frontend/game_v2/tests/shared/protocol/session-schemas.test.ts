@@ -57,6 +57,14 @@ describe("parseSessionMessage", () => {
         });
     });
 
+    describe("call_closed", () => {
+        it("parses the early close of the viewer's call prompt", () => {
+            expect(parseSessionMessage({ [WIRE_KEY.SESSION_TYPE]: "call_closed" })).toEqual({
+                type: "call_closed",
+            });
+        });
+    });
+
     describe("unknown type", () => {
         it("throws on unknown session message type", () => {
             const wire = { [WIRE_KEY.SESSION_TYPE]: "nonexistent_type" };

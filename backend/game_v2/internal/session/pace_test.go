@@ -281,6 +281,108 @@ func TestCallTimers_WhenOneOfTwoCallersPasses_ShouldKeepTheOtherCallersPromptAnd
 	})
 }
 
+func TestCallTimers_WhenAPonClosesAChiWhileARonIsOpen_ShouldCloseTheChiPromptAndKeepTheRonDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		wall := fixedWall(t, [tile.SeatCount][]tile.TileID{
+			junkHand(t, 2),
+			copies(t, 1, "1357m2468p1346s7z"),
+			slices.Concat(copies(t, 3, "1357m2468p79s6z"), copies(t, 1, "55s")),
+			copies(t, 0, "123456789m111z5s"),
+		}, copies(t, 3, "5s"))
+		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2, 3)), withWalls(wall), withTiming(noWaits))
+		conns := h.start("Alice", "Bob", "Carol", "Dave")
+		alice, bob, carol, dave := conns[0], conns[1], conns[2], conns[3]
+		draw := lastDraw(t, alice)
+		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
+		chiPrompt := callPrompt(t, bob)
+		callPrompt(t, dave)
+
+		sleep(5 * time.Second)
+		pair := copies(t, 1, "55s")
+		h.act(carol, messaging.GameActionMessage{
+			Action: messaging.GameActionPon,
+			WaitID: intOf(t, callPrompt(t, carol), wire.KeyWaitID),
+			Play:   play.Some(play.PonAction([2]tile.TileID{pair[0], pair[1]})),
+		})
+
+		if got := len(ofSession(bob.messages(), "call_closed")); got != 1 {
+			t.Fatalf("call_closed bob got once carol's pon outranked his chi = %d, want 1", got)
+		}
+		for _, conn := range []*fakeConn{alice, bob, dave} {
+			if got := len(ofEvent(conn.messages(), wire.EventMeld)); got != 0 {
+				t.Errorf("melds %s saw while dave can still ron = %d, want none", conn.id, got)
+			}
+		}
+		if got := len(ofSession(dave.messages(), "call_closed")); got != 0 {
+			t.Errorf("call_closed dave got = %d, want none: his ron still outranks the pon", got)
+		}
+		if got := len(ofEvent(dave.messages(), wire.EventCallPrompt)); got != 1 {
+			t.Errorf("dave got %d call prompts, want his first only", got)
+		}
+		h.act(bob, messaging.GameActionMessage{
+			Action: messaging.GameActionChi,
+			WaitID: intOf(t, chiPrompt, wire.KeyWaitID),
+			Play:   play.Some(play.ChiAction([2]tile.TileID{copies(t, 1, "4s")[0], copies(t, 1, "6s")[0]})),
+		})
+		if got := len(ofEvent(bob.messages(), wire.EventError)); got != 0 {
+			t.Errorf("errors for bob's chi in flight as his prompt closed = %d, want none: the race is ordinary", got)
+		}
+		if strings.Contains(h.logs.String(), "stale game action") {
+			t.Error("bob's superseded chi was logged as a stale game action")
+		}
+
+		sleep(25*time.Second - time.Millisecond)
+		if got := h.m.Stats().MeldTimeouts; got != 0 {
+			t.Fatalf("dave timed out before his own deadline")
+		}
+		sleep(time.Millisecond)
+		if got := len(ofEvent(alice.messages(), wire.EventMeld)); got != 1 {
+			t.Errorf("melds alice saw once dave timed out = %d, want carol's pon", got)
+		}
+	})
+}
+
+func TestCallTimers_WhenTwoClaimsInARowCloseASeatsPrompts_ShouldDropItsInFlightAnswersToBoth(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		wall := fixedWall(t, [tile.SeatCount][]tile.TileID{
+			junkHand(t, 2),
+			copies(t, 1, "1357m2468p346s11z"),
+			slices.Concat(copies(t, 3, "1357m2468p79s1z"), copies(t, 1, "55s")),
+			copies(t, 0, "123456789m6661z"),
+		}, copies(t, 3, "5s"))
+		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2, 3)), withWalls(wall), withTiming(noWaits),
+			withDiscardHold(time.Second))
+		conns := h.start("Alice", "Bob", "Carol", "Dave")
+		alice, bob, carol, dave := conns[0], conns[1], conns[2], conns[3]
+		draw := lastDraw(t, alice)
+		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
+		chiWait := intOf(t, callPrompt(t, bob), wire.KeyWaitID)
+		pair := copies(t, 1, "55s")
+		h.act(carol, messaging.GameActionMessage{
+			Action: messaging.GameActionPon,
+			WaitID: intOf(t, callPrompt(t, carol), wire.KeyWaitID),
+			Play:   play.Some(play.PonAction([2]tile.TileID{pair[0], pair[1]})),
+		})
+		sleep(150 * time.Millisecond)
+		h.act(carol, discard(lastWaitID(t, carol), copies(t, 3, "1z")[0]))
+		ponWait := lastWaitID(t, bob)
+		h.act(dave, answer(lastWaitID(t, dave), play.RonAction()))
+		if got := len(ofSession(bob.messages(), "call_closed")); got != 2 {
+			t.Fatalf("call_closed bob got = %d, want one per claim that closed his prompt", got)
+		}
+
+		h.act(bob, answer(chiWait, play.PassAction()))
+		h.act(bob, answer(ponWait, play.PassAction()))
+
+		if got := len(ofEvent(bob.messages(), wire.EventError)); got != 0 {
+			t.Errorf("errors for bob's answers in flight to both closed prompts = %d, want none", got)
+		}
+		if strings.Contains(h.logs.String(), "stale game action") {
+			t.Error("bob's superseded answers were logged as stale game actions")
+		}
+	})
+}
+
 func TestRoundAdvancePause_WhenADoubleRonEndsTheRound_ShouldWaitOncePerWinner(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h, seats := threeHumans(t, doubleRonWall(t))

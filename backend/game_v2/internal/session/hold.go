@@ -155,14 +155,9 @@ func (g *game) holdDue(token uint64) error {
 	return g.showHeld()
 }
 
-func (g *game) showHeldGameEnd() error {
-	if !g.hold.held() {
-		return nil
-	}
-	if _, over := g.engine.Awaiting().(play.AwaitingGameOver); !over {
-		return nil
-	}
-	return g.showHeld()
+func (g *game) holdsGameEnd() bool {
+	_, over := g.engine.Awaiting().(play.AwaitingGameOver)
+	return over && g.hold.held()
 }
 
 func (g *game) showHeld() error {

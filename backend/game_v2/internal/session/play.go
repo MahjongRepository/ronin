@@ -85,6 +85,10 @@ func (g *game) followEngine(events []play.Emitted, actor play.Option[tile.Seat])
 		return err
 	}
 
+	err = g.closeDisplacedCalls(actor)
+	if err != nil {
+		return err
+	}
 	events = furitenAhead(events)
 	shown, kept, holds := g.heldPart(events)
 	if holds {
@@ -134,6 +138,25 @@ func (g *game) applyUpdate(events []play.Emitted, actor play.Option[tile.Seat]) 
 	g.published = g.engine
 	if opened && g.lifecycle == lifecyclePlaying {
 		g.startWaitTimers()
+	}
+	return nil
+}
+
+func (g *game) closeDisplacedCalls(actor play.Option[tile.Seat]) error {
+	if !g.hasWait || g.wait.kind != waitCall {
+		return nil
+	}
+	awaiting := waitOf(g.engine.Awaiting())
+	for _, seat := range g.wait.seats {
+		p := g.atSeat(seat)
+		if awaiting.awaits(seat) || (actor.OK && actor.Value == seat) || p == nil || p.conn == nil {
+			continue
+		}
+		p.closedCalls = append(p.closedCalls, p.decisionID)
+		err := send(p.conn, messaging.CallClosed())
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

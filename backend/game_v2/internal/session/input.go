@@ -1,6 +1,7 @@
 package session
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
@@ -25,6 +26,10 @@ func (g *game) gameAction(conn Connection, message messaging.GameActionMessage) 
 	}
 
 	action := message.Play.Value
+	if p.takeClosedCall(message.WaitID) && action.AnswersCall() {
+		p.log.Debug(logSupersededCall, "action", actionName(action), "wait_id", message.WaitID)
+		return nil
+	}
 	if g.hold.held() || !g.wait.awaits(p.seat) || message.WaitID != p.decisionID {
 		return g.staleAction(p, actionName(action), message.WaitID)
 	}
@@ -49,6 +54,12 @@ func (g *game) gameAction(conn Connection, message messaging.GameActionMessage) 
 		return g.kick(p, conn, action, refusal.Value)
 	}
 	return send(conn, refused.Payload())
+}
+
+func (p *participant) takeClosedCall(waitID int) bool {
+	closed := slices.Contains(p.closedCalls, waitID)
+	p.closedCalls = slices.DeleteFunc(p.closedCalls, func(id int) bool { return id <= waitID })
+	return closed
 }
 
 func (g *game) mismatchesOpenCall(seat tile.Seat, called tile.TileID) bool {

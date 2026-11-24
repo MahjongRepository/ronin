@@ -58,26 +58,34 @@ func heldCall(t *testing.T) (h *harness, bob, carol *fakeConn) {
 	return h, conns[1], conns[2]
 }
 
-func TestDiscardHold_WhenPonOutranksAnUnansweredChiAfterTheFloor_ShouldShowTheMeldAtOnce(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		wall := fixedWall(t, [tile.SeatCount][]tile.TileID{
-			junkHand(t, 2), copies(t, 0, "1357m2468p346s57z"),
-			copies(t, 1, "1357m2468p55s79s6z"), junkHand(t, 3),
-		}, copies(t, 3, "5s"))
-		const hold = time.Second
-		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withWalls(wall), withTiming(noWaits), withDiscardHold(hold))
-		conns := h.start("Alice", "Bob", "Carol")
-		alice, bob, carol := conns[0], conns[1], conns[2]
-		draw := lastDraw(t, alice)
-		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
-		callPrompt(t, bob)
-		pair := copies(t, 1, "55s")
-		sleep(300 * time.Millisecond)
+func ponOverChi(t *testing.T) (alice, bob *fakeConn, pon func()) {
+	t.Helper()
+	wall := fixedWall(t, [tile.SeatCount][]tile.TileID{
+		junkHand(t, 2), copies(t, 0, "1357m2468p346s57z"),
+		copies(t, 1, "1357m2468p55s79s6z"), junkHand(t, 3),
+	}, copies(t, 3, "5s"))
+	h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withWalls(wall), withTiming(noWaits), withDiscardHold(time.Second))
+	conns := h.start("Alice", "Bob", "Carol")
+	alice, bob, carol := conns[0], conns[1], conns[2]
+	draw := lastDraw(t, alice)
+	h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
+	callPrompt(t, bob)
+	pair := copies(t, 1, "55s")
+	return alice, bob, func() {
 		h.act(carol, messaging.GameActionMessage{
 			Action: messaging.GameActionPon,
 			WaitID: intOf(t, callPrompt(t, carol), wire.KeyWaitID),
 			Play:   play.Some(play.PonAction([2]tile.TileID{pair[0], pair[1]})),
 		})
+	}
+}
+
+func TestDiscardHold_WhenPonOutranksAnUnansweredChiAfterTheFloor_ShouldShowTheMeldAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		alice, _, pon := ponOverChi(t)
+
+		sleep(300 * time.Millisecond)
+		pon()
 
 		melds := ofEvent(alice.messages(), wire.EventMeld)
 		if len(melds) != 1 {
@@ -86,6 +94,29 @@ func TestDiscardHold_WhenPonOutranksAnUnansweredChiAfterTheFloor_ShouldShowTheMe
 		meld, err := wire.UnpackMeld(intOf(t, melds[0], wire.KeyPackedMeld))
 		if err != nil || meld.Kind != play.MeldPon {
 			t.Errorf("meld = %+v (%v), want pon", meld, err)
+		}
+	})
+}
+
+func TestDiscardHold_WhenPonOutranksAnUnansweredChiBeforeTheFloor_ShouldCloseTheChiAtOnceAndShowTheMeldAtTheFloor(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		alice, bob, pon := ponOverChi(t)
+
+		sleep(40 * time.Millisecond)
+		pon()
+		if got := len(ofSession(bob.messages(), "call_closed")); got != 1 {
+			t.Fatalf("call_closed bob got at the pon = %d, want 1, as when a ron is still open", got)
+		}
+		if got := len(ofEvent(alice.messages(), wire.EventMeld)); got != 0 {
+			t.Fatalf("melds shown before the 150 ms floor = %d, want none", got)
+		}
+
+		sleep(110 * time.Millisecond)
+		if got := len(ofEvent(bob.messages(), wire.EventMeld)); got != 1 {
+			t.Errorf("melds bob saw at the floor = %d, want carol's pon", got)
+		}
+		if got := len(ofSession(bob.messages(), "call_closed")); got != 1 {
+			t.Errorf("call_closed bob got by the floor = %d, want it once", got)
 		}
 	})
 }
@@ -256,33 +287,51 @@ func TestRandomDiscardHold_ShouldPauseAboutEightInAHundredDiscardsWithinItsBound
 	}
 }
 
-func TestDiscardHold_WhenASeatLeavesWhileTheGamesEndIsHeld_ShouldCompleteTheGameFirst(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		bustedDealer := play.StartPosition{Scores: [tile.SeatCount]int{1000, 33000, 33000, 33000}}
-		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withTiming(noWaits), withDiscardHold(2*time.Second),
-			func(c *session.Config) {
-				c.Setup = func(engine.Seed) engine.Setup {
-					return engine.Setup{
-						Walls: play.Fixed{Walls: [][tile.TileIDCount]tile.TileID{doubleRonWall(t)}},
-						Start: play.Some(bustedDealer),
-					}
+func heldGameEnd(t *testing.T) (h *harness, alice, bob, carol *fakeConn) {
+	t.Helper()
+	bustedDealer := play.StartPosition{Scores: [tile.SeatCount]int{1000, 33000, 33000, 33000}}
+	h = newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withTiming(noWaits), withDiscardHold(2*time.Second),
+		func(c *session.Config) {
+			c.Setup = func(engine.Seed) engine.Setup {
+				return engine.Setup{
+					Walls: play.Fixed{Walls: [][tile.TileIDCount]tile.TileID{doubleRonWall(t)}},
+					Start: play.Some(bustedDealer),
 				}
-			})
-		conns := h.start("Alice", "Bob", "Carol")
-		alice, bob, carol := conns[0], conns[1], conns[2]
-		draw := lastDraw(t, alice)
-		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
-		h.act(bob, answer(intOf(t, callPrompt(t, bob), wire.KeyWaitID), play.RonAction()))
-		h.act(carol, answer(intOf(t, callPrompt(t, carol), wire.KeyWaitID), play.RonAction()))
-		if got := len(ofEvent(bob.messages(), wire.EventRoundEnd)); got != 0 {
-			t.Fatalf("round ends shown before the hold ran out = %d, want none", got)
-		}
+			}
+		})
+	conns := h.start("Alice", "Bob", "Carol")
+	alice, bob, carol = conns[0], conns[1], conns[2]
+	draw := lastDraw(t, alice)
+	h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
+	h.act(bob, answer(intOf(t, callPrompt(t, bob), wire.KeyWaitID), play.RonAction()))
+	h.act(carol, answer(intOf(t, callPrompt(t, carol), wire.KeyWaitID), play.RonAction()))
+	return h, alice, bob, carol
+}
 
+func TestDiscardHold_WhenASeatLeavesAndReturnsWhileTheGamesEndIsHeld_ShouldShowTheEndOnceAtTheFloor(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h, alice, bob, carol := heldGameEnd(t)
+
+		sleep(50 * time.Millisecond)
 		h.m.Disconnect(alice)
 		synctest.Wait()
+		sleep(50 * time.Millisecond)
+		back := h.reconnect("ticket-Alice")
+		sleep(50*time.Millisecond - time.Millisecond)
+		for _, conn := range []*fakeConn{back, bob, carol} {
+			if got := len(ofEvent(conn.messages(), wire.EventGameEnd)); got != 0 {
+				t.Fatalf("game ends %s got before the 150 ms floor = %d, want none", conn.id, got)
+			}
+		}
 
-		if got := len(ofEvent(bob.messages(), wire.EventGameEnd)); got != 1 {
-			t.Errorf("game ends bob got once alice left = %d, want 1", got)
+		sleep(time.Millisecond)
+		for _, conn := range []*fakeConn{back, bob, carol} {
+			if got := len(ofEvent(conn.messages(), wire.EventGameEnd)); got != 1 {
+				t.Errorf("game ends %s got at the floor = %d, want 1", conn.id, got)
+			}
+		}
+		if got := len(ofSession(bob.messages(), "seat_control")); got != 0 {
+			t.Errorf("seat_control bob got = %d, want none: nobody plays after the game ended", got)
 		}
 		if reason, _ := h.playedGame(t); reason.String != "completed" {
 			t.Errorf("end_reason = %q, want completed: the engine had ended the game", reason.String)
@@ -290,6 +339,21 @@ func TestDiscardHold_WhenASeatLeavesWhileTheGamesEndIsHeld_ShouldCompleteTheGame
 		records := h.replay(t)
 		if typ, _ := eventType(records[len(records)-1]); typ != wire.EventGameEnd {
 			t.Errorf("last replay record = %v, want the game end, no seat control after it", records[len(records)-1])
+		}
+	})
+}
+
+func TestDiscardHold_WhenTheLastConnectedSeatLeavesWhileTheGamesEndIsHeld_ShouldCompleteTheGameAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h, alice, bob, carol := heldGameEnd(t)
+
+		for _, conn := range []*fakeConn{alice, bob, carol} {
+			h.m.Disconnect(conn)
+			synctest.Wait()
+		}
+
+		if reason, _ := h.playedGame(t); reason.String != "completed" {
+			t.Errorf("end_reason = %q, want completed, not abandoned: the engine had ended the game", reason.String)
 		}
 	})
 }

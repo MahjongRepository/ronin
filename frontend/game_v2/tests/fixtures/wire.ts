@@ -317,6 +317,11 @@ export const WIRE_SEAT_TO_AI: WirePayload = {
     [WIRE_KEY.SESSION_TYPE]: "seat_control",
 };
 
+/** The early close of the seat's call prompt, sent when another seat's claim outranks every offer it held. */
+export const WIRE_CALL_CLOSED: WirePayload = {
+    [WIRE_KEY.SESSION_TYPE]: "call_closed",
+};
+
 function isWirePayload(value: unknown): value is WirePayload {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }

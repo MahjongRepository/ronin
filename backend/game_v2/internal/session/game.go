@@ -19,6 +19,7 @@ const (
 	logTurnTimeout         = "turn timeout, auto-discarding"
 	logMeldTimeout         = "meld timeout, auto-passing"
 	logStaleAction         = "stale game action"
+	logSupersededCall      = "superseded call answer dropped"
 	logInvalidAction       = "invalid game action"
 	logCalledTileMismatch  = "invalid call: tile_id mismatch"
 	logPlayerReconnected   = "player reconnected"
@@ -38,15 +39,16 @@ const (
 )
 
 type participant struct {
-	game       *game
-	spec       PlayerSpec
-	seat       tile.Seat
-	seated     bool
-	log        *slog.Logger
-	conn       Connection
-	standIn    play.Option[wire.SeatControlReason]
-	decisionID int
-	timer      turnTimer
+	game        *game
+	spec        PlayerSpec
+	seat        tile.Seat
+	seated      bool
+	log         *slog.Logger
+	conn        Connection
+	standIn     play.Option[wire.SeatControlReason]
+	decisionID  int
+	closedCalls []int
+	timer       turnTimer
 }
 
 type pause struct {

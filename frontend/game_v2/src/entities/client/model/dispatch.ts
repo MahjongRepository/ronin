@@ -123,6 +123,7 @@ function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
         case "human_return": {
             return message;
         }
+        case "call_closed":
         case "call_prompt":
         case "turn":
         case "furiten":

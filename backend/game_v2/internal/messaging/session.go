@@ -33,6 +33,7 @@ const (
 	gameJoinedType      = "game_joined"
 	gameReconnectedType = "game_reconnected"
 	seatControlType     = "seat_control"
+	callClosedType      = "call_closed"
 	pongType            = "pong"
 )
 
@@ -91,6 +92,12 @@ func SeatControl(seat tile.Seat, reason play.Option[wire.SeatControlReason]) wir
 	return optionField(m, wire.KeySeatControlReason, reason, func(r wire.SeatControlReason) wire.Value {
 		return wire.Int(r)
 	})
+}
+
+// CallClosed returns the message that closes a seat's call prompt before the call resolves: another
+// seat's claim outranks every offer it held, and the seat can no longer answer.
+func CallClosed() wire.Map {
+	return wire.Map{{Key: wire.KeySessionType, Value: wire.Str(callClosedType)}}
 }
 
 // Pong returns the answer to a ping.

@@ -56,13 +56,29 @@ const seatControlSchema = z.pipe(
     }),
 );
 
+/**
+ * The seat's call prompt closed before the call resolved: another seat's claim outranks every offer it held. It names
+ * no claim, so the table shows nothing until the call resolves.
+ */
+const callClosedSchema = z.pipe(
+    z.object({
+        [WIRE_KEY.SESSION_TYPE]: z.literal(SESSION_MESSAGE_TYPE.CALL_CLOSED),
+    }),
+    z.transform(() => ({ type: "call_closed" as const })),
+);
+
 // --- Dispatch ---
 
 export type SessionErrorMessage = z.output<typeof sessionErrorSchema>;
 export type GameJoinedMessage = z.output<typeof gameJoinedSchema>;
 export type SeatControlMessage = z.output<typeof seatControlSchema>;
+export type CallClosedMessage = z.output<typeof callClosedSchema>;
 
-export type SessionMessage = SessionErrorMessage | GameJoinedMessage | SeatControlMessage;
+export type SessionMessage =
+    | SessionErrorMessage
+    | GameJoinedMessage
+    | SeatControlMessage
+    | CallClosedMessage;
 
 export function parseSessionMessage(raw: Record<string, unknown>): SessionMessage {
     const { [WIRE_KEY.SESSION_TYPE]: type } = raw;
@@ -75,6 +91,9 @@ export function parseSessionMessage(raw: Record<string, unknown>): SessionMessag
         }
         case SESSION_MESSAGE_TYPE.SEAT_CONTROL: {
             return seatControlSchema.parse(raw);
+        }
+        case SESSION_MESSAGE_TYPE.CALL_CLOSED: {
+            return callClosedSchema.parse(raw);
         }
         default: {
             throw new Error(`Unknown session message type: SESSION_TYPE=${String(type)}`);
