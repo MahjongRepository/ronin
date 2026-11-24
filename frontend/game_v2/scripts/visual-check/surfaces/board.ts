@@ -92,8 +92,8 @@ function boxGap(first: Box, second: Box): number {
     );
 }
 
-/** Each badge's fixed point by its seat, where a page measured a board in landscape (`checkBadgePlaces`). */
-const BADGE_ANCHORS = new PageRecord<Readonly<Record<string, readonly [number, number]>>>();
+/** Each badge's fixed coordinates by seat and top-hand pose, where a page measured a board in landscape (`checkBadgePlaces`). */
+const BADGE_ANCHORS = new PageRecord<Readonly<Record<string, number>>>();
 
 const DOCUMENT_AT = { at: [UPRIGHT_PHONE] } as const;
 
@@ -754,8 +754,31 @@ function checkStripsApart(board: BoardMeasure, report: PageReport): void {
     );
 }
 
-function badgeAnchors(board: BoardMeasure): Readonly<Record<string, readonly [number, number]>> {
-    return Object.fromEntries(board.badges.map(({ box, group }) => [group, [box.left, box.top]]));
+function badgeAnchors(board: BoardMeasure): Readonly<Record<string, number>> {
+    return Object.fromEntries(
+        board.badges.flatMap(({ box, group }) => {
+            const seat =
+                group === "top" && board.handBesideTopBadge?.revealed ? "revealed top" : group;
+            return [
+                [`${group} badge's left edge`, box.left],
+                [`${seat} badge's top edge`, box.top],
+            ];
+        }),
+    );
+}
+
+function checkTopBadgeAlignment(board: BoardMeasure, report: PageReport): void {
+    const pill = board.platePills.find(({ group }) => group === "top")?.box;
+    const hand = board.handBesideTopBadge;
+    if (!pill || !hand) {
+        return;
+    }
+    const pillBottom = pill.top + pill.height;
+    const tileBottom = hand.bodyBottom;
+    report.expect(
+        Math.abs(pillBottom - tileBottom) <= EPSILON,
+        `the top badge's pill ends at ${pillBottom.toFixed(1)}px beside a hand ending at ${tileBottom.toFixed(1)}px`,
+    );
 }
 
 /**
@@ -1014,44 +1037,26 @@ async function checkDiffLabel(page: Page, report: PageReport): Promise<void> {
     );
 }
 
-/**
- * Every badge keeps one place at a viewport, whatever the seats hold: the live board's decisions stories (an anchor's
- * three checkpoints, the dense prompts, panels over it) all put each seat's badge at the same point.
- */
+/** Badge anchors hold across decisions; revealing the top hand changes its body's height and its badge's baseline. */
 function checkBadgePlaces(results: readonly TaskResult[]): string[] {
-    const live = results.flatMap(({ page, report, viewport }) => {
-        const anchors = BADGE_ANCHORS.read(report);
-        return page.startsWith("decisions-") && anchors !== undefined
-            ? [{ anchors, page, viewport }]
-            : [];
-    });
-    const viewports = [...new Set(live.map(({ viewport }) => viewport))];
-    return viewports.flatMap((viewport) => {
-        const pages = live.filter((result) => result.viewport === viewport);
-        const placed = pages.flatMap(({ anchors, page }) =>
-            Object.entries(anchors).map(([seat, point]) => ({
-                page,
-                point,
-                seat,
-            })),
-        );
-        return [...new Set(placed.map(({ seat }) => seat))].flatMap((seat) => {
-            const [first, ...rest] = placed.filter((place) => place.seat === seat);
-            if (first === undefined) {
-                return [];
-            }
-            return rest
-                .filter(
-                    ({ point }) =>
-                        Math.abs(point[0] - first.point[0]) > EPSILON ||
-                        Math.abs(point[1] - first.point[1]) > EPSILON,
-                )
-                .map(
-                    ({ page, point }) =>
-                        `${viewport}: the ${seat} badge stands at ${Math.round(point[0])},${Math.round(point[1])} on ${page}, at ${Math.round(first.point[0])},${Math.round(first.point[1])} on ${first.page}`,
+    const first = new Map<string, { page: string; value: number }>();
+    const failures: string[] = [];
+    for (const { page, report, viewport } of results.filter((result) =>
+        result.page.startsWith("decisions-"),
+    )) {
+        for (const [edge, value] of Object.entries(BADGE_ANCHORS.read(report) ?? {})) {
+            const key = `${viewport}: ${edge}`;
+            const reference = first.get(key);
+            if (reference === undefined) {
+                first.set(key, { page, value });
+            } else if (Math.abs(value - reference.value) > EPSILON) {
+                failures.push(
+                    `${key} stands at ${value.toFixed(1)}px on ${page}, at ${reference.value.toFixed(1)}px on ${reference.page}`,
                 );
-        });
-    });
+            }
+        }
+    }
+    return failures;
 }
 
 /**
@@ -1181,6 +1186,7 @@ async function checkBoard({
     checkRiverGaps(board, report);
     checkPlatesClear(board, report);
     checkStripsApart(board, report);
+    checkTopBadgeAlignment(board, report);
     BADGE_ANCHORS.keep(report, badgeAnchors(board));
     checkSettingsCog(board, screen, report);
     checkFaces(board, viewport, report);

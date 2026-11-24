@@ -650,6 +650,8 @@ interface SharedGeometry {
     readonly center: Box | null;
     readonly riverTile: number | null;
     readonly ownTile: Size | null;
+    readonly barlessBandTooNarrow: boolean;
+    readonly controlsInRightBar: boolean;
 }
 
 const SHARED_GEOMETRY = new PageRecord<SharedGeometry>();
@@ -658,30 +660,50 @@ const SHARED_GEOMETRY = new PageRecord<SharedGeometry>();
 export const LIVE_REFERENCE = "game-turn";
 export const SAME_AS_LIVE: ReadonlySet<string> = new Set(["replay-start", "replay"]);
 
-/** The board's river tile as the sizing rule sets it (`--rw`), laid or not: a turn's rivers may still be empty. */
-async function measureRiverTile(page: Page): Promise<number | null> {
-    const length = await page.evaluate(() => {
-        const center = document.querySelector(".game-board .board-center");
-        return center === null ? "" : getComputedStyle(center).getPropertyValue("--rw");
-    });
-    const pixels = Number.parseFloat(length);
-    return Number.isFinite(pixels) ? pixels : null;
-}
-
 /**
  * The shared geometry in the viewport's frame: a touch tab's page rests part way down its scroll room on the live and
  * replay routes alike, while a storybook may stand at its top, so page coordinates would differ by the rest alone.
  */
 async function sharedGeometry(page: Page, board: BoardMeasure): Promise<SharedGeometry> {
-    const scroll = await page.evaluate(() => ({ left: window.scrollX, top: window.scrollY }));
+    const layout = await page.evaluate(() => {
+        const root = document.querySelector<HTMLElement>(".game-board");
+        if (root === null) {
+            throw new Error("Missing game board");
+        }
+        const style = getComputedStyle(root);
+        const controls = root.querySelector(".replay-controls")?.getBoundingClientRect();
+        const strip = root.querySelector(".board-strip--right")?.getBoundingClientRect();
+        const center = root.querySelector(".board-center");
+        const riverTile =
+            center === null
+                ? NaN
+                : Number.parseFloat(getComputedStyle(center).getPropertyValue("--rw"));
+        return {
+            arrangement: root.dataset.boardArrangement,
+            controlsPastStrip:
+                controls !== undefined && strip !== undefined && controls.left >= strip.right,
+            gap: Number.parseFloat(style.getPropertyValue("--geo-replay-gap")),
+            groupGap: Number.parseFloat(style.getPropertyValue("--geo-replay-group-gap")),
+            left: window.scrollX,
+            riverTile: Number.isFinite(riverTile) ? riverTile : null,
+            top: window.scrollY,
+        };
+    });
     function inViewport(shown: Box): Box {
-        return { ...shown, left: shown.left - scroll.left, top: shown.top - scroll.top };
+        return { ...shown, left: shown.left - layout.left, top: shown.top - layout.top };
     }
+    const controls = expectedControls({ compact: false, desktop: true }).length;
+    const rowWidth = controls * MIN_ACTION_SIZE + (controls - 2) * layout.gap + layout.groupGap;
     return {
+        barlessBandTooNarrow:
+            (layout.arrangement === "corner" || layout.arrangement === "pocket") &&
+            board.decisionBand !== null &&
+            board.decisionBand.box.width < rowWidth,
         board: inViewport(board.board),
         center: board.center === null ? null : inViewport(board.center),
+        controlsInRightBar: layout.arrangement === "bars" && layout.controlsPastStrip,
         ownTile: board.localTileSizes[0] ?? null,
-        riverTile: await measureRiverTile(page),
+        riverTile: layout.riverTile,
     };
 }
 
@@ -710,6 +732,7 @@ function describeGeometry({ board, center, ownTile, riverTile }: SharedGeometry)
 /**
  * The replay's board is live play's (the spec's Replay: its geometry identical): at each viewport where both were
  * measured in landscape, its box, its centre, its river tile and its own tile stand as the live game's at its turn.
+ * A desktop replay keeps the side bars when its controls cannot fit side by side on the live board.
  */
 function checkLiveGeometry(results: readonly TaskResult[]): string[] {
     return results.flatMap(({ page, report, viewport }) => {
@@ -726,7 +749,14 @@ function checkLiveGeometry(results: readonly TaskResult[]): string[] {
                 `${viewport}: ${page}'s board has no live ${LIVE_REFERENCE} measured at this viewport to match (check them together)`,
             ];
         }
-        if (sameGeometry(live, replay)) {
+        const keptBars =
+            live.barlessBandTooNarrow &&
+            replay.controlsInRightBar &&
+            sameBox(live.board, replay.board) &&
+            replay.riverTile !== null &&
+            live.riverTile !== null &&
+            replay.riverTile < live.riverTile;
+        if (sameGeometry(live, replay) || keptBars) {
             return [];
         }
         return [

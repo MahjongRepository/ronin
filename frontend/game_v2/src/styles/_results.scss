@@ -859,6 +859,7 @@ $result-large-panel-width: 47rem;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .round-end-result__next,
@@ -881,6 +882,7 @@ $result-large-panel-width: 47rem;
     align-items: center;
     justify-content: center;
     gap: 0.15rem;
+    white-space: normal;
 
     &:focus {
         outline: 3px solid var(--ronin-accent);
@@ -952,6 +954,21 @@ $result-large-panel-width: 47rem;
 
 .round-end-result :is(.hand, .meld, .round-end-result__wall-row) {
     padding-bottom: calc(var(--board-tile-w, 60px) * var(--tile-edge-share, 0.39));
+}
+
+@container round-result (width < 40rem) {
+    .round-end-result {
+        --result-scoring-w: min(12.5rem, 36cqi);
+    }
+
+    .round-end-result__settle {
+        margin-left: 0.2rem;
+        column-gap: 0.4rem;
+    }
+
+    .round-end-result__seat {
+        --seat-padding-inline: 0.4rem;
+    }
 }
 
 @container game-board (height >= #{$result-large-height}) {

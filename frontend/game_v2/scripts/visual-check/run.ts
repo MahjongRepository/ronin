@@ -52,8 +52,7 @@ import { FLOOR, VIEWPORTS, checkCaptureModel, emulateInsets } from "./viewports.
 
 const DEFAULT_SHOTS = resolve(APP_ROOT, "../../thoughts/screenshots/visual-check");
 const SETTLE_MS = 150;
-/** Pages a browser checks at once, each in its own context; the engines run one after the other. */
-const PAGES_AT_ONCE = 3;
+const CHROMIUM_PAGES_AT_ONCE = 3;
 /** The most pages a run checks without `--many`: a targeted run names a few pages at two or three viewports. */
 const MAX_PAGES = 60;
 
@@ -294,15 +293,6 @@ function findSelectionErrors(): string[] {
     ];
 }
 
-/** Check an engine's tasks in one browser, several pages at once. */
-async function runEngine(
-    browser: Browser,
-    tasks: readonly PageTask[],
-    run: { readonly fixtures: Fixtures; readonly shots: string },
-): Promise<TaskResult[]> {
-    return runPooled(tasks, PAGES_AT_ONCE, (task) => runTask(browser, task, run));
-}
-
 function reportFailures(results: readonly TaskResult[]): string[] {
     return results.flatMap(({ name, report }) => {
         if (report.summary !== "") {
@@ -323,7 +313,8 @@ async function checkEngine(
     }
     const browser = await engine.launch();
     try {
-        return await runEngine(browser, tasks, run);
+        const limit = engine === webkit ? 1 : CHROMIUM_PAGES_AT_ONCE;
+        return await runPooled(tasks, limit, (task) => runTask(browser, task, run));
     } finally {
         await browser.close();
     }

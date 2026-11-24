@@ -1358,14 +1358,31 @@ function expectTopPlate(board: BoardGeometry, top: BoardRect): void {
     const far = plateBox(board, "top");
     const inset = board.lengths["plate-top-pill-inset"] ?? Number.NaN;
     const visibleTop = far.top + inset;
-    if (board.family === "phone" && far.left < top.right) {
+    expectTopPlateClear(board, far, visibleTop + (board.lengths["plate-pill-h"] ?? Number.NaN));
+    if (far.left < top.right) {
         expect(visibleTop - top.bottom).toBeCloseTo(6);
-        expect(far.right - far.left).toBeGreaterThanOrEqual(76);
+        expect(far.right - far.left).toBeCloseTo(8 * (board.lengths["plate-text"] ?? Number.NaN));
         return;
     }
 
     expect(far.left - top.right).toBeCloseTo(board.family === "phone" ? 6 : 10);
     expectAcrossTileBottoms(board, top.top, inset);
+}
+
+function expectTopPlateClear(board: BoardGeometry, far: BoardRect, pillBottom: number): void {
+    expect(far.right - far.left).toBeGreaterThanOrEqual(40);
+    const right = board.areas["strip-right"];
+    const stripLeft = (right?.left ?? Number.NaN) + SIDE_LANE_GAP;
+    const stripTop = right?.top ?? Number.NaN;
+    expect(Math.max(stripLeft - far.right, stripTop - pillBottom)).toBeGreaterThanOrEqual(4);
+    const stickWidth = Math.min(far.right - far.left, board.lengths["plate-stick-w"] ?? Number.NaN);
+    const stickRight = (far.left + far.right + stickWidth) / 2;
+    const stickBottom =
+        pillBottom + (board.lengths["plate-stick-drop"] ?? Number.NaN) + stickWidth / 8;
+    const stickGap = board.family === "phone" ? 6 : 10;
+    expect(Math.max(stripLeft - stickRight, stripTop - stickBottom)).toBeGreaterThanOrEqual(
+        stickGap - 0.01,
+    );
 }
 
 function expectAcrossTileBottoms(board: BoardGeometry, tileTop: number, inset: number): void {
@@ -1447,6 +1464,7 @@ describe("boardGeometry's plates", () => {
         [800, 600],
         [1502, 1551],
         [960, 1000],
+        [768, 954],
         [667, 375],
         [844, 390],
         [932, 430],

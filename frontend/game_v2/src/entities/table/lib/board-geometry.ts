@@ -2939,10 +2939,31 @@ function stripFacts(rw: number): [string, number][] {
 const PHONE_PLATE_TEXT = 10;
 const PLATE_EMS = 8;
 const PHONE_RAIL_MIN_EMS = 7.6;
-const RAIL_PLATE_TEXT_FLOOR = 14;
-const RAIL_PLATE_TEXT_SHARE = 0.75;
+const PLATE_TEXT_FLOOR = 14;
+const PLATE_TEXT_SHARE = 0.75;
 const PLATE_STICK_DROP = 3;
 const PLATE_STICK_ASPECT = 6 / 48;
+
+function minimumPlateText(text: number): number {
+    return Math.max(PLATE_TEXT_FLOOR, PLATE_TEXT_SHARE * text);
+}
+
+/** Fit the band and its centred stick beside the right lane, allowing either to extend above the tiles it clears. */
+function fitTopPlateWidth(
+    width: number,
+    room: Readonly<{ across: number; above: number; stickGap: number }>,
+    stick: number,
+): number {
+    const pillWidth = room.above >= PLATE_GAP ? width : Math.min(width, room.across - PLATE_GAP);
+    const widthAbove = (room.above - PLATE_STICK_DROP - room.stickGap) / PLATE_STICK_ASPECT;
+    if (Math.min(pillWidth, stick) <= widthAbove) {
+        return pillWidth;
+    }
+
+    const stickRoom = room.across - room.stickGap;
+    const widthBeside = stickRoom + Math.max(0, stickRoom - stick);
+    return Math.min(pillWidth, Math.max(widthAbove, widthBeside));
+}
 
 function fitSideNameRail(
     rail: BoardRect | null,
@@ -2968,9 +2989,7 @@ function fitSideNameRail(
     }
     const railWidth = rail.right - rail.left;
     const width = Math.min(PLATE_EMS * text, phone ? railWidth : railWidth - PLATE_GAP);
-    const minimumWidth = phone
-        ? PHONE_RAIL_MIN_EMS * text
-        : PLATE_EMS * Math.max(RAIL_PLATE_TEXT_FLOOR, RAIL_PLATE_TEXT_SHARE * text);
+    const minimumWidth = phone ? PHONE_RAIL_MIN_EMS * text : PLATE_EMS * minimumPlateText(text);
     const first = rail.top + (phone ? 0 : PLATE_GAP);
     const last = rail.bottom - foot;
     if (width < minimumWidth || first > last) {
@@ -3021,11 +3040,19 @@ function handPlateLengths(
     const topX = top.right + stickGap;
     const backBottom = top.top + at("rh") + at("rw") * TOP_HAND_BACK_EDGE_SHARE;
     const faceBottom = top.top + at("rh") * LYING_Y_SHARE + at("rw") * LYING_BODY.edge;
-    const aboveRight = right.top >= top.top + pillHeight + stickOverhang + stickGap;
     const cogLeft = (areas.corner.left + areas.corner.right - at("menu-size")) / 2;
-    const topEnd = Math.min(cogLeft, aboveRight ? right.right : right.left);
-    const besideWidth = topEnd - PLATE_GAP - topX;
-    const below = phone && besideWidth < wanted;
+    const besideWidth = fitTopPlateWidth(
+        Math.min(wanted, Math.min(cogLeft, right.right) - PLATE_GAP - topX),
+        {
+            above: right.top - Math.max(backBottom, faceBottom),
+            across: right.left + SIDE_LANE_GAP - topX,
+            stickGap,
+        },
+        stick,
+    );
+    const below = besideWidth < (phone ? wanted : PLATE_TAP_FLOOR);
+    const farWidth = below ? wanted : besideWidth;
+    const farText = Math.min(text, Math.max(minimumPlateText(text), farWidth / PLATE_EMS));
     const farX = below ? Math.max(at("cx") + at("hx") + PLATE_GAP, top.right - wanted) : topX;
     const topPillInset = below
         ? (height - pillHeight) / 2
@@ -3041,7 +3068,7 @@ function handPlateLengths(
         bottom: [ownX, ownY, wanted],
         left: [leftX, row, sideWidth],
         right: [rightX, row, sideWidth],
-        top: [farX, farY, below ? wanted : Math.min(wanted, besideWidth)],
+        top: [farX, farY, farWidth],
     } as const;
     const places: [string, number][] = Object.entries(positions).flatMap(
         ([seat, [leftEdge, topEdge, width]]) => [
@@ -3053,6 +3080,7 @@ function handPlateLengths(
     return [
         ...places,
         ["plate-text", text],
+        ["plate-top-text", farText],
         ["plate-side-text", rail?.text ?? text],
         ["plate-pill-h", pillHeight],
         ["plate-top-pill-inset", topPillInset],

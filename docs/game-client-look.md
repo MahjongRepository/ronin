@@ -414,11 +414,11 @@ as a number, not seen, so the count turns red from ten tiles left.
   states; riichi, a riichi stick up to the band's width, otherwise as long as the centre's, centred under the band, drawn over the felt so it moves nothing;
   the seat in turn, the green bar along the band's whole bottom edge (Turn cue). A seated AI player is unmarked on the board (its
   name, the seating and the game end tell it). The band is one height per tier, its box at least the control floor
-  tall around it. Phone bands are a single line of 10px text, up to 80px wide. The replay tap target is at least 40px in both dimensions. The top name sits beside the right end of the top hand. The band's bottom edge lines up with the bottom of the tile bodies for both concealed and revealed hands. When the gap is too narrow on a phone, the band sits just below that end.
+  tall around it. Phone bands are a single line of 10px text, up to 80px wide. The replay tap target is at least 40px in both dimensions. The top name sits beside the right end of the top hand. The band's bottom edge lines up with the bottom of the tile bodies for both concealed and revealed hands. Where the gap cannot hold the phone's full band or a 40px band on a larger board with its riichi stick clear of the right melds, the band sits just below the hand's right end.
   The local name sits just above the own hand, with room for its riichi stick. Both side names share a row
   about a fifth of the way down the side strips. Centre each side name in its rail when both rails have room for the
   name and riichi stick clear of the controls. Use the nearest clear row. Phones keep their 10px text; on
-  larger boards rail text can shrink to three quarters of the board text, with a 14px minimum. Where the rails are too tight,
+  larger boards the top name and the rail names can shrink to three quarters of the board text, with a 14px minimum where the board text reaches it. Where the rails are too tight,
   place both names just inside the hands, with the left name aligned to the local name's left edge.
   The left name clears the left river and any play
   switches in that pocket. Anchors stay fixed as hands shorten or offers open. A crowded prompt or notice may briefly
@@ -818,7 +818,8 @@ as a number, not seen, so the count turns red from ten tiles left.
   (tobi, the game's length, the target score reached in the extension, the extension's last round),
   never as a failure. An ended session says
   why and offers the way back; it is not quiet.
-- **Replay.** The board unchanged, its geometry identical to live play's, drawn from the chosen
+- **Replay.** The board uses live play's geometry, except where a narrow desktop replay keeps the side bars
+  for controls that cannot fit in the live board's band (Composition). It is drawn from the chosen
   viewpoint seat, which need not be the reader's; plus controls with the
   moves, play, the round list and the tools, readable at the
   floor viewport. Decision: no narration; the board itself shows each move and its centre the round; off a

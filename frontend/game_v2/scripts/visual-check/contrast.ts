@@ -129,22 +129,13 @@ const HIDE_INK = `
     .tile svg use[href^="#tile-"] { visibility: hidden !important; }
 `;
 
-/**
- * Paints every element's own text in one loud colour (`FORCE_INK`) or every pseudo-element's (`FORCE_PSEUDO_INK`), the
- * rest of the ink hidden: against the inkless shot, where each text's glyphs lie, whatever its own colour.
- */
-const FORCE_INK = `
-    * { -webkit-text-fill-color: #f0f !important; text-shadow: none !important;
-        text-decoration-color: transparent !important; }
-    *::before, *::after { -webkit-text-fill-color: transparent !important; }
-    .tile svg use[href^="#tile-"] { visibility: hidden !important; }
-`;
-const FORCE_PSEUDO_INK = `
-    * { -webkit-text-fill-color: transparent !important; text-shadow: none !important;
-        text-decoration-color: transparent !important; }
-    *::before, *::after { -webkit-text-fill-color: #f0f !important; }
-    .tile svg use[href^="#tile-"] { visibility: hidden !important; }
-`;
+/** Reversing the two fills isolates text coverage in luminance, without the compositor JPEG's colour bleed. */
+function textProbe(fill: "black" | "white"): string {
+    const pseudo = fill === "white" ? "black" : "white";
+    return `${HIDE_INK}
+        * { -webkit-text-fill-color: ${fill} !important; }
+        *::before, *::after { -webkit-text-fill-color: ${pseudo} !important; }`;
+}
 
 /** Hides the text a pseudo-element draws (" han", "✓"), nothing else. */
 const HIDE_PSEUDO_TEXT = `
@@ -186,7 +177,7 @@ interface FurnitureCover {
 /** The attribute a covered plate text's element carries while the contrast check probes it. */
 const COVER_ATTRIBUTE = "data-contrast-cover";
 
-/** The loud colour a probe paints a covered plate's text in (`FORCE_INK`'s). */
+/** The loud colour a probe paints a covered plate's text in. */
 const PROBE_INK = "#f0f";
 
 /**
@@ -650,8 +641,8 @@ async function shootWith(page: Page, css: string | null, compositor: boolean): P
 interface ContrastShots {
     readonly drawn: string;
     readonly ink: string;
-    readonly forced: string;
-    readonly forcedPseudo: string;
+    readonly whiteText: string;
+    readonly blackText: string;
     readonly pseudo: string;
     readonly marks: readonly string[];
     /** Per probe batch, the inkless shot with only that batch's covered plate texts painted `PROBE_INK`. */
@@ -661,9 +652,8 @@ interface ContrastShots {
 /**
  * Measure the targets in the page, from its shots:
  * - a text: its painted colour (composited over what lies beneath) against the background the page paints under it,
- *   read under its glyphs only (where they lie is read from a shot painting every text one loud colour, whatever its
- *   own), its box cut both ways into small square cells (a sixth of its line high, at least two device pixels), the
- *   worst cell kept, so no band or patch under them is outvoted; and its ink must show somewhere (it changes a pixel);
+ *   read under its glyphs only (where the black and white probe shots differ in brightness). Its box is cut into
+ *   square cells a sixth of a line high (at least two device pixels), the worst cell kept, so no band or patch under them is outvoted; and its ink must show somewhere (it changes a pixel);
  * - a glyph: each ink of its symbol, composited over the face's painted colour (the middle of the face, its glyph
  *   hidden), at every size; and, as drawn, each ink must show (a pixel nearest the blend of that ink with the face), its
  *   best pixel at the floor on a face of at least `MIN_GLYPH_DEVICE_PX`, below which a shortfall is only reported;
@@ -676,6 +666,7 @@ function measureContrast(
     return page.evaluate(
         async ({ floor, sets, shotSet, sliver }) => {
             const INK_GAP = 2;
+            const MIN_PIXEL_CHANGE = 8;
             const JPEG_FIRST_BYTE = 255;
             const TEXT_CELLS_A_LINE = 6;
             const TEXT_CELL_FLOOR = 2;
@@ -736,8 +727,12 @@ function measureContrast(
                         Math.abs(pixel[0] - ground[0]),
                         Math.abs(pixel[1] - ground[1]),
                         Math.abs(pixel[2] - ground[2]),
-                    ) >= 8
+                    ) >= MIN_PIXEL_CHANGE
                 );
+            }
+            function lumaAt(image: ImageData, at: number): number {
+                const [red, green, blue] = pixelAt(image, at);
+                return 0.299 * red + 0.587 * green + 0.114 * blue;
             }
             /** The ink a pixel lies nearest the blend of with its ground, or null for none. */
             // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
@@ -792,11 +787,11 @@ function measureContrast(
             function* pixelsIn(
                 area: { left: number; top: number; right: number; bottom: number },
                 without: ImageData,
-            ): Generator<{ pixel: Rgb; ground: Rgb }> {
+            ): Generator<{ at: number; pixel: Rgb; ground: Rgb }> {
                 for (let row = area.top; row < area.bottom; row += 1) {
                     for (let column = area.left; column < area.right; column += 1) {
                         const at = (row * drawn.width + column) * 4;
-                        yield { ground: pixelAt(without, at), pixel: pixelAt(drawn, at) };
+                        yield { at, ground: pixelAt(without, at), pixel: pixelAt(drawn, at) };
                     }
                 }
             }
@@ -890,9 +885,10 @@ function measureContrast(
                 target: ContrastTarget,
                 {
                     background,
-                    forced,
+                    light,
+                    dark,
                     without,
-                }: { background: ImageData; forced: ImageData; without: ImageData },
+                }: { background: ImageData; light: ImageData; dark: ImageData; without: ImageData },
             ): void {
                 const inked = inkedArea(deviceBox(target.box), without);
                 const { colour } = target;
@@ -915,12 +911,12 @@ function measureContrast(
                             right: Math.min(end, left + cell),
                             top,
                         };
-                        const under = [...pixelsIn(part, background)].map((pair) => pair.ground);
-                        const beneath = [...pixelsIn(part, forced)]
-                            .map(({ ground: shape }, index) =>
-                                changed(shape, under[index]) ? under[index] : null,
-                            )
-                            .filter((pixel) => pixel !== null);
+                        const beneath: Rgb[] = [];
+                        for (const { at, ground } of pixelsIn(part, background)) {
+                            if (lumaAt(light, at) - lumaAt(dark, at) >= MIN_PIXEL_CHANGE) {
+                                beneath.push(ground);
+                            }
+                        }
                         const ground = beneath.length === 0 ? null : paintedOf(beneath);
                         const ink = ground === null ? null : over(colour, ground);
                         const ratio =
@@ -941,9 +937,11 @@ function measureContrast(
                         }
                     }
                 }
-                if (worst !== null) {
-                    record(target, worst);
+                if (worst === null) {
+                    missing.push(target.label);
+                    return;
                 }
+                record(target, worst);
             }
             function measureGlyph(target: ContrastTarget, without: ImageData): void {
                 const area = deviceBox(target.box);
@@ -1026,8 +1024,8 @@ function measureContrast(
             }
             const ink = await pixels(shotSet.ink);
             const pseudo = await pixels(shotSet.pseudo);
-            const forced = await pixels(shotSet.forced);
-            const forcedPseudo = await pixels(shotSet.forcedPseudo);
+            const whiteText = await pixels(shotSet.whiteText);
+            const blackText = await pixels(shotSet.blackText);
             const probes = await Promise.all(shotSet.probes.map(pixels));
             /** How many pixels of an area a probe's loud ink changes against the inkless shot: where the text shows. */
             function exposed(
@@ -1052,7 +1050,8 @@ function measureContrast(
                 const pseudoText = target.hiddenIn === "pseudo";
                 measureText(target, {
                     background: ink,
-                    forced: pseudoText ? forcedPseudo : forced,
+                    dark: pseudoText ? whiteText : blackText,
+                    light: pseudoText ? blackText : whiteText,
                     without: pseudoText ? pseudo : ink,
                 });
             }
@@ -1142,8 +1141,8 @@ export async function checkContrast(
     const drawn = await shootWith(page, null, compositor);
     const ink = await shootWith(page, HIDE_INK, compositor);
     const pseudo = await shootWith(page, HIDE_PSEUDO_TEXT, compositor);
-    const forced = await shootWith(page, FORCE_INK, compositor);
-    const forcedPseudo = await shootWith(page, FORCE_PSEUDO_INK, compositor);
+    const whiteText = await shootWith(page, textProbe("white"), compositor);
+    const blackText = await shootWith(page, textProbe("black"), compositor);
     const marks: string[] = [];
     for (const batch of targets.marks.keys()) {
         marks.push(await shootWith(page, hideMarksCss(batch), compositor));
@@ -1169,7 +1168,7 @@ export async function checkContrast(
         { cover: COVER_ATTRIBUTE, rules: CONTRAST_MARKS.length },
     );
     const { collected, failures, lowest, missing, reported } = await measureContrast(page, {
-        shots: { drawn, forced, forcedPseudo, ink, marks, probes, pseudo },
+        shots: { blackText, drawn, ink, marks, probes, pseudo, whiteText },
         targets,
     });
     report.expect(

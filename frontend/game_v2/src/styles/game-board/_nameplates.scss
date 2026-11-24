@@ -45,6 +45,7 @@ $plate-seats: bottom, right, top, left;
 .nameplate--top {
     align-items: flex-start;
     padding-top: var(--geo-plate-top-pill-inset);
+    font-size: var(--geo-plate-top-text);
 
     .board-layout:has(.board-strip--top-hand.board-strip--revealed) & {
         top: var(--geo-plate-top-revealed-y);
@@ -68,6 +69,12 @@ $plate-seats: bottom, right, top, left;
 
     @include small-chrome {
         padding-inline: 4px;
+    }
+
+    .nameplate--top & {
+        @include desktop-board {
+            padding-inline: 4px;
+        }
     }
 
     @include phone-board {

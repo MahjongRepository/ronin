@@ -83,6 +83,7 @@ export interface BoardMeasure {
     readonly nameplates: readonly Box[];
     /** Each badge by its seat's position, whose fixed place the decisions stories compare across checkpoints. */
     readonly badges: readonly GroupedBox[];
+    readonly handBesideTopBadge: { readonly revealed: boolean; readonly bodyBottom: number } | null;
     /** Each badge's pill, by seat. */
     readonly platePills: readonly GroupedBox[];
     /** Each badge's riichi stick under its pill while one stands, by seat. */
@@ -211,6 +212,19 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             }));
         }
         const centerElement = board.querySelector(".board-center");
+        const topHand = board.querySelector(".board-strip--top-hand");
+        const topHandBody = topHand?.querySelector(".hand-tile .tile__body");
+        const topPill = board.querySelector(".nameplate--top .nameplate__pill");
+        const handBesideTopBadge =
+            topHand &&
+            topHandBody &&
+            topPill &&
+            topPill.getBoundingClientRect().left >= topHand.getBoundingClientRect().right
+                ? {
+                      bodyBottom: topHandBody.getBoundingClientRect().bottom + window.scrollY,
+                      revealed: topHand.classList.contains("board-strip--revealed"),
+                  }
+                : null;
         // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
         function cornersOf(element: Element): Point[] {
             return [
@@ -414,6 +428,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             fonts,
             furiten: furitenMark === null ? null : box(furitenMark),
             grouped,
+            handBesideTopBadge,
             handReach,
             hiddenTiles: tableTiles.filter(
                 (tile) =>

@@ -141,7 +141,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   height (content-responsive, not a family branch): smaller type and tiles held to the panel's height, each seat's
   change and total on one line where its card holds them, else wrapping to two, never past the card. Its large type needs both a board of `$result-large-height` and a panel
   (`round-result`, an inline-size container) of `$result-large-panel-width`: the panel's width is the table column's,
-  not the board's, so a short or squat window's narrow panel keeps the regular type its seats' figures fit.
+  not the board's. A narrow panel keeps regular type on a tall board and gives more width to the seats by
+  narrowing the scoring column, card padding and gaps. The final-scores label can wrap within its button.
 - A panel sized by its content reserves its scrollbar's gutter (`scrollbar-gutter: stable`): the overlay's auto
   track takes the panel's height before a classic scrollbar narrows it, so without the gutter the scrollbar wraps a row
   (the game end's actions) the track never grew for. The round result, its width set, keeps no gutter.
