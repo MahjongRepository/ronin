@@ -483,14 +483,16 @@ describe("playDisplay revealed hands", () => {
 });
 
 describe("playDisplay result hold", () => {
-    it("holds a result back when its round ends in play, a draw with no call included, never after a reconnect's snapshot", () => {
+    it("holds a result back on a win or declared draw and opens a reconnected result immediately", () => {
         const drawEnd = checkpointState("game_end_reconnect_seat_1", "kyuushu round end");
         function held(state: LiveClient): boolean | null {
             const panel = playDisplay(state, NO_PLAY_UI).overlay?.panel;
             return panel?.kind === "result" ? panel.held : null;
         }
 
-        expect(playDisplay(drawEnd, NO_PLAY_UI).callouts).toBeNull();
+        expect(playDisplay(drawEnd, NO_PLAY_UI).callouts?.items).toEqual([
+            { kind: "kyuushu", label: "Abortive draw", position: "bottom" },
+        ]);
         expect([
             held(drawEnd),
             held(checkpointState("double_ron_seat_1", "round end")),
@@ -838,7 +840,7 @@ describe("playDisplay callouts", () => {
         expect(playDisplay(turn, NO_PLAY_UI).callouts).toEqual({
             announced: true,
             items: [{ kind: "chi", label: "Chii", position: "bottom" }],
-            key: "call-5000",
+            key: turn.calls,
         });
         expect(nextDeadline(turn)).toBe(turn.now + CALLOUT_MS);
         expect(playDisplay(later, NO_PLAY_UI).callouts).toBeNull();
@@ -892,8 +894,7 @@ describe("playDisplay callouts", () => {
             return checkpointState("chankan_passed_seat_3", label).calls;
         }
         const kan = {
-            at: 8000,
-            calls: [{ kanTileType: 14, kind: "kan", seat: 1 }],
+            calls: [{ kind: "kan", seat: 1 }],
             until: 8000 + CALLOUT_MS,
         };
 
@@ -921,15 +922,14 @@ describe("playDisplay callouts", () => {
             raw: closedKan(33),
         }).state;
         const second = stepGameClient(first, {
-            at: 3600,
+            at: 3100,
             kind: "server_message",
             raw: closedKan(32),
         }).state;
 
         expect(second.calls).toEqual({
-            at: 3600,
-            calls: [{ kanTileType: 32, kind: "kan", seat: 2 }],
-            until: 3600 + CALLOUT_MS,
+            calls: [{ kind: "kan", seat: 2 }],
+            until: 3100 + CALLOUT_MS,
         });
         expect(playDisplay(second, NO_PLAY_UI).callouts?.key).not.toBe(
             playDisplay(first, NO_PLAY_UI).callouts?.key,

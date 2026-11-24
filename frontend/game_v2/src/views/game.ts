@@ -17,6 +17,7 @@ import {
     type PlayUi,
     RotatePanel,
     SETTINGS_FOCUS_KEY,
+    decisionOf,
     describeClientStatus,
     failGameClient,
     intentCommand,
@@ -399,14 +400,18 @@ class GameViewController {
         });
     }
 
+    private cancelPendingWork(): void {
+        this.queue.length = 0;
+        this.clacks.cancel();
+        this.timer.disarm();
+    }
+
     dispose(): void {
         this.disposed = true;
         this.stopTileSprite();
         this.stopBrowserBars();
         this.recovery.abort();
-        this.queue.length = 0;
-        this.timer.disarm();
-        this.clacks.cancel();
+        this.cancelPendingWork();
         this.closeSocket();
         render(nothing, this.host);
     }
@@ -604,6 +609,10 @@ class GameViewController {
         if (after.boardMotion !== before.boardMotion && after.boardMotion.mode === "reset") {
             this.clacks.cancel();
         }
+        const decision = decisionOf(after);
+        if (decision?.status.kind !== "open" || decision.waitId !== decisionOf(before)?.waitId) {
+            this.clacks.cancelDecision();
+        }
         if (!this.ui.soundOn) {
             return;
         }
@@ -619,7 +628,7 @@ class GameViewController {
     private fail(error: unknown): void {
         console.error("The game page failed:", error);
         const detail = describeError(error);
-        this.queue.length = 0;
+        this.cancelPendingWork();
         this.state = failGameClient(this.state, detail);
         this.appendLog({
             at: this.deps.clock.now(),

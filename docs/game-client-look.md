@@ -487,8 +487,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   with a light label (riichi slate, pon blue, chi green, kan violet); Pass has a dark neutral face and a quiet rim that keep its label legible over river tiles,
   so equal choices read as equals, nothing competes with a win and pass is never louder than the call it declines. A soft sheen crosses a win's face (ron, tsumo) every few seconds and rests between, the
   controls' only motion, still under reduced motion or with animations off. The controls show exactly the offer the server made and vanish as soon as
-  the player or a play switch answers it. Pass dismisses them silently; a declaration immediately
-  shows its callout and plays its voice, while the table waits for the server to resolve the action.
+  the player or a play switch answers it. Pass dismisses them silently. The server’s meld, riichi discard or round result starts the callout.
   Each of chi, pon and kan has one labelled button. Pressing it sends the only legal offer immediately.
   With multiple offers it opens a tile picker in the same band. Each neutral button keeps the main call button’s width and height and centres the hand tiles
   for one offer, preserving red fives. Chi and pon pairs follow hand order, plain fives first.
@@ -618,11 +617,10 @@ as a number, not seen, so the count turns red from ten tiles left.
   one word on a borderless chip over the caller's own river, upright, three river rows' worth of type,
   a win's word in its own colour. It shows for about a second, so it may cover anything on the board for its
   moment, the decision controls, the timer and an action source included (decision: size over a clear source), but
-  no face of the own hand, which takes the taps. A local declaration
-  appears on selection, without moving tiles or changing scores. A matching server confirmation
-  does not repeat a lone callout or its voice, even after its popup expires. Another player's winning
-  call replaces it when the server resolves priority. A double or triple ron
-  shows every claimant's at once. It shows for 1.2 seconds: a 240ms fade-in shrinking from 1.2 times its
+  no face of the own hand, which takes the taps. A riichi announces on the declaration discard. A kan announces on its meld, before another seat can rob it.
+  A win announces on the round result. A double or triple ron shows all confirmed ron seats together and plays the
+  voice once. Head bump shows the winning seat. Kyuushu kyuuhai shows the declaring seat with the abort action’s
+  label at one river row’s type size to fit the longer words, and has no recorded voice. It shows for 1.2 seconds: a 240ms fade-in shrinking from 1.2 times its
   resting size, a 480ms hold, then a 480ms fade-out. In live play it remains until
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
@@ -687,7 +685,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   longer than five. The clack sounds as the discard lands, the landing delay after the move, while the board animates
   (the Animations switch on and no system reduced motion); otherwise it plays with the move. A clack still waiting to
   land is dropped when the sound is turned off, a reset snapshot comes or the page closes; in a replay also on a jump or a
-  step back, while a step on plays it at once. A decision chime that comes while a clack waits sounds with that clack,
+  step back, while a step on plays it at once. A decision chime that comes while a clack waits sounds with that clack while the same offer is still open,
   since the chime opens on a clack-like tap that would otherwise read as a second clack. A draw tick never sounds before
   or over a clack: one that comes while a clack waits, or within the draw hold (450ms) after
   one, waits until that hold after the clack, when the held draw shows; a step on in a replay lands the clack and keeps that wait. A deal, the

@@ -308,7 +308,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         followUp: answering({ type: "pass" }),
     },
     anchor_pon_declared: {
-        ...checkpoint("anchor_seat_1", "call offer", "Anchor: Pon declared"),
+        ...checkpoint("anchor_seat_1", "call offer", "Anchor: Pon awaiting confirmation"),
         followUp: (state) => {
             const offer = decisionOf(state)?.offers.find((candidate) => candidate.kind === "pon");
             if (offer === undefined) {

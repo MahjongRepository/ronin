@@ -109,13 +109,10 @@ table transition and call model; replay dispatch loads with the replay route.
   preference is independent of replay controls and lives in browser storage through the live driver's dependencies;
   turned off, a right-click does nothing, yet still never opens the browser's menu where it would have acted.
 - Each meld kind has one call button. A single legal offer sends immediately. Multiple offers open a tile picker scoped to the wait, with Back beside the timer. The layout reserves the larger of the main prompt and its pickers so opening one keeps the same button size. Digits select from the visible step. Back and Escape restore focus to the call.
-- A local declaration shows its callout and plays its voice as soon as its intent is accepted, without changing the
-  table. The submitted decision identifies its server echo even after the callout expires, so confirmation never
-  repeats the voice or a lone callout. Other seats' calls still announce normally; a multi-ron result shows all
-  winners. A kan's declaration and completion announce it only once. Calls end on a deal or a snapshot that left
-  the hand, never on a move that calls nothing or the game's end. The yakuman gong waits for the server's result.
-  A win's context (`WIN_CALLOUT_CONTEXT_MS`) holds for a delayed result independently of the shorter
-  visible callout. Once a result panel starts its opening delay, expiry of that context never truncates it.
+- Submission closes the controls. The server’s meld, riichi discard or round result starts the matching callouts.
+  A kan announces on its meld, before its chankan window. Multi-ron shows every confirmed caller together with
+  one voice. A head bump shows the winner, and kyuushu shows the declaring seat with no recorded voice.
+  A new deal or a snapshot that left the hand clears the callouts. A reconnect restores the board silently.
 - `playDisplay` maps the whole client state for the live board. `PlayBoard` only renders it; its view state is `PlayUi`, whose
   per-decision parts are keyed by wait id so a newer decision never inherits them. `PlayUi` moves only through
   `stepPlayUi`, which every driver calls after each step (a command, an intent once stepped, the client stepping on

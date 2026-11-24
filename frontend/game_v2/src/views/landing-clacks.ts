@@ -5,7 +5,7 @@ import { type CancelTimer, type Clock } from "@/shared/clock";
 interface PendingCues {
     readonly cancel: CancelTimer;
     readonly lead: SoundCue;
-    readonly cues: SoundCue[];
+    readonly cues: Set<SoundCue>;
 }
 
 export class LandingClacks {
@@ -28,10 +28,16 @@ export class LandingClacks {
             } else if (cue === "draw") {
                 this.drawAfterClack();
             } else if (cue === "decision" && landing !== undefined) {
-                landing.cues.push(cue);
+                landing.cues.add(cue);
             } else {
                 this.sound.play(cue);
             }
+        }
+    }
+
+    cancelDecision(): void {
+        for (const pending of this.pending) {
+            pending.cues.delete("decision");
         }
     }
 
@@ -79,7 +85,7 @@ export class LandingClacks {
     }
 
     private playLater(delayMs: number, cue: SoundCue): void {
-        const cues: SoundCue[] = [cue];
+        const cues = new Set([cue]);
         const pending: PendingCues = {
             cancel: this.clock.setTimer(delayMs, () => {
                 this.pending = this.pending.filter((other) => other !== pending);

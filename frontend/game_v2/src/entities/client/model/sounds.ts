@@ -3,14 +3,19 @@ import { type SoundSetting } from "@ronin/shared/sound-setting";
 import { type Call, type CalloutKind, type PlayerState, type TableState } from "@/entities/table";
 import { type LocalStore } from "@/shared/lib";
 
-import { matchesCall, submittedCall } from "./calls";
 import { decisionCountdown } from "./countdown";
 import { decisionOf } from "./pending";
 import { unseenWait } from "./play-switches";
 import { type LiveClient, type Offer } from "./types";
 
 /** A move's sound, a new decision's chime, or a countdown's beep. */
-export type SoundCue = CalloutKind | "discard" | "draw" | "yakuman" | "beep" | "decision";
+export type SoundCue =
+    | Exclude<CalloutKind, "kyuushu">
+    | "discard"
+    | "draw"
+    | "yakuman"
+    | "beep"
+    | "decision";
 
 const DECISION_SOUND_OFFERS = new Set<Offer["kind"]>([
     "chi",
@@ -63,7 +68,9 @@ function paysYakuman(table: TableState): boolean {
 
 /** Each call's kind's voice once however many seats call it, and the gong when it wins at a yakuman limit. */
 function callCues(calls: readonly Call[], table: TableState): readonly SoundCue[] {
-    const voices = [...new Set(calls.map((call) => call.kind))];
+    const voices = [
+        ...new Set(calls.map((call) => call.kind).filter((kind) => kind !== "kyuushu")),
+    ];
     const wins = voices.some((kind) => kind === "ron" || kind === "tsumo");
     return wins && paysYakuman(table) ? [...voices, "yakuman"] : voices;
 }
@@ -84,14 +91,6 @@ export function moveSoundCues(
         discardCount(after) === discardCount(before) + 1 ? ["discard"] : [];
     const draws: readonly SoundCue[] = drawsOneTile(before, after) ? ["draw"] : [];
     return [...discards, ...draws, ...callCues(calls, after)];
-}
-
-/** The calls the board starts showing at a live step; none while the same calls stay showing, or none show. */
-function newCalls(before: LiveClient, after: LiveClient): readonly Call[] {
-    const shown = after.calls;
-    return shown === null || shown === before.calls
-        ? []
-        : shown.calls.filter((call) => !before.calls?.calls.includes(call));
 }
 
 /** The whole seconds the viewer's open decision reads, while it runs and lasts longer than the beeping seconds. */
@@ -136,6 +135,7 @@ function beepCues(before: LiveClient, after: LiveClient): readonly SoundCue[] {
 function decisionCues(before: LiveClient, after: LiveClient): readonly SoundCue[] {
     const decision = decisionOf(after);
     if (
+        after.automaticAnswer !== null ||
         decision?.status.kind !== "open" ||
         !unseenWait(decision.waitId, before.highestOpenedWaitId)
     ) {
@@ -152,20 +152,12 @@ function decisionCues(before: LiveClient, after: LiveClient): readonly SoundCue[
  * gong for a yakuman win, a new call, riichi or win decision's chime, and a beep at the bank's start and each last second.
  */
 export function soundCues(before: LiveClient, after: LiveClient): readonly SoundCue[] {
-    const declared = submittedCall(before);
-    const calls = newCalls(before, after).filter((call) => !matchesCall(call, declared));
-    const move = moveSoundCues(before.table, after.table, calls);
-    const confirmedWin =
-        (declared?.kind === "ron" || declared?.kind === "tsumo") &&
-        before.table.roundEndResult !== after.table.roundEndResult &&
-        paysYakuman(after.table) &&
-        !move.includes("yakuman");
-    return [
-        ...move,
-        ...(confirmedWin ? ["yakuman" as const] : []),
-        ...decisionCues(before, after),
-        ...beepCues(before, after),
-    ];
+    const calls = after.calls !== before.calls ? (after.calls?.calls ?? []) : [];
+    const reset = before.boardMotion !== after.boardMotion && after.boardMotion.mode === "reset";
+    const move = reset
+        ? callCues(calls, after.table)
+        : moveSoundCues(before.table, after.table, calls);
+    return [...move, ...decisionCues(before, after), ...beepCues(before, after)];
 }
 
 /** The game's sounds as a page plays them: the setting this browser keeps for them, and their player. */

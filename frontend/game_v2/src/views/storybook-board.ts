@@ -110,7 +110,15 @@ const PLAYED_ROW_STORIES: ReadonlySet<BoardStory> = new Set([
 const DEFAULT_STORY: BoardStory = "full_rivers";
 
 /** Every call the board shows, one of which the story may show at every seat at once. */
-const CALLOUT_KINDS: readonly CalloutKind[] = ["ron", "tsumo", "pon", "chi", "kan", "riichi"];
+const CALLOUT_KINDS: readonly CalloutKind[] = [
+    "ron",
+    "tsumo",
+    "pon",
+    "chi",
+    "kan",
+    "riichi",
+    "kyuushu",
+];
 
 /**
  * The calls a story shows at once: one kind at every seat, a different call at every seat, or a triple ron, whose
@@ -124,6 +132,7 @@ const STORY_CALL_LABELS: Readonly<Record<StoryCall, string>> = {
     chi: "Call: chi",
     every: "Calls: one a seat",
     kan: "Call: kan",
+    kyuushu: "Call: kyuushu",
     pon: "Call: pon",
     riichi: "Call: riichi",
     ron: "Call: ron",

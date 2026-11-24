@@ -252,7 +252,7 @@ function applyMessageTable(state: LiveClient, message: ParsedServerMessage): Liv
         return state;
     }
     const table = applyEvent(state.table, event);
-    const calls = repeatedCallPrompt(state, message) ? state.calls : liveCalls(state, event, table);
+    const calls = liveCalls(state, event, table);
     return { ...state, calls, table };
 }
 

@@ -265,12 +265,11 @@ export interface Desync {
 export type Sync = InStep | Desync;
 
 /**
- * The calls the board shows, made aloud by one move at logical time `at`. A live server message's last until `until`
+ * The calls the board shows for one move. A live server message's last until `until`
  * or a newer call; a replay line's until the next move, since a replay's stop is a move and its time never runs.
  */
 export interface ShownCalls {
     readonly calls: readonly Call[];
-    readonly at: number;
     readonly until: number;
 }
 

@@ -252,8 +252,11 @@ describe("automatic answers", () => {
         expect(bySwitch(stateAt(switched, run, "chankan prompt"))).toBe("open");
         expect(bySwitch(stateAt(switched, run, "held answer"))).toBe("auto_win");
         const states = timelineStates(run.timeline);
-        const index = scenarioStateIndex(switched, "held answer");
-        expect(soundCues(states[index - 1], states[index])).toEqual(["ron"]);
+        const cues = ["chankan prompt", "held answer", "round end"].map((label) => {
+            const index = scenarioStateIndex(switched, label);
+            return soundCues(states[index - 1], states[index]);
+        });
+        expect(cues).toEqual([[], [], ["ron", "yakuman"]]);
     });
 
     it("Auto win turned off while it holds a ron sends nothing, leaving the ron to the player", () => {

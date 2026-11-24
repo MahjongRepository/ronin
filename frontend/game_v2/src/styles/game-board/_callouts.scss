@@ -48,6 +48,10 @@
         transform-origin: 0 50%;
     }
 
+    &--kyuushu {
+        font-size: min(var(--callout-cap), var(--rh) - 4px);
+    }
+
     &--ron,
     &--tsumo {
         color: var(--ronin-callout-win-rim);

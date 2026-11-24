@@ -51,7 +51,7 @@ interface BoardNameplate {
 }
 
 /** A call a seat makes aloud, which the board shows by its seat for a moment. */
-type CalloutKind = "ron" | "tsumo" | "pon" | "chi" | "kan" | "riichi";
+type CalloutKind = "ron" | "tsumo" | "pon" | "chi" | "kan" | "riichi" | "kyuushu";
 
 /** A call shown on the board: its kind, its word and the position of the seat that made it. */
 interface BoardCallout {
@@ -66,7 +66,7 @@ interface BoardCallout {
  * replay's jump shows its calls silently).
  */
 interface BoardCallouts {
-    readonly key: string;
+    readonly key: string | object;
     readonly items: readonly BoardCallout[];
     readonly announced: boolean;
 }

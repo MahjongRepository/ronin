@@ -1379,14 +1379,14 @@ describe("mountGameView sounds", () => {
 
 describe("mountGameView decision controls", () => {
     it("dismisses the controls silently once Pass is pressed", () => {
-        const { connections, host, sound } = mountWithFakes();
+        const { clock, connections, host, sound } = mountWithFakes();
         openCallPrompt(connections[0]);
-        const played = [...sound.played];
 
         const sent = labelsAfter(host, () => press(host, ".decision-controls__action--pass"));
 
         expect(sent).toEqual([]);
-        expect(sound.played).toEqual(played);
+        clock.advanceTo(DISCARD_LANDING_MS);
+        expect(sound.played).toEqual(["discard"]);
     });
 });
 
@@ -1552,15 +1552,15 @@ describe("mountGameView board", () => {
         expect(connections[0].sent).toEqual([JOIN]);
     });
 
-    it("sends the chi pressed among the two offered, once, with its callout and voice", () => {
+    it("sends the selected chi once and stays quiet while the meld is pending", () => {
         const { connections, host, sound } = mountInDocumentAtCallPrompt();
         press(host, '.decision-controls__action[aria-label="Chii"]');
         press(host, '.decision-controls__action[aria-label="Chii 2-man and 4-man"]');
         expect(host.querySelector(".decision-controls")).toBeNull();
         expect([
-            host.querySelector(".board-callout--bottom .board-callout__word")?.textContent,
+            host.querySelector(".board-callout"),
             sound.played.filter((cue) => cue === "chi"),
-        ]).toEqual(["Chii", ["chi"]]);
+        ]).toEqual([null, []]);
 
         expect(connections[0].sent).toEqual([JOIN, buildChiAction(8, [4, 12], PROMPT_WAIT_ID)]);
     });

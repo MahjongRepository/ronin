@@ -264,7 +264,7 @@ function openingControls(state: LiveClient): OpeningControls | null {
     };
 }
 
-/** The live calls as the viewer's board shows them, keyed by when they were made. */
+/** The live calls as the viewer's board shows them, keyed by the move that produced them. */
 function liveCallouts(state: LiveClient): BoardCallouts | null {
     const { calls, viewerSeat } = state;
     if (calls === null || viewerSeat === null) {
@@ -273,7 +273,7 @@ function liveCallouts(state: LiveClient): BoardCallouts | null {
     return {
         announced: true,
         items: boardCallouts(calls.calls, viewerSeat),
-        key: `call-${calls.at}`,
+        key: calls,
     };
 }
 

@@ -9,18 +9,15 @@ import { type MessageKey, t } from "@/shared/i18n";
 import {
     ABORTIVE_DRAW_TYPE,
     MELD_TYPE,
-    type MeldEvent,
     type MeldType,
     ROUND_RESULT_TYPE,
     seatDistance,
-    tileType,
 } from "@/shared/protocol";
 
-/** A call a seat makes aloud: its kind and the seat that made it, and for a kan the tile type it tells that kan by. */
+/** A call made by one seat on a table move. */
 export interface Call {
     readonly kind: CalloutKind;
     readonly seat: number;
-    readonly kanTileType?: number;
 }
 
 /**
@@ -41,6 +38,7 @@ export const CALLOUT_MS = 1200;
 const CALLOUT_LABELS: Readonly<Record<CalloutKind, MessageKey>> = {
     chi: "game.call.chi",
     kan: "game.call.kan",
+    kyuushu: "game.call.abort",
     pon: "game.call.pon",
     riichi: "game.call.riichi",
     ron: "game.call.ron",
@@ -64,23 +62,16 @@ function resultCalls(table: TableState): readonly Call[] {
         return NO_CALLS;
     }
     if (result.draw !== null) {
-        const tripleRon = result.draw.kind === ABORTIVE_DRAW_TYPE.TRIPLE_RON;
-        return tripleRon ? result.draw.ronSeats.map((seat) => ({ kind: "ron", seat })) : NO_CALLS;
+        const { kind, declarerSeat, ronSeats } = result.draw;
+        if (kind === ABORTIVE_DRAW_TYPE.TRIPLE_RON) {
+            return ronSeats.map((seat) => ({ kind: "ron", seat }));
+        }
+        return kind === ABORTIVE_DRAW_TYPE.NINE_TERMINALS && declarerSeat !== null
+            ? [{ kind: "kyuushu", seat: declarerSeat }]
+            : NO_CALLS;
     }
     const kind = result.resultType === ROUND_RESULT_TYPE.TSUMO ? "tsumo" : "ron";
     return result.winners.map((winner) => ({ kind, seat: winner.seat }));
-}
-
-function kanCall(seat: number, tileId: number): Call {
-    return { kanTileType: tileType(tileId), kind: "kan", seat };
-}
-
-/** A meld's call: its chi, pon or kan, a kan telling its tile type. */
-function meldCalls(event: MeldEvent): readonly Call[] {
-    const kind = MELD_CALLS[event.meldType];
-    return kind === "kan"
-        ? [kanCall(event.callerSeat, event.tileIds[0])]
-        : [{ kind, seat: event.callerSeat }];
 }
 
 /**
@@ -92,7 +83,7 @@ function meldCalls(event: MeldEvent): readonly Call[] {
 export function eventCalls(event: TableEvent, after: TableState): readonly Call[] | null {
     switch (event.type) {
         case "meld": {
-            return meldCalls(event);
+            return [{ kind: MELD_CALLS[event.meldType], seat: event.callerSeat }];
         }
         case "discard": {
             return event.isRiichi ? [{ kind: "riichi", seat: event.seat }] : NO_CALLS;

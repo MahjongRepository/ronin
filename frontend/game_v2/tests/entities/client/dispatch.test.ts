@@ -31,7 +31,7 @@ import {
     stepGameClient,
     takesIntent,
 } from "@/entities/client";
-import { WIN_CALLOUT_CONTEXT_MS } from "@/entities/client/model/calls";
+import { CALLOUT_MS } from "@/entities/table";
 import {
     SESSION_ERROR_CODE,
     WIRE_KEY,
@@ -106,7 +106,7 @@ describe("stepGameClient - round confirm", () => {
 
         expect([scenario.step(roundEnd), nextDeadline(scenario.state)]).toEqual([
             [],
-            100 + WIN_CALLOUT_CONTEXT_MS,
+            100 + CALLOUT_MS,
         ]);
         expect(scenario.step(tick(60_000))).toEqual([]);
         expect(scenario.step(confirm(60_100))).toEqual([sent]);
@@ -147,6 +147,8 @@ describe("stepGameClient - round confirm", () => {
 
         expect(scenario.step(closed(500, 1006))).toEqual([]);
         expect(scenario.step(confirm(600))).toEqual([]);
+        expect(nextDeadline(scenario.state)).toBe(100 + CALLOUT_MS);
+        scenario.step(tick(100 + CALLOUT_MS));
         expect(nextDeadline(scenario.state)).toBe(1500);
     });
 
@@ -375,10 +377,10 @@ describe("stepGameClient", () => {
         expect([scenario.state, before.now]).toEqual([{ ...before, now: 800 }, 0]);
         scenario.step(message(1000, wireRoundEnd(5)));
         const called = scenario.state;
-        scenario.step(socketError(1000 + WIN_CALLOUT_CONTEXT_MS));
+        scenario.step(socketError(1000 + CALLOUT_MS));
         expect([called.calls === null, scenario.state]).toEqual([
             false,
-            { ...called, calls: null, now: 1000 + WIN_CALLOUT_CONTEXT_MS },
+            { ...called, calls: null, now: 1000 + CALLOUT_MS },
         ]);
         expect([
             connectTimeoutEffects(tick),

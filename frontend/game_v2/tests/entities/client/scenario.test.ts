@@ -32,7 +32,6 @@ import {
     stepGameClient,
     timelineStates,
 } from "@/entities/client";
-import { WIN_CALLOUT_CONTEXT_MS } from "@/entities/client/model/calls";
 import { CALLOUT_MS, roundEndDisplay, tableStateToDisplayState } from "@/entities/table";
 import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 import {
@@ -306,7 +305,7 @@ describe("stepGameClient - generated call prompt", () => {
 
         expect(decisionOf(stateAt(twice, run, "chi chosen"))?.status).toEqual(submitted);
         expect(decisionOf(stateAt(twice, run, "chi again"))?.status).toEqual(submitted);
-        expect(nextDeadline(stateAt(twice, run, "chi again"))).toBe(submitted.at + CALLOUT_MS);
+        expect(nextDeadline(stateAt(twice, run, "chi again"))).toBeNull();
     });
 
     it("opens the turn after the chi with the kuikae types the server named", () => {
@@ -873,9 +872,8 @@ describe("stepGameClient - generated round advance", () => {
         const { scenario } = FINAL_ROUND;
         const run = runClean(scenario);
         const ron = {
-            at: 5000,
             calls: [{ kind: "ron", seat: 1 }],
-            until: 5000 + WIN_CALLOUT_CONTEXT_MS,
+            until: 5000 + CALLOUT_MS,
         };
         const afterClose = lastState(run);
 

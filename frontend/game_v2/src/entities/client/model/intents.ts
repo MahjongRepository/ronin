@@ -2,7 +2,6 @@ import { hasEnded, holdsSeat } from "@/entities/session";
 import { DISCARD_LANDING_MS, DRAW_HOLD_MS, type PlayerState } from "@/entities/table";
 import { type ClientMessage } from "@/shared/protocol";
 
-import { declareIntent } from "./calls";
 import { answerDecision } from "./decision";
 import { confirmOpeningStep } from "./opening";
 import { decisionOf, replaceDecision } from "./pending";
@@ -89,10 +88,7 @@ export function decisionIntentStep(
     const status = { at: state.now, bySwitch, intent, kind: "submitted" } as const;
     return {
         effects: [{ message, type: "send" }],
-        state: replaceDecision(
-            { ...state, calls: declareIntent(state, intent, bySwitch) },
-            { ...decision, status },
-        ),
+        state: replaceDecision(state, { ...decision, status }),
     };
 }
 

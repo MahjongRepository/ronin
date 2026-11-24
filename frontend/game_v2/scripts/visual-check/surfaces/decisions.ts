@@ -217,11 +217,11 @@ const PAGES: readonly PageCase[] = [
     },
     decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
     {
-        ...decisionCase("anchor_pon_declared", [".board-callout--bottom.board-callout--pon"]),
+        ...decisionCase("anchor_pon_declared", []),
         at: [FLOOR, MID_DESKTOP],
         prepare: async (page) => {
             await page.waitForSelector(".game-board");
-            await page.waitForSelector(".decision-controls", { state: "detached" });
+            await page.waitForSelector(".decision-controls, .board-callout", { state: "detached" });
         },
     },
     {
