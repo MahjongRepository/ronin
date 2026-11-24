@@ -222,12 +222,15 @@ a contract.
   answers a game error and the decision, its id and its timer go on; structurally impossible input
   (not offered, a tile not held) closes that human with 1008 and seats an AI player.
 * The engine's awaited seats drive the timers, never the events: a new wait re-arms them for its
-  connected seats, a kept one stops the timers of all seats whose decisions have closed. A caller
-  whose offers another seat's claim outranked gets `call_closed` when the claim is accepted,
-  naming no claim, whether the claim settles the call or a ron is still owed, so the notice tells
-  nothing about the other seats; the callers still owed keep their prompt and deadline, and the
-  claim shows only once it wins. An answer already in flight to the call that notice closed is an
-  ordinary race: it is dropped with a debug line, never answered or logged as stale. A
+  connected seats, a kept one stops the timers of all seats whose decisions have closed. A call
+  settles once no seat still owed can change its outcome (`engine.Game.Outranked`): an outranked
+  caller keeps its prompt, timer and bank charge and its answer is taken, so nothing it sees
+  shows that a ron is still owed, and it learns the outcome with everyone. An outranked AI seat is
+  never asked, and a kept wait keeps the request of an AI seat that still decides. An answer
+  already in flight to a call that timed out or settled without the seat is an ordinary race,
+  dropped with a debug line, never answered or logged as stale; the seat also gets `call_closed`
+  when its prompt would otherwise stay up, the call still open or its outcome held. The claimer itself sees its claim wait only on
+  an outstanding ron, an accepted tell since pace outranks timing tells. A
   timeout plays the seat's default action as its own answer. Turns and calls draw from one bank after their free base time, and ending a wait
   charges every running decision, a call another seat resolved included. Both pauses, the start
   confirm and the round advance, go on once every seat that owed its confirmation (its connected
@@ -241,7 +244,8 @@ a contract.
   hold and the call window have both ended. An accepted call response from a connected client
   (including an automatic pass) shortens the hold to 150 ms from the original discard or kan.
   A server AI decision, timeout, stale action or resync leaves the sampled deadline in place.
-  A leave or a reconnect while the game end is held hands no seat over and records no seat control:
+  A leave or a reconnect while the game end is held hands no seat over and records no seat control
+  (the returning seat's own snapshot alone shows it played by itself):
   the game ends completed at the hold's deadline, or at once when its last connected participant
   leaves. The replay takes the whole call's records at once, so seat control records keep their place after them, but the engine
   is past what the clients saw, so nothing reads it for a client meanwhile: a game action is stale,

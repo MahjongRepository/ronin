@@ -94,8 +94,9 @@ func SeatControl(seat tile.Seat, reason play.Option[wire.SeatControlReason]) wir
 	})
 }
 
-// CallClosed returns the message that closes a seat's call prompt before the call resolves: another
-// seat's claim outranks every offer it held, and the seat can no longer answer.
+// CallClosed returns the message that closes a seat's call prompt ahead of the call's outcome: its
+// own answer timed out, or the call settled without it while the discard hold keeps the outcome
+// back.
 func CallClosed() wire.Map {
 	return wire.Map{{Key: wire.KeySessionType, Value: wire.Str(callClosedType)}}
 }

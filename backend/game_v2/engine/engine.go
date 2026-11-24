@@ -121,6 +121,13 @@ func (g Game) Awaiting() play.Awaiting {
 	return g.game.Awaiting()
 }
 
+// Outranked reports whether seat still owes an answer to the open call prompt that can no longer
+// change its outcome: another seat's claim outranks every offer it holds. The seat keeps its
+// prompt and its answer is taken, but the call settles without waiting for it.
+func (g Game) Outranked(seat tile.Seat) bool {
+	return g.game.Outranked(seat)
+}
+
 // LegalActions returns every action seat may take now, none for a seat the game does not await.
 // On a turn the discards come first in hand order, then the riichi discards, tsumo, the closed
 // kans, the added kans and kyuushu; on a call prompt ron, open kan, the pons, the chis, then pass.

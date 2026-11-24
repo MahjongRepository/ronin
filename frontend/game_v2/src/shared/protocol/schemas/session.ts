@@ -57,8 +57,8 @@ const seatControlSchema = z.pipe(
 );
 
 /**
- * The seat's call prompt closed before the call resolved: another seat's claim outranks every offer it held. It names
- * no claim, so the table shows nothing until the call resolves.
+ * The seat's call prompt closed ahead of the call's outcome: its own answer timed out, or the call settled without it
+ * while the server holds the outcome back. It names no claim, so the table shows nothing until the outcome arrives.
  */
 const callClosedSchema = z.pipe(
     z.object({

@@ -92,7 +92,13 @@ func (g *game) timedOut(p *participant, kind timeoutKind, token uint64) error {
 		return err
 	}
 	counter.Add(1)
-	return g.followEngine(events, play.Some(p.seat))
+	expired := p.decisionID
+	err = g.followEngine(events, play.Some(p.seat))
+	if err != nil || kind != timeoutMeld {
+		return err
+	}
+	_, open := g.engine.Awaiting().(play.AwaitingCall)
+	return closeCallOf(p, expired, open || g.hold.held())
 }
 
 func (g *game) confirmPause(seat tile.Seat) error {

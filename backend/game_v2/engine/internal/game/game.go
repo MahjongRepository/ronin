@@ -256,6 +256,12 @@ func (g Game) isTurnOf(seat tile.Seat) bool {
 	return ok && turn.Seat == seat
 }
 
+// Outranked reports whether seat owes an answer to the call prompt that can no longer change
+// its outcome, since another seat's claim outranks every offer it holds.
+func (g Game) Outranked(seat tile.Seat) bool {
+	return g.isCallFor(seat) && !g.round.Prompt().Value.Decides(seat)
+}
+
 func (g Game) isCallFor(seat tile.Seat) bool {
 	prompt := g.round.Prompt()
 	return g.phase == play.PhasePlaying && prompt.OK && prompt.Value.IsPending(seat)

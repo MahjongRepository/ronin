@@ -144,6 +144,7 @@ func (g *game) sendSeatState(p *participant, conn Connection) error {
 	for _, other := range g.participants {
 		standIns[other.seat.Index()] = other.standIn
 	}
+	standIns[p.seat.Index()] = play.Option[wire.SeatControlReason]{}
 	snapshot, err := messaging.ReconnectionPayload(view.Record, g.roster, standIns)
 	if err != nil {
 		return err

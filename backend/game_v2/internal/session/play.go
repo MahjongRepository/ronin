@@ -85,12 +85,12 @@ func (g *game) followEngine(events []play.Emitted, actor play.Option[tile.Seat])
 		return err
 	}
 
-	err = g.closeDisplacedCalls(actor)
+	events = furitenAhead(events)
+	shown, kept, holds := g.heldPart(events)
+	err = g.closeDisplacedCalls(actor, holds)
 	if err != nil {
 		return err
 	}
-	events = furitenAhead(events)
-	shown, kept, holds := g.heldPart(events)
 	if holds {
 		return g.holdUpdate(shown, kept, actor)
 	}
@@ -107,11 +107,13 @@ func (g *game) showUpdate(events []play.Emitted, actor play.Option[tile.Seat]) e
 }
 
 func (g *game) applyUpdate(events []play.Emitted, actor play.Option[tile.Seat]) error {
-	g.asked.invalidate()
 	awaiting := waitOf(g.engine.Awaiting())
 	previous, had := g.wait, g.hasWait
 	g.wait, g.hasWait = awaiting, true
 	opened := !had || opensNewWait(previous, awaiting, actor)
+	if opened || !g.asksAISeat(g.asked.seat) || !awaiting.awaits(g.asked.seat) {
+		g.asked.invalidate()
+	}
 
 	var openings []messaging.Opening
 	if opened {
@@ -142,23 +144,30 @@ func (g *game) applyUpdate(events []play.Emitted, actor play.Option[tile.Seat]) 
 	return nil
 }
 
-func (g *game) closeDisplacedCalls(actor play.Option[tile.Seat]) error {
+func (g *game) closeDisplacedCalls(actor play.Option[tile.Seat], outcomeHeld bool) error {
 	if !g.hasWait || g.wait.kind != waitCall {
 		return nil
 	}
 	awaiting := waitOf(g.engine.Awaiting())
 	for _, seat := range g.wait.seats {
 		p := g.atSeat(seat)
-		if awaiting.awaits(seat) || (actor.OK && actor.Value == seat) || p == nil || p.conn == nil {
+		if awaiting.awaits(seat) || (actor.OK && actor.Value == seat) || p == nil {
 			continue
 		}
-		p.closedCalls = append(p.closedCalls, p.decisionID)
-		err := send(p.conn, messaging.CallClosed())
+		err := closeCallOf(p, p.decisionID, outcomeHeld)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func closeCallOf(p *participant, waitID int, promptStaysUp bool) error {
+	p.closedCalls = append(p.closedCalls, waitID)
+	if !promptStaysUp || p.conn == nil {
+		return nil
+	}
+	return send(p.conn, messaging.CallClosed())
 }
 
 func (g *game) openWait(events []play.Emitted, awaiting wait) error {

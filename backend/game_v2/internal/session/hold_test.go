@@ -343,6 +343,40 @@ func TestDiscardHold_WhenASeatLeavesAndReturnsWhileTheGamesEndIsHeld_ShouldShowT
 	})
 }
 
+func TestDiscardHold_WhenASeatThatLeftReturnsWhileTheGamesEndIsHeld_ShouldShowItsOwnSeatAsPlayedByItself(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		bustedDealer := play.StartPosition{Scores: [tile.SeatCount]int{1000, 33000, 33000, 33000}}
+		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withTiming(noWaits), withDiscardHold(2*time.Second),
+			func(c *session.Config) {
+				c.Setup = func(engine.Seed) engine.Setup {
+					return engine.Setup{
+						Walls: play.Fixed{Walls: [][tile.TileIDCount]tile.TileID{doubleRonWall(t)}},
+						Start: play.Some(bustedDealer),
+					}
+				}
+			})
+		conns := h.start("Alice", "Bob", "Carol")
+		alice, bob, carol := conns[0], conns[1], conns[2]
+		draw := lastDraw(t, alice)
+		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
+		h.m.Disconnect(alice)
+		synctest.Wait()
+		h.act(bob, answer(intOf(t, callPrompt(t, bob), wire.KeyWaitID), play.RonAction()))
+		h.act(carol, answer(intOf(t, callPrompt(t, carol), wire.KeyWaitID), play.RonAction()))
+
+		back := h.reconnect("ticket-Alice")
+
+		players, _ := reconnected(t, back).Get(wire.KeyPlayers)
+		own, _ := players.(wire.Array)[0].(wire.Map).Get(wire.KeyStandInReason)
+		if own != nil {
+			t.Errorf("alice's own stand-in in her snapshot = %v, want none: she is back", own)
+		}
+		if got := len(ofSession(bob.messages(), "seat_control")); got != 1 {
+			t.Errorf("seat_control bob got = %d, want only the leave: the return during the held end hands nothing over", got)
+		}
+	})
+}
+
 func TestDiscardHold_WhenTheLastConnectedSeatLeavesWhileTheGamesEndIsHeld_ShouldCompleteTheGameAtOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h, alice, bob, carol := heldGameEnd(t)

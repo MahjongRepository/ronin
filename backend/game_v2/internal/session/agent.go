@@ -53,7 +53,7 @@ func (g *game) playAIPlayers() {
 	if g.lifecycle != lifecyclePlaying || g.hold.held() || g.aiTurn.armed || g.asked.inFlight() {
 		return
 	}
-	index := slices.IndexFunc(g.wait.seats, g.isAISeat)
+	index := slices.IndexFunc(g.wait.seats, g.asksAISeat)
 	if index < 0 {
 		return
 	}
@@ -67,6 +67,10 @@ func (g *game) playAIPlayers() {
 		return
 	}
 	g.askAgent(g.wait.seats[index])
+}
+
+func (g *game) asksAISeat(seat tile.Seat) bool {
+	return g.isAISeat(seat) && !g.engine.Outranked(seat)
 }
 
 func (g *game) aiTurnDue(token uint64) error {

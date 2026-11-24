@@ -365,7 +365,7 @@ func TestDiscardClaim_WhenTheRonCallerPassesAndAPonIsClaimed_ShouldMakeThePon(t 
 
 	g, claimed := script(t, g, act(seat(t, 2), firstPon(t, g, seat(t, 2))))
 	assertEqual(t, "events before ron is answered", claimed, []play.Emitted(nil))
-	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 3)))
+	assertEqual(t, "awaiting with the outranked chi still open", g.Awaiting(), awaitingCall(seat(t, 1), seat(t, 3)))
 	g, events := script(t, g, act(seat(t, 3), play.PassAction()))
 
 	melds := testkit.CalledMelds(events)

@@ -132,23 +132,38 @@ func (p *CallPrompt) recordAnswer(seat tile.Seat, action play.Action) {
 	case play.ActionPass, play.ActionDiscard, play.ActionRiichi, play.ActionTsumo, play.ActionKyuushu:
 	}
 
-	onlyRon := action.Kind() == play.ActionRon || action.Kind() == play.ActionPon || action.Kind() == play.ActionKan
 	var pending []tile.Seat
 	for _, other := range p.pending {
-		if other == seat {
-			continue
+		if other != seat {
+			pending = append(pending, other)
 		}
-		if onlyRon && !p.canRon(other) {
-			p.meldOffers[other.Index()] = nil
-			continue
-		}
-		pending = append(pending, other)
 	}
 	p.pending = pending
 }
 
 func (p CallPrompt) isSettled() bool {
-	return len(p.pending) == 0
+	return !slices.ContainsFunc(p.pending, p.Decides)
+}
+
+// Decides reports whether seat's answer can still change the call's outcome: a ron always can, and
+// a meld only while no claim outranks it.
+func (p CallPrompt) Decides(seat tile.Seat) bool {
+	if p.canRon(seat) {
+		return true
+	}
+	if len(p.rons) > 0 {
+		return false
+	}
+	claimed, ok := p.winningMeld()
+	if !ok {
+		return true
+	}
+	if _, isChi := claimed.call.(play.ChiCall); !isChi {
+		return false
+	}
+	return slices.ContainsFunc(p.meldOffers[seat.Index()], func(offered play.Action) bool {
+		return offered.Kind() != play.ActionChi
+	})
 }
 
 func (p CallPrompt) declaredRons() []tile.Seat {
