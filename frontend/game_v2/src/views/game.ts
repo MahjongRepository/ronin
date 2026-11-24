@@ -29,7 +29,7 @@ import {
     stepGameClient,
     stepPlayUi,
 } from "@/entities/client";
-import { BOARD_SELECTOR } from "@/entities/table";
+import { BOARD_SELECTOR, DECISION_ACTION_FOCUS_KEY } from "@/entities/table";
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
@@ -465,12 +465,23 @@ class GameViewController {
         if (command.kind === "ask_leave" || command.kind === "show_controls") {
             this.panelOpener = this.focusedControl();
         }
+        const previousPick = this.ui.meldPick;
         this.ui = stepPlayUi(this.state, this.ui, command);
         if (!this.ui.soundOn) {
             this.clacks.cancel();
         }
         this.saveSetting(command);
         this.draw();
+        this.focusAfterCommand(command, previousPick);
+    }
+
+    private focusAfterCommand(command: PlayCommand, previousPick: PlayUi["meldPick"]): void {
+        if (command.kind === "pick_meld" && this.ui.meldPick !== null) {
+            focusByKey(this.host, DECISION_ACTION_FOCUS_KEY, { preventScroll: true });
+        }
+        if (command.kind === "step_back" && previousPick !== null) {
+            focusByKey(this.host, previousPick.meld, { preventScroll: true });
+        }
         if (command.kind === "cancel_leave" || command.kind === "close_controls") {
             this.refocusPanelOpener();
         }

@@ -1165,9 +1165,9 @@ describe("mountGameView settings", () => {
 
         expect([before, keycaps(first.host), saved, keycaps(next.host)]).toEqual([
             0,
-            5,
+            4,
             { keyHints: true, rightClick: true },
-            5,
+            4,
         ]);
         expect(readInputSetting({ rightClick: false })).toEqual({
             keyHints: false,
@@ -1537,11 +1537,24 @@ describe("mountGameView board", () => {
         expect(connections[0].sent).toEqual([JOIN, buildPassAction(PROMPT_WAIT_ID)]);
     });
 
-    it("sends the chi pressed among the two offered, once, with its callout and voice", () => {
-        const { connections, host, sound } = mountWithFakes();
-        openCallPrompt(connections[0]);
-
+    it("opens the legal chi choices and restores focus to Chi when the player goes back", () => {
+        const { connections, host } = mountInDocumentAtCallPrompt();
         const offered = labelsAfter(host, () => {});
+        expect(offered).toEqual(["Kan", "Pon", "Chii", "Pass"]);
+        expect(
+            labelsAfter(host, () => press(host, '.decision-controls__action[aria-label="Chii"]')),
+        ).toEqual(["Chii 1-man and 2-man", "Chii 2-man and 4-man", "Back"]);
+        expect(document.activeElement?.getAttribute("aria-label")).toBe("Chii 1-man and 2-man");
+        expect(
+            labelsAfter(host, () => press(host, '.decision-controls__action[aria-label="Back"]')),
+        ).toEqual(offered);
+        expect(document.activeElement?.getAttribute("aria-label")).toBe("Chii");
+        expect(connections[0].sent).toEqual([JOIN]);
+    });
+
+    it("sends the chi pressed among the two offered, once, with its callout and voice", () => {
+        const { connections, host, sound } = mountInDocumentAtCallPrompt();
+        press(host, '.decision-controls__action[aria-label="Chii"]');
         press(host, '.decision-controls__action[aria-label="Chii 2-man and 4-man"]');
         expect(host.querySelector(".decision-controls")).toBeNull();
         expect([
@@ -1549,13 +1562,6 @@ describe("mountGameView board", () => {
             sound.played.filter((cue) => cue === "chi"),
         ]).toEqual(["Chii", ["chi"]]);
 
-        expect(offered).toEqual([
-            "Kan",
-            "Pon",
-            "Chii 1-man and 2-man",
-            "Chii 2-man and 4-man",
-            "Pass",
-        ]);
         expect(connections[0].sent).toEqual([JOIN, buildChiAction(8, [4, 12], PROMPT_WAIT_ID)]);
     });
 });

@@ -37,6 +37,7 @@ import {
     decisionStanding,
     escapeStep,
     intentsOf,
+    pickedMeld,
     pickingRiichi,
     tilePlays,
 } from "./decision-controls";
@@ -116,6 +117,7 @@ export interface PlayDisplay {
     readonly tileIntents: ReadonlyMap<number, LocalIntent>;
     /** The answerable decision's controls, ranked; none once answered. */
     readonly actions: readonly DecisionAction[];
+    readonly decisionCapacity: number;
     /** Where the viewer's decision stands; null with none. */
     readonly decisionStanding: DecisionStanding | null;
     readonly shortcuts: PlayShortcuts;
@@ -335,10 +337,14 @@ function decisionKeys(
     state: LiveClient,
     ui: PlayUi,
     overlay: PlayOverlay | null,
-): Pick<PlayDisplay, "actions" | "shortcuts"> {
-    const actions = decisionActions(state, ui);
+): Pick<PlayDisplay, "actions" | "decisionCapacity" | "shortcuts"> {
+    const { actions, decisionCapacity } = decisionActions(state, ui);
     const step = escapeStep(state, ui);
-    return { actions, shortcuts: playShortcuts(state, ui, { actions, overlay, step }) };
+    return {
+        actions,
+        decisionCapacity,
+        shortcuts: playShortcuts(state, ui, { actions, overlay, step }),
+    };
 }
 
 /**
@@ -353,7 +359,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     const picking = pickingRiichi(state, ui);
     const armedTile = armedTileId(state, ui);
     const plays =
-        viewer === undefined
+        viewer === undefined || pickedMeld(state, ui) !== null
             ? new Map<number, TilePlay>()
             : tilePlays(state, viewer, { armed: armedTile, picking });
     const source: OverlaySource = {
@@ -364,7 +370,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     };
     const { failure, leave, notices, resultPage } = source;
     const overlay = playOverlay(state, ui, source);
-    const { actions, shortcuts } = decisionKeys(state, ui, overlay);
+    const { actions, decisionCapacity, shortcuts } = decisionKeys(state, ui, overlay);
     return {
         actions,
         animationsOn: ui.animationsOn,
@@ -372,6 +378,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         board: viewerBoard(state, plays),
         callouts: liveCallouts(state),
         countdown: decisionCountdown(state),
+        decisionCapacity,
         decisionStanding: decisionStanding(state),
         failure,
         furiten: furiten && viewer !== undefined && table.phase === "in_round",

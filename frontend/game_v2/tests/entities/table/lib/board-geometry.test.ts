@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { cogSquare, riverReserves } from "#tests/fixtures/board-rects";
 import {
@@ -48,8 +48,6 @@ const SIDE_STRIP_OWN_AIR = 3;
 const SIZES = ["rw", "ow", "core-top", "col-left"] as const;
 
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
-const WIDEST_PROMPT_IN_ONE_ROW = 450;
-const WIDEST_PROMPT_FIRST_OF_TWO_ROWS = 238;
 const LIVE_SLOTS: BoardSlots = { band: "play" };
 const REPLAY_SLOTS: BoardSlots = { band: "replay" };
 
@@ -247,8 +245,8 @@ describe("boardGeometry in a phone's browser", () => {
             browser: "a Galaxy A25 in Android Chrome",
             height: 331,
             insets: NO_INSETS,
-            ow: 38,
-            rw: 18,
+            ow: 37,
+            rw: 17,
             width: 891,
         },
         {
@@ -866,9 +864,9 @@ describe("boardGeometry", () => {
         const { lengths, tracks } = windowGeometry({ height: 300, width: 770 });
         const [left = 0, top = 0, right = 0, bottom = 0] = slotAreas(tracks)["actions"] ?? [];
 
-        expect({ ow: lengths["ow"], rw: lengths["rw"] }).toEqual({ ow: 36, rw: 13 });
+        expect({ ow: lengths["ow"], rw: lengths["rw"] }).toEqual({ ow: 34, rw: 16 });
         expect(bottom - top).toBeGreaterThanOrEqual(
-            phonePromptHeight(right - left, lengths["timer-w"] ?? 0) - 0.001,
+            phonePromptHeight(right - left, lengths["decision-h"] ?? 0) - 0.001,
         );
     });
 
@@ -1252,6 +1250,13 @@ describe("boardGeometry's strips", () => {
     );
 });
 
+function callRowWidth(lengths: BoardGeometry["lengths"], slots: number): number {
+    return (
+        slots * (lengths["call-w"] ?? Number.NaN) +
+        (slots - 1) * (lengths["call-gap"] ?? Number.NaN)
+    );
+}
+
 describe("boardGeometry's decisions", () => {
     it.each([
         { height: 1080, width: 1920 },
@@ -1277,7 +1282,7 @@ describe("boardGeometry's decisions", () => {
         const { lengths, tracks } = windowGeometry({ height: 308, width: 640 });
         const [left = 0, top = 0, right = 0] = slotAreas(tracks)["actions"] ?? [];
 
-        expect(right - left).toBeCloseTo(356.6, 1);
+        expect(right - left).toBeCloseTo(366.6, 1);
         expect(left).toBeLessThan((lengths["cx"] ?? 0) - (lengths["hx"] ?? 0));
         expect(top).toBeGreaterThanOrEqual((lengths["cy"] ?? 0) + (lengths["h"] ?? 0));
     });
@@ -1295,7 +1300,7 @@ describe("boardGeometry's decisions", () => {
         },
         { fromLane: true, height: 331, insets: NO_INSETS, rows: 2, width: 891 },
     ])(
-        "stands a $width x $height live phone's decisions in a band along the own row's top, short of both side strips' lanes, 4px under the centre and the right river's first tiles, its bottom row under the left river's longest reach or the band from the centre's left edge, $rows row(s) of 40px controls tall, as many as the widest prompt takes at its width",
+        "stands a $width x $height live phone's decisions in a band along the own row's top, short of both side strips' lanes, 4px under the centre and the right river's first tiles, its bottom row under the left river's longest reach or the band from the centre's left edge, $rows row(s) of call buttons tall, as many as the widest prompt takes at its width",
         ({ fromLane, height, insets, rows, width }) => {
             const { family, lengths, tracks } = windowGeometry({ height, width }, 0, insets);
             function length(name: string): number {
@@ -1317,17 +1322,39 @@ describe("boardGeometry's decisions", () => {
                     right <= length("col-right") - lane &&
                     top >= length("cy") + length("h") + 4 - 0.1 &&
                     bottom <= length("hand-top") - length("own-meld-rise") &&
-                    (bottom - 40 >= leftRiverEnd - 0.1 || left >= centreLeft - 0.1),
+                    (bottom - length("decision-h") >= leftRiverEnd - 0.1 ||
+                        left >= centreLeft - 0.1),
                 fromLane: left < centreLeft,
                 holdsWidestPrompt:
-                    right - left >=
-                    (rows === 1 ? WIDEST_PROMPT_IN_ONE_ROW : WIDEST_PROMPT_FIRST_OF_TWO_ROWS),
-                rows: Math.floor((bottom - top + 2) / 42),
+                    bottom - top >= phonePromptHeight(right - left, length("decision-h")) - 0.1,
+                rows: Math.floor(
+                    (bottom - top + length("decision-gap") + 0.1) /
+                        (length("decision-h") + length("decision-gap")),
+                ),
             }).toEqual({ clear: true, fromLane, holdsWidestPrompt: true, rows });
         },
     );
 
-    it("sizes a desktop's decision controls from its river tile, 0.85 of it and never under 48px, so a larger window never draws them smaller", () => {
+    it("keeps the three-button phone prompt spaced and fits a second row of tap targets above it for five calls", () => {
+        const input = {
+            appliedEdges: NO_INSETS,
+            box: { height: 375, width: 667 },
+            safeInsets: NO_INSETS,
+        };
+        const sparse = boardGeometry({ ...input, slots: { band: "play", decisionCapacity: 3 } });
+        const dense = boardGeometry({ ...input, slots: { band: "play", decisionCapacity: 5 } });
+        const band = dense.areas["actions"];
+        assert(band !== undefined);
+        expect(sparse.lengths["call-h"]).toBeCloseTo(44.352);
+        expect(callRowWidth(sparse.lengths, 4)).toBeLessThanOrEqual(band.right - band.left);
+        expect(callRowWidth(dense.lengths, 6)).toBeGreaterThan(band.right - band.left);
+        expect(dense.lengths["call-h"]).toBeGreaterThanOrEqual(40);
+        expect(
+            2 * (dense.lengths["call-h"] ?? Infinity) + (dense.lengths["call-row-gap"] ?? Infinity),
+        ).toBeLessThanOrEqual(band.bottom - band.top + 0.01);
+    });
+
+    it("sizes a desktop's decision controls from its river tile, 0.95 of it and never under 52px, so a larger window never draws them smaller", () => {
         const boards = [
             [1280, 720],
             [1920, 1080],
@@ -1336,9 +1363,9 @@ describe("boardGeometry's decisions", () => {
         ].map(([width = 0, height = 0]) => windowGeometry({ height, width }, 10).lengths);
         const heights = boards.map((lengths) => lengths["decision-h"] ?? 0);
 
-        expect(heights).toEqual([48, 51, 69, 69]);
+        expect(heights).toEqual([52, 57, 77, 77]);
         expect(heights).toEqual(
-            boards.map((lengths) => Math.max(48, Math.floor(0.85 * (lengths["rw"] ?? 0)))),
+            boards.map((lengths) => Math.max(52, Math.floor(0.95 * (lengths["rw"] ?? 0)))),
         );
     });
 });
@@ -1829,7 +1856,7 @@ describe("boardGeometry's shell tracks", () => {
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [144, 233.7, 523, 315.7],
+            actions: [144, 223.7, 523, 315.7],
             corner: [623, 4, 663, 375],
             field: [4, 38.9, 90, 177],
             furiten: [4, 185, 90, 203],

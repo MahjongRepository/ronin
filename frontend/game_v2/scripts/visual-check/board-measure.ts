@@ -66,6 +66,8 @@ export interface BoardMeasure {
     /** What an open offer refers to: the latest discard, a kan a chankan offer may rob. */
     /** The decision timer's slot. */
     readonly timer: Box | null;
+    readonly timerDigits: Box | null;
+    readonly pass: Box | null;
     /** The decision's first toggle (riichi), pressed or not. */
     readonly toggle: Box | null;
     /** The play switches on the band. */
@@ -293,7 +295,9 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         ].map(box);
         const actions = [...decisionActions, ...resultActions];
         const band = board.querySelector(".board-actions");
+        const pass = band?.querySelector(".decision-controls__action--pass");
         const timer = board.querySelector(".board-actions .decision-timer");
+        const timerDigits = timer?.querySelector(".decision-timer__digits");
         const toggle = board.querySelector(
             ".board-actions .decision-controls__action[aria-pressed]",
         );
@@ -468,6 +472,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                               width: overlay.scrollWidth,
                           },
                       },
+            pass: pass ? box(pass) : null,
             platePills: bySeat(board, ".nameplate__pill", ".nameplate").filter(
                 ({ box: part }) => part.width > 0 && part.height > 0,
             ),
@@ -501,6 +506,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             tileScale,
             tiles: tilesByArea,
             timer: timer === null ? null : box(timer),
+            timerDigits: timerDigits ? box(timerDigits) : null,
             toggle: toggle === null ? null : box(toggle),
             wrappedNames,
             zones: zones === null ? null : box(zones),

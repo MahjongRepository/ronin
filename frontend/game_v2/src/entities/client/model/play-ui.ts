@@ -18,6 +18,11 @@ export type NoticeKind =
     | "reconnected"
     | "refused";
 
+export interface MeldPick {
+    readonly meld: "chi" | "pon" | "kan";
+    readonly waitId: number;
+}
+
 /**
  * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, step back
  * from it (Escape), arm a tile for a second finger tap (or none), turn the round result's panel to a page, show or hide the play switches' names, ask to leave mid-game
@@ -26,6 +31,7 @@ export type NoticeKind =
  */
 export type PlayCommand =
     | { readonly kind: "intent"; readonly intent: LocalIntent }
+    | ({ readonly kind: "pick_meld" } & MeldPick)
     | { readonly kind: "toggle_riichi_pick" }
     | { readonly kind: "step_back" }
     | { readonly kind: "show_result_page"; readonly page: number }
@@ -80,6 +86,7 @@ export interface PlayAction {
  * browser can put the page in full screen instead; and the current socket's round trip, which its pings measure.
  */
 export interface PlayUi {
+    readonly meldPick: MeldPick | null;
     readonly riichiPickWaitId: number | null;
     readonly armedTile: { readonly waitId: number; readonly tileId: number } | null;
     readonly resultPage: { readonly round: string; readonly page: number } | null;
@@ -110,6 +117,7 @@ export const NO_PLAY_UI: PlayUi = {
     confirmingLeave: false,
     controlsHelp: false,
     keyHints: DEFAULT_INPUT_SETTING.keyHints,
+    meldPick: null,
     noticeSheet: null,
     resultPage: null,
     rightClick: DEFAULT_INPUT_SETTING.rightClick,
@@ -140,5 +148,8 @@ export const RIICHI_PICK_STEP_BACK: EscapeStep = {
 
 /** The key the riichi toggle renders, by its command, so Escape focuses it back; null for any other control. */
 export function commandFocusKey(command: PlayCommand): string | null {
+    if (command.kind === "pick_meld") {
+        return command.meld;
+    }
     return command.kind === "toggle_riichi_pick" ? RIICHI_PICK_FOCUS_KEY : null;
 }

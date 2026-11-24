@@ -481,19 +481,18 @@ as a number, not seen, so the count turns red from ten tiles left.
   tsumo) outranks every other action; kyuushu kyuuhai, offered at a seat's first turn, ranks with a
   win since it ends the hand, with playing on as the alternative; calls, kan and riichi come next;
   pass is subordinate and never the most prominent thing on screen; several equally valid actions
-  are presented as equals. Decision: every control is the same flat box (one height, one least width, one type) with a
+  are presented as equals. Decision: every control is the same flat box (one height, equal widths for melds, wins and Pass, one type) with a
   faint light rim, so its edge holds against the felt: a win (ron, tsumo) and kyuushu alone take the bright accent,
   with dark ink; riichi, pon, chi and kan are deep fills of one weight
-  with a light label (riichi slate, pon blue, chi green, kan violet); pass is no fill at all, only its rim and label,
+  with a light label (riichi slate, pon blue, chi green, kan violet); Pass has a dark neutral face and a quiet rim that keep its label legible over river tiles,
   so equal choices read as equals, nothing competes with a win and pass is never louder than the call it declines. A soft sheen crosses a win's face (ron, tsumo) every few seconds and rests between, the
   controls' only motion, still under reduced motion or with animations off. The controls show exactly the offer the server made and vanish as soon as
   the player or a play switch answers it. Pass dismisses them silently; a declaration immediately
   shows its callout and plays its voice, while the table waits for the server to resolve the action.
-  Decision: a call with a choice of tiles (which chi, which tile to kan) is
-  one control per choice, all offered at once with no second step, and an illegal combination is
-  never offered. A control shows tiles only where they are the hand's own and tell something the table does not: a
-  chi its two hand tiles, low to high, the chis standing in that order as the hand lies (a red five's after the plain
-  one's); a kan its tile only beside another kan; a pon and a lone kan none, the marked discard naming theirs.
+  Each of chi, pon and kan has one labelled button. Pressing it sends the only legal offer immediately.
+  With multiple offers it opens a tile picker in the same band. Each neutral button keeps the main call button’s width and height and centres the hand tiles
+  for one offer, preserving red fives. Chi and pon pairs follow hand order, plain fives first.
+  Back beside the timer returns to the calls. Escape and right-click also step back. The timer keeps running.
   Riichi is a toggle that marks the discards that declare it on the hand
   and greys out the rest; an upright riichi stick stands before its label, faint while off and lit while on; it can be untoggled until the discard is sent, not after. An expired
   decision stays visible and looks different from an open one; expiry is the client's
@@ -505,9 +504,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   lane, under the centre and the right river's first tile and 6px over the own row's melds' rise. Every prompt, a
   call's, a riichi or tsumo turn's, kyuushu and a kan's choice, stands there, so the pass and the timer are found
   without looking. While the own seat has called no meld, the controls end where the hand's thirteenth tile ends and
-  the timer stands past it, over the drawn tile; with a meld they keep the band's right end. Its controls are 0.85 of a
-  river tile tall, never under 48px, so a larger window never draws them
-  smaller, along one row that grows left over the bottom river, wrapping upward only where the
+  the timer fits in the space past that edge, over the drawn tile. With a meld the controls keep the band's right end. Its controls target 105.6% of the base dimensions below, with three times the base gap, along one row that grows left over the bottom river, wrapping upward only where the
   band's width is used up (a narrow window, a long label). By design the cluster stands over the own river's tiles
   on its solid controls with a soft shadow, and on a short window a wrapped decision's top row rises over the right
   river's first tiles; neither the table nor the stack reserves room for either. Decision: covering the own river
@@ -516,13 +513,13 @@ as a number, not seen, so the count turns red from ten tiles left.
   and the notices' toasts stand in the corner it leaves. The controls wrap up
   from its bottom right: the timer at the right end, the lowest-ranked control (the pass) left of it, the offers
   left of the pass in rank order, the lowest nearest, wrapping upward, the highest on top. Every label in the
-  cluster is the call buttons' size (0.38 of the control's height, never under 14px), the pass's too (Russian's
-  «Пас»). Every source of a call lies in another seat's river or melds, so nothing a
+  cluster uses a label half the button height, capped at a quarter of its width. Japanese Pass and Back share a
+  smaller cap that gives スキップ space on both sides. Every source of a call lies in another seat's river or melds, so nothing a
   decision
   answers lies under it. On a phone the cluster stands in the same kind of band, right on top of the
   own hand: from short of the left strip's lane to short of the right one's, 4px under
-  the centre and so the right river's first tiles and 4px over the own row, its 40px controls wrapping up from its
-  bottom right in rows 2px apart (two rows hold `call_prompt`'s widest offers at 667x375, one at an iPhone 11's
+  the centre and so the right river's first tiles and 4px over the own row, its call buttons wrapping up from its
+  bottom right with up to 24px between rows (two rows hold the widest offer at 667x375, one at an iPhone 11's
   808x275 with Safari's bars shown), over the own river and the plates. Its bottom row passes under the left river's
   longest reach (its last tile's box, a riichi tile laid as the latest discard); where it cannot (a short centre over
   a long left river), the band starts at the centre's left edge instead, as a desktop's does. It keeps clear
@@ -534,8 +531,8 @@ as a number, not seen, so the count turns red from ten tiles left.
 - **Input.** The contract the current board has, kept: a tile of the own hand is a button; one
   click, Enter or Space on a selectable tile sends it, a finger takes two taps (below), and a tile
   that is not selectable takes the press and does nothing. A decision control sends on one press,
-  except the riichi toggle, which only changes what the next
-  press means and is undone by pressing it again or by Escape. A play switch is
+  except when the player must choose tiles. A meld opens its picker, and riichi marks the legal discards
+  until the player declares, toggles it off or presses Escape. A play switch is
   a board control, not a decision control: turning it on answers the decision open now, as it
   answers the waits from then on; turning it off sends nothing. Focus stays in the hand through a turn, and an offer's controls are
   reached from it without the focus being moved for the player. An expired decision still takes one
@@ -546,8 +543,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   a second on it sends it, one on another selectable tile moves the lift there, and one anywhere
   else drops it. A riichi declaration's pick takes the same two taps after the riichi toggle.
 - **Timer.** The countdown beside the decision controls (right of the pass, in the cluster) as large digits, the base time and the bank
-  apart (`5 +20`), its digits and any caption each on a small dark chip in the plates' badge tone on every board, so
-  they read over whatever the cluster covers (a plate, a river), the bank marked while it alone is draining, so a player always knows which time
+  apart (`5 +20`), its digits and any caption centred directly on the board in a button-sized slot, the bank marked while it alone is draining, so a player always knows which time
   is being spent. Decision: a slot of fixed size and place, a caption line over the digits once time is up
   (the draining bank needs none), so expiry and the bank never move it or the controls. Answering dismisses the timer with
   the controls; there is no submitted caption or checkmark. It is the viewer's
@@ -920,8 +916,7 @@ glance, the felt between a side hand and its river about four river tiles on 16:
 into what the fullest hand leaves, above the face floor (four open kans to about 0.95 river tiles on 16:9, 0.86 to
 0.89 on 16:10 and about 0.8 on a near-square or width-bound window). The table keeps
 no margin inside the gutter, and the height the stack leaves goes above the core, under the top hand. A desktop's
-decision control is 0.85 of a river tile tall, never under 48px, so it never shrinks as the window grows; its label is 0.38 of it, never under 14px, and the controls' least width (4/3 of it), gap (1/8) and the timer
-(1.75 of it, at least 72px, holding `10 +20`) scale with it.
+decision control has a base height of 0.95 of a river tile, rounded down, with a 52px floor. The target height is 1.056 times the base, the width 2.112 times the base and the gap 0.6 times the base. The timer occupies the same width and height as a call button. Beside a full hand the columns fit the room between the thirteenth tile and the right opponent’s strip.
 It gives river and own tiles of 39 and 56px at 1280x720, 36 and 52px at 1366x657, 42 and 60px at 1366x768, 44 and
 60px at 1280x800, 50 and 65px at 1440x900, 48 and 69px at 1536x864, 59 and 77px at 1680x1050, 61 and 88px at
 1920x1080 and 82 and 118px at 2560x1440, 43 and 52px at 960x1000, 49 and 60px at 1100x1000, 68 and 82px at
@@ -960,9 +955,9 @@ seat's melds closing their gaps down to 2px to stay on it, then shrinking under 
 end on it; the right strip's line always holds three pons at the face floor beside the
 hand they leave, whatever that costs the river tile. The
 decisions' band, from the centre's bottom to the own row's top less its 4px clearances, always holds
-`call_prompt`'s controls at the widest of the three languages' labels (the pass and the timer, two tiled chis, a pon
-and a kan, 450px in one row) in as many 40px rows, 2px apart, as the band's width needs: one where it is that wide,
-else two; a river or own tile whose band would not hold them is not taken, unless no tile in the box holds them (the
+the five labelled buttons (ron, chi, pon, kan and pass) and the timer in the rows its width requires.
+At full size each phone button is about 82.4px wide and 44.4–50.7px tall with 24px gaps. Five buttons and the matching timer slot take about 614px in one row. Crowded prompts use the largest buttons that fit the band, with a minimum width of 62.4px, a 40px tap-height floor and at least 8px between buttons. The main prompt and its largest tile picker share one size.
+The board chooses a river and own tile whose band holds the controls wherever the box allows (the
 floor display's Safari box, 667x236, whose band is shorter than a row). The own tile is also the largest whose right
 rail, from under the cog down to the board's foot, holds a replay's moves (where a rail a control wide holds no column,
 the right bar above the own row holds their two columns); else the least at that river tile: this bound caps the own tile only, never the
@@ -971,12 +966,12 @@ The gap below the top strip is 6px (an added kan's stack at the face floor keeps
 on the shortest boxes; the latest discard's temporary raise, its latest-discard gap until the next discard, is exempt:
 the stack keeps the 4px from its settled slot), and the
 phone's chrome scales from the river tile (the small chrome's px up to a 24px river tile, growing with
-it past that, never under 40x40), except the decision controls, which keep their 40px rows. It gives
+it past that, never under 40x40), except the decision controls, whose row height scales with board height. It gives
 river and own tiles of 19 and 37px at 667x375 (its rails bound the felt), 21 and 43px at the notch phone's
 750x390, 23 and 45px at an iPhone 11's 808x414, and 23 and 51px at 932x430 (both bound by the felt's height share),
-whatever the state shows, with centres of 114x108, 126x100, 138x103 and 138x110px (width by height).
+whatever the state shows, with centres of 114x98, 126x90, 138x95 and 138x100px (width by height).
 With a browser's bars shown the boxes
-give 18 and 38px at 891x331 (a 108x69 centre, its lanes above the own row), 13 and 37px at 808x275 (100x70, its
+give 17 and 37px at 891x331 (a 102x68 centre, its lanes above the own row), 13 and 37px at 808x275 (100x70, its
 lanes beside the own row), 11 and 34px at an iPhone 13's 750x251 (its lanes beside the own row), and 9 and 36px at
 667x236 (100x68). A desktop window short enough to use the phone layout follows the same solve: 27 and 59px at
 1024x500.
@@ -997,9 +992,9 @@ apart on the top strip, and 0.35 on a side strip, where the 0.2 edge its standin
 
 | Relationship | Starting point | Derived (667x375 / 750x390 notch board / 1440x900) |
 |---|---|---|
-| Core height / play area height | 0.6 | 0.73 / 0.72 / 0.74 |
-| Centre height / core height | 0.3 | 0.40 / 0.33 / 0.34 |
-| Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/108 and 126/100) | 1.2 | 1.06 / 1.26 / 1.33 |
+| Core height / play area height | 0.6 | 0.70 / 0.70 / 0.74 |
+| Centre height / core height | 0.3 | 0.37 / 0.33 / 0.34 |
+| Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/98 and 126/90) | 1.2 | 1.17 / 1.40 / 1.33 |
 | River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.49 / 0.77 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
 | Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.49 / 0.77 |
@@ -1027,8 +1022,8 @@ solve: the core takes the height the own row leaves it, the controls standing in
 river rather than in a row of their own;
 the two tiles are the largest pair the box holds above the own tile's 36x48 floor; and the centre's
 share grows, its text following the centre down, so the round, the wall count and four winds with
-their scores stay readable at the floor. At the floor this gives a core of 0.73 of the height, a
-centre of 0.40 of the core (114 wide by 109px tall) and 19 and 37px tiles.
+their scores stay readable at the floor. At the floor this gives a core of 0.70 of the height, a
+centre of 0.37 of the core (114 wide by 98px tall) and 19 and 37px tiles.
 
 ## States
 

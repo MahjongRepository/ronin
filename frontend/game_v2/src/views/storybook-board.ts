@@ -265,11 +265,10 @@ interface StoryOffer {
     readonly rank: ActionRank;
     readonly kind: ActionKind;
     readonly label: string;
-    readonly tiles?: readonly TileFace[];
     readonly pressed?: boolean;
 }
 
-function storyControl({ command, kind, label, pressed, rank, tiles }: StoryOffer): DecisionAction {
+function storyControl({ command, kind, label, pressed, rank }: StoryOffer): DecisionAction {
     return {
         command,
         digit: null,
@@ -277,7 +276,7 @@ function storyControl({ command, kind, label, pressed, rank, tiles }: StoryOffer
         label,
         pressed: pressed ?? null,
         rank,
-        tiles: tiles ?? [],
+        tiles: [],
     };
 }
 
@@ -288,7 +287,7 @@ function choosing(offer: Offer): PlayCommand {
 /** A played board's hand input, so a board with offers keeps a played board's row (its furiten slot included). */
 const PLAYED_HAND = { onTile: () => {}, tileAction: "discard" } as const;
 
-/** A discarded 3m's offers: a win, a pon of it, either of two chis, and a pass. */
+/** A discarded 3m's offers: a win, three meld calls and a pass. */
 function fiveOffers(): DecisionView {
     const tileId = 8;
     return {
@@ -306,18 +305,16 @@ function fiveOffers(): DecisionView {
                 rank: "call",
             }),
             storyControl({
-                command: choosing({ kind: "chi", sequence: [0, 4], tileId }),
-                kind: "chi",
-                label: "Chii",
+                command: choosing({ kanType: "open", kind: "kan", tileId }),
+                kind: "kan",
+                label: "Kan",
                 rank: "call",
-                tiles: ["1m", "2m"],
             }),
             storyControl({
-                command: choosing({ kind: "chi", sequence: [4, 12], tileId }),
+                command: { kind: "pick_meld", meld: "chi", waitId: 1 },
                 kind: "chi",
                 label: "Chii",
                 rank: "call",
-                tiles: ["2m", "4m"],
             }),
             storyControl({
                 command: { intent: { type: "pass" }, kind: "intent" },
@@ -341,15 +338,7 @@ function callOffers(): DecisionView {
     const five = fiveOffers();
     return {
         ...five,
-        actions: [
-            storyControl({
-                command: choosing({ kanType: "open", kind: "kan", tileId: 8 }),
-                kind: "kan",
-                label: "Kan",
-                rank: "call",
-            }),
-            ...five.actions.slice(1),
-        ],
+        actions: five.actions.slice(1),
     };
 }
 
@@ -1230,6 +1219,7 @@ function storybookBoardTemplate(
                     actions: offers === null ? undefined : DecisionControls(offers, () => {}),
                     callouts: storyCallouts(story.callout, state),
                     debug: story.debug,
+                    decisionCapacity: offers?.actions.length ?? 0,
                     inert: sheet !== undefined,
                     localHand:
                         offers !== null || PLAYED_ROW_STORIES.has(story.story)

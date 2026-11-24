@@ -1,10 +1,7 @@
 @use "@/styles/game-board/grid" as *;
 @use "@/styles/type";
 
-$row: 40px;
-
 .board-actions {
-    container: decisions / inline-size;
     position: relative;
     grid-area: actions;
     align-self: stretch;
@@ -15,39 +12,48 @@ $row: 40px;
     min-width: 0;
 }
 
+.game-board:not(:has(.board-strip--right .meld)) .board-actions {
+    @include desktop-board {
+        --right-lane-room: calc(var(--geo-strip-depth) - var(--bh));
+    }
+}
+
 .game-board:not(.game-board--replay, :has(.board-local .meld)) .board-actions {
     @include desktop-board {
         --hand-end: calc(var(--geo-own-start) + 13 * var(--ow) + 12 * var(--ow) / #{$tile-w});
         --hand-end-inset: calc(100cqw - var(--geo-actions-right) - var(--hand-end));
-
-        padding-inline-end: max(
-            0px,
-            var(--hand-end-inset) - var(--decision-gap) - var(--actions-band-w)
+        --slot-room: calc(var(--hand-end-inset) + var(--right-lane-room, 0px));
+        --action-min-w: min(
+            var(--geo-call-w, var(--geo-action-min-w)),
+            max(40px, var(--slot-room) - var(--geo-decision-gap))
         );
+        --decision-gap: clamp(
+            0px,
+            var(--slot-room) - var(--action-min-w),
+            var(--geo-call-gap, var(--geo-decision-gap))
+        );
+        --decision-h: clamp(
+            40px,
+            var(--action-min-w) / 2,
+            var(--geo-call-h, var(--geo-decision-h))
+        );
+        --action-text: min(var(--geo-call-text, var(--geo-action-text)), var(--action-min-w) / 4);
+
+        margin-inline-end: calc(var(--hand-end-inset) - var(--action-min-w) - var(--decision-gap));
     }
 }
 
 .decision-controls {
-    --action-text: max(0.85rem, calc(26 * var(--board-table-unit)));
-    --decision-row: var(--control-h);
+    --decision-row: var(--decision-h);
     --action-lift: 0 2px 6px var(--ronin-action-lift);
-
-    @include desktop-board {
-        --action-text: inherit;
-        --decision-row: var(--decision-h);
-    }
 
     display: flex;
     flex: 1;
     flex-flow: row-reverse wrap-reverse;
     place-content: flex-start;
     align-items: center;
-    gap: var(--decision-gap, #{$decision-gap});
+    gap: var(--geo-call-row-gap, var(--decision-gap)) var(--decision-gap);
     min-width: 0;
-
-    @include phone-board {
-        gap: $phone-band-row-gap $small-decision-gap;
-    }
 }
 
 .decision-controls__upper,
@@ -78,20 +84,10 @@ $row: 40px;
     flex-wrap: nowrap;
     order: -1;
     align-items: stretch;
-
-    @include desktop-board {
-        > .decision-timer {
-            width: var(--actions-band-w);
-        }
-    }
-
-    @include phone-board {
-        gap: $small-decision-gap;
-    }
 }
 
 .decision-controls .decision-controls__action {
-    --action-h: #{$row};
+    --action-h: var(--decision-row);
     --action-face: var(--ronin-action-riichi);
     --action-ink: var(--ronin-action-ink);
     --action-rim: inset 0 0 0 1px var(--ronin-action-rim);
@@ -103,11 +99,10 @@ $row: 40px;
     justify-content: center;
     gap: 0.4em;
     box-sizing: border-box;
-    width: auto;
-    min-width: $row;
+    width: var(--action-min-w);
     height: var(--action-h);
     margin: 0;
-    padding: 0 0.7em;
+    padding: 0 0.4em;
     border: 0;
     border-radius: var(--ronin-corner-panel);
     background-color: var(--action-face);
@@ -128,17 +123,10 @@ $row: 40px;
         outline: 3px solid var(--ronin-text);
         outline-offset: 3px;
     }
+}
 
-    @include desktop-board {
-        --action-h: var(--decision-h);
-
-        min-width: var(--action-min-w);
-        padding-inline: 0.5em;
-    }
-
-    @include phone-board {
-        padding-inline: 0.5em;
-    }
+.decision-controls__action--pass:lang(ja) .decision-controls__label {
+    font-size: min(var(--action-text), calc(0.22 * var(--action-min-w)));
 }
 
 .decision-controls .decision-controls__action--ron,
@@ -194,8 +182,9 @@ $row: 40px;
     --action-face: var(--ronin-action-kan);
 }
 
+.decision-controls .decision-controls__action--back,
 .decision-controls .decision-controls__action--pass {
-    --action-face: var(--ronin-action-quiet);
+    --action-face: var(--ronin-badge);
     --action-ink: var(--ronin-action-quiet-ink);
     --action-rim: inset 0 0 0 1px var(--ronin-action-quiet-rim);
     --action-lift: 0 0 transparent;
@@ -245,6 +234,16 @@ $row: 40px;
     line-height: 0;
 }
 
+.decision-controls .decision-controls__action--kyuushu,
+.decision-controls .decision-controls__action--riichi {
+    width: max-content;
+    min-width: var(--action-min-w);
+}
+
+.decision-controls .decision-controls__action:has(.decision-controls__tiles) {
+    --action-face: var(--ronin-badge);
+}
+
 .decision-controls__upper > .decision-controls__action {
     max-width: 100%;
 }
@@ -266,18 +265,11 @@ $row: 40px;
     flex: none;
     flex-direction: column;
     justify-content: center;
-    width: var(--timer-w);
+    width: var(--action-min-w);
     height: var(--decision-row);
     white-space: nowrap;
-    align-items: flex-end;
+    align-items: center;
     color: var(--ronin-text);
-}
-
-.decision-timer__caption,
-.decision-timer__digits {
-    padding: 0.08em 0.25em;
-    border-radius: var(--ronin-corner-label);
-    background: var(--ronin-badge);
 }
 
 .decision-timer__caption {
@@ -295,7 +287,7 @@ $row: 40px;
     display: flex;
     align-items: baseline;
     gap: 0.2em;
-    font-size: calc(var(--decision-row) * 0.55);
+    font-size: min(calc(var(--decision-row) * 0.55), calc(var(--action-min-w) / 3.3));
     line-height: 0.9;
 }
 

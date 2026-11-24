@@ -8,6 +8,7 @@ import { takesIntent } from "./intents";
 import { decisionOf } from "./pending";
 import {
     type EscapeStep,
+    type MeldPick,
     type PlayAction,
     type PlayUi,
     RIICHI_PICK_STEP_BACK,
@@ -28,9 +29,9 @@ import {
 export type ActionRank = "win" | "call" | "pass";
 
 /** What a control answers with, which colours it: an offer's kind, or the pass. */
-export type ActionKind = Offer["kind"] | "pass";
+export type ActionKind = Offer["kind"] | "pass" | "back";
 
-/** A control of the open decision: one per offer, riichi as one toggle, and a pass. */
+/** A control of the open decision: one per kind or tile choice, and its pass or back. */
 export interface DecisionAction extends PlayAction {
     readonly rank: ActionRank;
     readonly kind: ActionKind;
@@ -196,12 +197,7 @@ function byHandTilesRank(first: Offer, second: Offer): number {
     return ranks.find((difference) => difference !== 0) ?? 0;
 }
 
-/**
- * The hand's tiles a control shows, only where they tell something the table does not: a chi's pair, low to high, a
- * pon's pair beside another pon, a red five last, and the tile of a kan offered beside another kan. A lone pon or kan
- * names its tile on the table already.
- */
-function offerTiles(offer: Offer, ofKind: number): TileFace[] {
+function offerTiles(offer: Offer): TileFace[] {
     switch (offer.kind) {
         case "chi": {
             return offer.sequence
@@ -209,15 +205,12 @@ function offerTiles(offer: Offer, ofKind: number): TileFace[] {
                 .map((tile) => tile136toString(tile));
         }
         case "pon": {
-            const faces = offer.pair.map((tile) => tile136toString(tile));
-            return ofKind > 1
-                ? faces.toSorted(
-                      (first, second) => Number(isRedFace(first)) - Number(isRedFace(second)),
-                  )
-                : [];
+            return offer.pair
+                .map((tile) => tile136toString(tile))
+                .toSorted((first, second) => Number(isRedFace(first)) - Number(isRedFace(second)));
         }
         case "kan": {
-            return ofKind > 1 ? [tile136toString(offer.tileId)] : [];
+            return [tile136toString(offer.tileId)];
         }
         case "tsumo":
         case "ron":
@@ -240,29 +233,44 @@ function control(fields: ControlFields): DecisionAction {
     return { digit: null, pressed: null, tiles: [], ...fields };
 }
 
-function offerAction(offer: Offer, ofKind: number): DecisionAction {
+function offerAction(offer: Offer, tiles: readonly TileFace[] = []): DecisionAction {
     return control({
         command: intentCommand(choose(offer)),
         kind: offer.kind,
         label: t(OFFER_LABELS[offer.kind]),
         rank: WIN_KINDS.has(offer.kind) ? "win" : "call",
-        tiles: offerTiles(offer, ofKind),
+        tiles,
     });
 }
 
-/**
- * The decision's controls: the wins first, then riichi as one toggle that picks its discard from the hand, then one
- * control per other offer, kinds in the order the server listed them and a kind's pons or chis as the hand lies, then a
- * pass.
- */
+function meldActions(offers: readonly Offer[], waitId: number): DecisionAction[] {
+    const actions = new Map<MeldPick["meld"], DecisionAction>();
+    const melds = offers.filter(
+        (offer) => offer.kind === "chi" || offer.kind === "pon" || offer.kind === "kan",
+    );
+    for (const offer of melds) {
+        const { kind } = offer;
+        const action = actions.has(kind)
+            ? control({
+                  command: { kind: "pick_meld", meld: kind, waitId },
+                  kind,
+                  label: t(OFFER_LABELS[kind]),
+                  rank: "call",
+              })
+            : offerAction(offer);
+        actions.set(kind, action);
+    }
+    return [...actions.values()];
+}
+
 function offerActions(
     offers: readonly Offer[],
-    picking: boolean,
+    { picking, waitId }: { readonly picking: boolean; readonly waitId: number },
     takes: IntentJudge,
 ): DecisionAction[] {
     const wins = offers
         .filter((offer) => WIN_KINDS.has(offer.kind))
-        .map((offer) => offerAction(offer, 1));
+        .map((offer) => offerAction(offer));
     const riichiToggle = control({
         command: { kind: "toggle_riichi_pick" },
         kind: "riichi",
@@ -271,12 +279,6 @@ function offerActions(
         rank: "call",
     });
     const riichi = offers.some((offer) => offer.kind === "riichi") ? [riichiToggle] : [];
-    const calls = offers.filter((offer) => !WIN_KINDS.has(offer.kind) && offer.kind !== "riichi");
-    const kinds = [...new Set(calls.map((offer) => offer.kind))];
-    const perKind = kinds.flatMap((kind): DecisionAction[] => {
-        const ofKind = calls.filter((offer) => offer.kind === kind).toSorted(byHandTilesRank);
-        return ofKind.map((offer) => offerAction(offer, ofKind.length));
-    });
     const passControl = control({
         command: intentCommand(PASS),
         kind: "pass",
@@ -284,7 +286,7 @@ function offerActions(
         rank: "pass",
     });
     const pass = takes(PASS) ? [passControl] : [];
-    return [...wins, ...riichi, ...perKind, ...pass];
+    return [...wins, ...riichi, ...meldActions(offers, waitId), ...pass];
 }
 
 /** The controls with their digit keys, 1 up, in the order the mapper lists them: every control but the pass. */
@@ -296,19 +298,65 @@ function numberedActions(actions: readonly DecisionAction[]): DecisionAction[] {
     });
 }
 
-export function decisionActions(state: LiveClient, ui: PlayUi): DecisionAction[] {
-    if (decisionStanding(state) === null) {
-        return [];
+function meldChoices(offers: readonly Offer[], pick: MeldPick): DecisionAction[] {
+    const choices = offers.filter((offer) => offer.kind === pick.meld).toSorted(byHandTilesRank);
+    const back = control({
+        command: { kind: "step_back" },
+        kind: "back",
+        label: t("game.button.back"),
+        rank: "pass",
+    });
+    return [...choices.map((offer) => offerAction(offer, offerTiles(offer))), back];
+}
+
+export function decisionActions(
+    state: LiveClient,
+    ui: PlayUi,
+): { actions: DecisionAction[]; decisionCapacity: number } {
+    const decision = decisionOf(state);
+    if (decision === null || decision.status.kind === "submitted") {
+        return { actions: [], decisionCapacity: 0 };
     }
     const takes = judgeNow(state);
     const offers = takenOffers(state, takes);
-    return numberedActions(offerActions(offers, pickingRiichiBy(state, ui, takes), takes));
+    const pick = pickedMeld(state, ui);
+    const main = offerActions(
+        offers,
+        { picking: pickingRiichiBy(state, ui, takes), waitId: decision.waitId },
+        takes,
+    );
+    const variantCounts = main.flatMap(({ command }) =>
+        command.kind === "pick_meld"
+            ? [1 + offers.filter((offer) => offer.kind === command.meld).length]
+            : [],
+    );
+    return {
+        actions: numberedActions(pick === null ? main : meldChoices(offers, pick)),
+        decisionCapacity: Math.max(main.length, ...variantCounts),
+    };
 }
 
-/** What Escape steps back from: riichi's pick of a discard; nothing once answered. */
-export function escapeStep(state: LiveClient, ui: PlayUi): EscapeStep | null {
-    if (decisionOf(state)?.status.kind === "submitted") {
+export function pickedMeld(state: LiveClient, ui: PlayUi): MeldPick | null {
+    const pick = ui.meldPick;
+    if (pick === null) {
         return null;
+    }
+    const decision = decisionOf(state);
+    return decision?.waitId === pick.waitId &&
+        decision.status.kind !== "submitted" &&
+        decision.offers.filter((offer) => offer.kind === pick.meld).length > 1
+        ? pick
+        : null;
+}
+
+export function escapeStep(state: LiveClient, ui: PlayUi): EscapeStep | null {
+    const decision = decisionOf(state);
+    if (decision === null || decision.status.kind === "submitted") {
+        return null;
+    }
+    const pick = pickedMeld(state, ui);
+    if (pick !== null) {
+        return { command: { kind: "step_back" }, focusKey: pick.meld };
     }
     return pickingRiichi(state, ui) ? RIICHI_PICK_STEP_BACK : null;
 }

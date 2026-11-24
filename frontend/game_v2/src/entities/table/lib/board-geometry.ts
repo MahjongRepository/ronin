@@ -84,6 +84,7 @@ interface BoardEdges {
 /** The slots the board's page fills: whose controls hold the band (live play's or a replay's). */
 interface BoardSlots {
     readonly band: "play" | "replay";
+    readonly decisionCapacity?: number;
 }
 
 /** The board's box as measured, the page's raw safe-area insets, the edges the page applies around the box now (px), and its slots. */
@@ -849,8 +850,7 @@ function desktopAt(
 
     const lengths = Object.fromEntries([
         ...chromeLengths(decisionTier),
-        ["action-text", actionText(decisionH)],
-        ["actions-band-w", timerWidth(decisionH)],
+        ["action-text", actionText(decisionH, decisionTier.actionMinW)],
         ["badge-h", plateBoxHeight(tier)],
         ["decision-gap", DECISION_GAP_SHARE * decisionH],
         ["decision-h", decisionH],
@@ -981,14 +981,13 @@ function ownRow({
 }
 
 /**
- * A desktop tier with its decisions' sizes at its decision control's height (a control's least width and the timer's);
+ * A desktop tier with its decision control’s width set from its height;
  * the play switches stay the tier's, so the bar holds them named and no chip goes under the control floor.
  */
 function atDecisionScale(tier: TierChrome, decisionH: number): TierChrome {
     return {
         ...tier,
-        actionMinW: DECISION_SQUARE * decisionH,
-        timerW: timerWidth(decisionH),
+        actionMinW: DECISION_WIDTH_SHARE * decisionH,
     };
 }
 
@@ -1001,12 +1000,12 @@ function phoneChrome(rw: number): PhoneChrome {
     const control = PHONE_CHROME.controlH * scale;
     return {
         ...PHONE_CHROME,
+        actionMinW: PHONE_CALL_W,
         controlH: control,
         doraW: Math.max(PHONE_CHROME.doraW, rw),
         movesH: control,
         pillH: PHONE_CHROME.pillH * scale,
         switchH: control,
-        timerW: PHONE_CHROME.timerW * scale,
     };
 }
 
@@ -1023,7 +1022,6 @@ function chromeLengths(tier: TierChrome): [string, number][] {
         ["switch-h", tier.switchH],
         ["switch-text", tier.switchText],
         ["text", tier.text],
-        ["timer-w", tier.timerW],
     ];
 }
 
@@ -1240,10 +1238,11 @@ function phoneLayout(
     function lengthsAt(laid: BoardLengths): (name: string) => number {
         return (name) => laid[name] ?? 0;
     }
+    const decisionH = phoneDecisionHeight(height);
     const roomy = layLengths(centreRoom);
     const roomyBand = phoneActions(lengthsAt(roomy));
     const bandShort =
-        phonePromptHeight(roomyBand.right - roomyBand.left, chrome.timerW) -
+        phonePromptHeight(roomyBand.right - roomyBand.left, decisionH) -
         (roomyBand.bottom - roomyBand.top);
     const centreGivesBand = Math.max(0, Math.min(bandShort, centreRoom - PHONE_CENTRE_MIN_HEIGHT));
     const lengths = centreGivesBand > 0 ? layLengths(centreRoom - centreGivesBand) : roomy;
@@ -1251,6 +1250,9 @@ function phoneLayout(
         const cy = centreTop + heightRoom / 2;
         return Object.fromEntries([
             ...chromeLengths(chrome),
+            ["action-text", actionText(decisionH, chrome.actionMinW)],
+            ["decision-h", decisionH],
+            ["decision-gap", PHONE_DECISION_GAP],
             ["badge-h", plateBoxHeight(chrome)],
             ...cornerLengths(rw),
             ...panelLengths(phonePanel()),
@@ -1310,8 +1312,7 @@ function phoneLayout(
         fits: lanesFit && handInFelt,
         holdsKans: tightKansReach(rw, frame.faceFloor) <= line + STRIP_CONTROL_CLEAR,
         holdsPrompt:
-            band.bottom - band.top >=
-            phonePromptHeight(band.right - band.left, chrome.timerW) - 0.001,
+            band.bottom - band.top >= phonePromptHeight(band.right - band.left, decisionH) - 0.001,
         holdsReplay: replay.block.height <= replay.room.bottom - replay.room.top,
         lanesFit,
         lengths,
@@ -1614,47 +1615,27 @@ const ACTIONS_GAP = 6;
 
 /**
  * A desktop's decision control's height in river tiles, never under `DECISION_FLOOR` (px); its gap to its height; a
- * control's least width to its height; the timer's width to its height, at least `DECISION_TIMER_LEAST` (px).
+ * control's least width to its height.
  */
-const DECISION_BY_RIVER = 0.85;
-const DECISION_FLOOR = 48;
-const DECISION_GAP_SHARE = 1 / 8;
-const DECISION_SQUARE = 4 / 3;
-const DECISION_TIMER_SHARE = 1.75;
-const DECISION_TIMER_LEAST = 72;
+const DECISION_BY_RIVER = 0.95;
+const DECISION_FLOOR = 52;
+const DECISION_GAP_SHARE = 1 / 5;
+const DECISION_WIDTH_SHARE = 2;
 
 /** A desktop's notices' toasts stand this far under the left river's longest reach (px). */
 const TOASTS_RIVER_GAP = 4;
 
-/** A control's label text: this share of its height, never under the floor (px). */
-const ACTION_TEXT_SHARE = 0.38;
-const ACTION_TEXT_MIN = 14;
-
-function actionText(height: number): number {
-    return Math.max(ACTION_TEXT_MIN, ACTION_TEXT_SHARE * height);
+function actionText(height: number, width: number): number {
+    return Math.min(height / 2, width / 4);
 }
 
-/** The timer's width at a control's height (px). */
-function timerWidth(height: number): number {
-    return Math.max(DECISION_TIMER_SHARE * height, DECISION_TIMER_LEAST);
+const PHONE_DECISION_GAP = 8;
+const PHONE_CALL_W = 78;
+const MAX_CALL_KINDS = 4;
+
+function phoneDecisionHeight(height: number): number {
+    return Math.min(48, Math.max(42, Math.floor(height / 9)));
 }
-
-/**
- * A phone's decision row, the gap between its decisions and between its band's rows (px); the stylesheet's `$row`,
- * `$small-decision-gap` and `$phone-band-row-gap`.
- */
-const PHONE_DECISION_ROW = 40;
-const PHONE_DECISION_GAP = 6;
-const PHONE_BAND_ROW_GAP = 2;
-
-/**
- * `call_prompt`'s controls on a phone's 40px row at the widest of the three languages' labels (px): the pass (Japanese's
- * スキップ), a tiled chi, and a kan or a pon; the band lays the pass and the timer as one piece, then two tiled chis, a pon
- * and a kan.
- */
-const PHONE_PASS_W = 68;
-const PHONE_TILED_CHI_W = 98;
-const PHONE_CALL_W = 48;
 
 /** A phone's left bar's fields keep this far off what they stand past (px). */
 const FIELD_GAP = 6;
@@ -1665,27 +1646,15 @@ const PHONE_SWITCH_COLUMNS = 2;
 /** Where the river's rows meet the board, from the tile slice's shape. */
 const ROW_BEFORE_SIDEWAYS = RIVER_ROW_SIZE - 1;
 
-/** The height `call_prompt`'s controls take in a phone's band this wide, wrapping up in rows (px). */
-function phonePromptHeight(bandWidth: number, timerW: number): number {
-    const pieces = [
-        PHONE_PASS_W + PHONE_DECISION_GAP + timerW,
-        PHONE_TILED_CHI_W,
-        PHONE_TILED_CHI_W,
-        PHONE_CALL_W,
-        PHONE_CALL_W,
-    ];
-    let rows = 1;
-    let used = 0;
-    for (const piece of pieces) {
-        const along = used === 0 ? piece : used + PHONE_DECISION_GAP + piece;
-        if (along > bandWidth && used > 0) {
-            rows += 1;
-            used = piece;
-        } else {
-            used = along;
-        }
-    }
-    return rows * PHONE_DECISION_ROW + (rows - 1) * PHONE_BAND_ROW_GAP;
+/** The height all four call kinds, Pass and the timer take in a phone's band this wide, wrapping up in rows (px). */
+function phonePromptHeight(bandWidth: number, rowHeight: number): number {
+    const slotWidth = PHONE_CALL_W * CALL_BUTTON_SCALE * COMPACT_CALL_SCALE.size;
+    const perRow = Math.max(
+        1,
+        Math.floor((bandWidth + PHONE_DECISION_GAP) / (slotWidth + PHONE_DECISION_GAP)),
+    );
+    const rows = Math.ceil((MAX_CALL_KINDS + 2) / perRow);
+    return rows * rowHeight + (rows - 1) * PHONE_DECISION_GAP;
 }
 
 function phoneLeftBarLeast(chrome: PhoneChrome): number {
@@ -1739,20 +1708,25 @@ function desktopActions({ at }: ShellRoom): { readonly rect: BoardRect } {
 const PHONE_BAND_OVER_OWN_ROW = 4;
 const PHONE_BAND_UNDER_CENTRE = 4;
 
+function phoneLeftRiverEnd(at: (name: string) => number): number {
+    return (
+        at("cy") -
+        at("h") +
+        ROW_BEFORE_SIDEWAYS * LYING_Y_SHARE * at("rw") +
+        at("rh") * LYING_Y_SHARE +
+        at("latest-drop-gap")
+    );
+}
+
 function phoneActions(at: (name: string) => number): BoardRect {
     const rw = at("rw");
     const lane = sideLane(rw);
     const bottom = at("hand-top") - at("own-meld-rise") - PHONE_BAND_OVER_OWN_ROW;
-    const leftRiverEnd =
-        at("cy") -
-        at("h") +
-        ROW_BEFORE_SIDEWAYS * LYING_Y_SHARE * rw +
-        at("rh") * LYING_Y_SHARE +
-        at("latest-drop-gap");
+    const leftRiverEnd = phoneLeftRiverEnd(at);
     return {
         bottom,
         left:
-            bottom - PHONE_DECISION_ROW >= leftRiverEnd
+            bottom - at("decision-h") >= leftRiverEnd
                 ? at("col-left") + lane + ACTIONS_GAP
                 : at("cx") - at("hx"),
         right: at("col-right") - lane - ACTIONS_GAP,
@@ -3090,6 +3064,78 @@ function handPlateLengths(
     ];
 }
 
+const BASE_CALL_SCALE = { gap: 1, size: 1 };
+const COMPACT_CALL_SCALE = { gap: 1.5, size: 1.2 };
+const FULL_CALL_SCALE = { gap: 3, size: 1.32 };
+const CALL_FIT_STEPS = 20;
+const CALL_BUTTON_SCALE = 0.8;
+const CALL_MIN_HEIGHT = 40;
+
+/** Fit the same buttons throughout a decision, including its widest tile picker. */
+function fitCallButtons({ at, frame }: ShellRoom, band: BoardRect): [string, number][] {
+    const count = frame.slots.decisionCapacity ?? 0;
+    if (count === 0) {
+        return [];
+    }
+    const baseWidth = at("action-min-w") * CALL_BUTTON_SCALE;
+    const baseHeight = at("decision-h") * CALL_BUTTON_SCALE;
+    const minHeight = Math.max(CALL_MIN_HEIGHT, baseHeight);
+    const baseGap = at("decision-gap");
+    const slots = count + 1;
+    const availableWidth = band.right - band.left;
+    const availableHeight = band.bottom - band.top;
+    const targetHeight = baseHeight * FULL_CALL_SCALE.size;
+    const widthBesideRiver = band.right - (at("cx") - at("hx"));
+    const roomUnderRiver =
+        frame.family === "phone"
+            ? band.bottom - phoneLeftRiverEnd(at) - STRIP_CONTROL_CLEAR
+            : availableHeight;
+    let best = {
+        gap: baseGap,
+        height: minHeight,
+        rowGap: baseGap,
+        width: baseWidth,
+    };
+    for (let step = 0; step <= 2 * CALL_FIT_STEPS; step++) {
+        const compact = step <= CALL_FIT_STEPS;
+        const from = compact ? BASE_CALL_SCALE : COMPACT_CALL_SCALE;
+        const to = compact ? COMPACT_CALL_SCALE : FULL_CALL_SCALE;
+        const progress = (compact ? step : step - CALL_FIT_STEPS) / CALL_FIT_STEPS;
+        const width = baseWidth * (from.size + (to.size - from.size) * progress);
+        const gap = baseGap * (from.gap + (to.gap - from.gap) * progress);
+        const perRow = Math.floor((availableWidth + gap) / (width + gap));
+        if (perRow < 2) {
+            break;
+        }
+        const rows = Math.ceil(slots / perRow);
+        const bottomWidth = Math.min(slots, perRow) * (width + gap) - gap;
+        const upperWidth = Math.min(Math.max(0, slots - perRow), perRow) * (width + gap) - gap;
+        const rowRoom =
+            upperWidth > widthBesideRiver
+                ? Math.min(availableHeight, roomUnderRiver)
+                : availableHeight;
+        const bottomRoom = bottomWidth > widthBesideRiver ? roomUnderRiver : availableHeight;
+        const height = Math.min(targetHeight, bottomRoom, (rowRoom - (rows - 1) * baseGap) / rows);
+        if (height >= minHeight - 0.01 && height * width >= best.height * best.width) {
+            const rowGap = rows === 1 ? gap : Math.min(gap, (rowRoom - rows * height) / (rows - 1));
+            best = {
+                gap,
+                height,
+                rowGap,
+                width,
+            };
+        }
+    }
+    const { width, height } = best;
+    return [
+        ["call-w", width],
+        ["call-h", height],
+        ["call-gap", best.gap],
+        ["call-row-gap", best.rowGap],
+        ["call-text", actionText(height, width)],
+    ];
+}
+
 /** A family's slots from its lengths and, off a phone, its arrangement. */
 function boardShell(frame: BoardFrame, { arrangement, lengths }: LaidBoard): BoardShell {
     function at(name: string): number {
@@ -3100,9 +3146,15 @@ function boardShell(frame: BoardFrame, { arrangement, lengths }: LaidBoard): Boa
         arrangement === null ? phoneChrome(at("rw")) : atDecisionScale(grown, at("decision-h"));
     const room = { at, frame, tier };
     const shell = arrangement === null ? phoneShell(room) : desktopShell(room, arrangement);
+    const calls = fitCallButtons(room, shell.areas.actions);
     return {
         ...shell,
-        lengths: [...shell.lengths, ...stripFacts(at("rw")), ...handPlateLengths(room, shell)],
+        lengths: [
+            ...shell.lengths,
+            ...stripFacts(at("rw")),
+            ...handPlateLengths(room, shell),
+            ...calls,
+        ],
     };
 }
 

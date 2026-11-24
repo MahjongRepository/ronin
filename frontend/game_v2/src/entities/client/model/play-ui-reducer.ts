@@ -1,7 +1,7 @@
 import { assertNever } from "@/shared/lib";
 
 import { boardNotices } from "./board-notices";
-import { pickingRiichi } from "./decision-controls";
+import { pickedMeld, pickingRiichi } from "./decision-controls";
 import { decisionOf } from "./pending";
 import { type PlayCommand, type PlayUi, type PlayUiInput } from "./play-ui";
 import { resultRound } from "./result-controls";
@@ -10,10 +10,12 @@ import { type LiveClient, type LocalIntent } from "./types";
 
 /** The view's `ui` once the client state moved on: a sheet with no notice left closes, so it never reopens. */
 function settledPlayUi(state: LiveClient, ui: PlayUi): PlayUi {
-    if (ui.noticeSheet === null || boardNotices(state, ui).length > 0) {
-        return ui;
-    }
-    return { ...ui, noticeSheet: null };
+    const meldPick = pickedMeld(state, ui);
+    const noticeSheet =
+        ui.noticeSheet !== null && boardNotices(state, ui).length === 0 ? null : ui.noticeSheet;
+    return meldPick === ui.meldPick && noticeSheet === ui.noticeSheet
+        ? ui
+        : { ...ui, meldPick, noticeSheet };
 }
 
 /** Whether the open decision was answered, so its steps stay as they were while the server answers. */
@@ -102,7 +104,7 @@ function steppedBack(state: LiveClient, ui: PlayUi): PlayUi {
     if (answeredDecision(state)) {
         return ui;
     }
-    return { ...ui, riichiPickWaitId: null };
+    return { ...ui, meldPick: null, riichiPickWaitId: null };
 }
 
 /** An intent ends an armed tile, so a refused answer asks for both taps again; the game's last result reopens on its first page. */
@@ -156,6 +158,14 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
         case "toggle_sound":
         case "toggle_animations": {
             return pageControlsUi(ui, command);
+        }
+        case "pick_meld": {
+            return {
+                ...ui,
+                armedTile: null,
+                meldPick: { meld: command.meld, waitId: command.waitId },
+                riichiPickWaitId: null,
+            };
         }
         case "arm_tile":
         case "toggle_riichi_pick":

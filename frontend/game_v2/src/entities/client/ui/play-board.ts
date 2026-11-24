@@ -115,10 +115,9 @@ function kindClass(action: DecisionAction): string {
     return `decision-controls__action--${action.rank} decision-controls__action--${action.kind}`;
 }
 
-/** The hand's tiles a control shows after its label: a chi's pair, the tile of one kan among several. */
-function ActionTiles(action: DecisionAction): TemplateResult | typeof nothing {
+function ActionFace(action: DecisionAction): TemplateResult {
     if (action.tiles.length === 0) {
-        return nothing;
+        return html`<span class="decision-controls__label">${action.label}</span>`;
     }
     return html`<span class="decision-controls__tiles">${action.tiles.map(
         (face) => html`<span class="decision-controls__tile">${Tile(face, "face")}</span>`,
@@ -132,23 +131,22 @@ function offerLabel(action: DecisionAction): string {
     return `${action.label} ${formatList(action.tiles.map(spokenTileName))}`;
 }
 
-/** A decision control: its label, then the hand's tiles that tell it from another of its kind. */
 function ActionButton(
     action: DecisionAction,
     onCommand: PlayBoardProps["onCommand"],
     keyHints: boolean,
 ): TemplateResult {
-    const isPass = action.kind === "pass";
+    const escapes = action.rank === "pass";
     return html`<button
         type="button"
         class="decision-controls__action ${kindClass(action)}"
         aria-label=${offerLabel(action)}
-        aria-keyshortcuts=${actionKeys(action, isPass)}
+        aria-keyshortcuts=${actionKeys(action, escapes)}
         aria-pressed=${action.pressed === null ? nothing : String(action.pressed)}
         data-focus-key=${focusKeys(commandFocusKey(action.command), DECISION_ACTION_FOCUS_KEY) ?? nothing}
         @click=${() => onCommand(action.command)}
     >
-        ${action.kind === "riichi" ? RiichiStickIcon() : nothing}<span class="decision-controls__label">${action.label}</span>${ActionTiles(action)}${keyHints ? KeyCap(action, isPass) : nothing}
+        ${action.kind === "riichi" ? RiichiStickIcon() : nothing}${ActionFace(action)}${keyHints ? KeyCap(action, escapes) : nothing}
     </button>`;
 }
 
@@ -529,6 +527,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         animationsOn: display.animationsOn,
         callouts: display.callouts,
         debug: false,
+        decisionCapacity: display.decisionCapacity,
         furiten: display.furiten,
         inert,
         input: playInput(display, onCommand, clock),

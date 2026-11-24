@@ -74,6 +74,29 @@ async function switchChecked(page: Page, name: string): Promise<boolean> {
     return (await page.getByRole("switch", { name }).getAttribute("aria-checked")) === "true";
 }
 
+async function checkKanChoiceSizes(page: Page): Promise<void> {
+    const kan = page.locator(`${ACTION}--kan`);
+    await kan.waitFor();
+    const button = await kan.boundingBox();
+    await kan.click();
+    await page.locator(`${ACTION}--back`).waitFor();
+    const choices = await kan.evaluateAll((buttons) =>
+        buttons.map((element) => {
+            const { width, height } = element.getBoundingClientRect();
+            return { height, width };
+        }),
+    );
+    if (
+        button === null ||
+        choices.length !== 2 ||
+        choices.some(({ width, height }) => width !== button.width || height !== button.height)
+    ) {
+        throw new Error(
+            `Kan button ${JSON.stringify(button)} and tile choices ${JSON.stringify(choices)} must have matching sizes`,
+        );
+    }
+}
+
 /**
  * The play switches by keyboard: Shift+Tab from the hand's first tile reaches one within a few presses (no focus moved
  * for the player), and Space and Enter on the focused Auto win each turn it once, sending nothing; it ends on, as the
@@ -204,6 +227,7 @@ const PAGES: readonly PageCase[] = [
     {
         ...decisionCase("kan_offer", [`${ACTION}--kan .tile`, ".decision-controls__countdown"]),
         at: [FLOOR, NARROW_DESKTOP, LARGE_DESKTOP],
+        prepare: checkKanChoiceSizes,
     },
     decisionCase("chankan_prompt", [ACTION]),
     decisionCase("riichi_turn", [
@@ -544,6 +568,26 @@ function checkFuritenMark(board: BoardMeasure, report: PageReport): void {
     );
 }
 
+function checkCallColumns({ decisionBand, pass, timer }: BoardMeasure, report: PageReport): void {
+    if (decisionBand === null || pass === null || timer === null) {
+        return;
+    }
+    const stride = timer.left - pass.left;
+    report.expect(
+        Math.abs(timer.width - pass.width) <= EPSILON &&
+            Math.abs(timer.height - pass.height) <= EPSILON,
+        "the timer must occupy one call-button slot",
+    );
+    for (const button of decisionBand.buttons) {
+        const distance = timer.left - button.left;
+        const column = Math.round(distance / stride);
+        report.expect(
+            Math.abs(distance - column * stride) <= EPSILON,
+            `call button outside its column: ${describeBox(button)}`,
+        );
+    }
+}
+
 /**
  * A decision's controls on a landscape board: its buttons and timer on the board and the screen and clear of the tiles,
  * the play switches, the toggles' stick icons, and where the controls and the toggle stand, for the checks across pages.
@@ -559,6 +603,22 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
         CONTROL_PLACES.keep(report, [...(board.decisionBand?.buttons ?? []), board.timer]);
     }
     checkActions(board, screen, report);
+    checkCallColumns(board, report);
+    const tile = board.localTiles.at(12);
+    if (board.family === "desktop" && board.pass !== null && tile !== undefined) {
+        const passEnd = board.pass.left + board.pass.width;
+        const offset = passEnd - (tile.left + tile.width);
+        report.expect(
+            Math.abs(offset) <= EPSILON,
+            `Pass ends ${offset.toFixed(1)}px from the thirteenth tile’s right edge`,
+        );
+        if (board.timerDigits !== null) {
+            report.expect(
+                board.timerDigits.left >= passEnd + 4 - EPSILON,
+                "the countdown crowds the aligned Pass button",
+            );
+        }
+    }
     checkToggles(await measureToggles(page), report);
 }
 

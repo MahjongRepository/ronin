@@ -122,7 +122,6 @@ interface TierChrome {
     /** A plate's one-line pill, every seat's alike. */
     readonly pillH: number;
     readonly actionMinW: number;
-    readonly timerW: number;
     /** The board's and its badges' text size. */
     readonly text: number;
     /** The turn cue's bar under a badge's pill. */
@@ -148,7 +147,6 @@ const REGULAR_CHROME: TierChrome = {
     switchLabelW: 112,
     switchText: 22,
     text: 17,
-    timerW: 120,
 };
 
 const TIER_CHROME: Readonly<Record<ChromeTier, TierChrome>> = {
@@ -163,7 +161,6 @@ const TIER_CHROME: Readonly<Record<ChromeTier, TierChrome>> = {
         switchLabelW: 124,
         switchText: 24,
         text: 24,
-        timerW: 150,
     },
     regular: REGULAR_CHROME,
     small: {
@@ -177,7 +174,6 @@ const TIER_CHROME: Readonly<Record<ChromeTier, TierChrome>> = {
         switchLabelW: 0,
         switchText: 17,
         text: 12,
-        timerW: 76,
     },
 };
 
@@ -240,7 +236,7 @@ interface PhoneChrome extends TierChrome {
 
 /**
  * A phone's chrome over the small tier's, which it keeps as a floor: its margins, gaps and control, its switches as tall
- * as it, and its timer.
+ * as it.
  */
 const PHONE_CHROME: PhoneChrome = {
     ...TIER_CHROME.small,
@@ -251,7 +247,6 @@ const PHONE_CHROME: PhoneChrome = {
     m: 4,
     sep: 6,
     switchH: 40,
-    timerW: 60,
 };
 
 /** A phone's chrome grows with its river tile past this one (px). */

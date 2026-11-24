@@ -56,6 +56,7 @@ interface GameBoardProps {
     readonly state: BoardDisplayState | null;
     /** The decision's controls (its countdown, offers and pass), by the bottom seat's hand. */
     readonly actions?: TemplateResult;
+    readonly decisionCapacity?: number;
     readonly localHand?: LocalHandInput;
     /** The notices over the table; given, even empty, the board keeps their live region for the next one. */
     readonly notices?: readonly BoardNotice[];
@@ -442,7 +443,10 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             data-motion=${animationsOn ? nothing : "off"}
             ${props.input ?? nothing}
             ${sizeBoard(
-                { band: props.replay && props.replay.observed !== true ? "replay" : "play" },
+                {
+                    band: props.replay && props.replay.observed !== true ? "replay" : "play",
+                    decisionCapacity: props.decisionCapacity ?? 0,
+                },
                 {
                     left: stripContent(seatPlayer(state, "left")),
                     own: meldShapes(seatPlayer(state, "bottom")),

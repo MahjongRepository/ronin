@@ -121,7 +121,7 @@ describe("tableView between the grid's windows", () => {
                 return {
                     holdsPrompt:
                         bottom - top >=
-                        phonePromptHeight(right - left, screen.lengths["timer-w"] ?? 0) - 0.001,
+                        phonePromptHeight(right - left, screen.lengths["decision-h"] ?? 0) - 0.001,
                     river: screen.lengths["rw"] ?? 0,
                 };
             }),

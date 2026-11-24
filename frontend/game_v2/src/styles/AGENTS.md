@@ -49,7 +49,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   it keeps (0,2,0); a name a family does not emit stays unset on its board, where nothing reads it. There is no CSS solve,
   so a board without `data-board-family` (not yet measured) hides its layers. A fact both sides need is TS's,
   emitted as a length (the chrome px, the river's footprint, the latest discard's gaps); only what a
-  container query needs stays Sass, its TS mirror naming it (a phone's decision row and gap), and the
+  container query needs stays Sass, along with the
   page's 10px gutter, which the page holds before the board is measured. The notices' text is the geometry's
   (`--notice-text`): a phone's smaller where the left bar is narrower than 7.5 of its ems, down to 11px at the bar's
   floor; a desktop's toasts' the board's share, never under 14px, over a panel too.
@@ -60,8 +60,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   and, on a short window, the right river's first tiles may lie under it: the cluster stands over them (its layer,
   solid controls with `--action-lift`), since no decision's source lies in the own river, and no table width or
   stack row is reserved for it. Its controls, the offers'
-  (`.decision-controls__upper`, a box of none of its own there) and the band's (the pass, then the timer
-  `--actions-band-w` wide, as one piece), wrap up from its bottom right, growing left along the row first, every
+  (`.decision-controls__upper`, a box of none of its own there) and the band's (the pass, then the timer in an equal-sized slot, as one piece), wrap up from its bottom right, growing left along the row first, every
   label at the geometry's `--action-text`. A desktop's notices stand apart from the field as toasts of up to two lines in the core's
   bottom-left corner, under the left river's longest reach and over the own row (`toasts`), stacked down from its
   top, cut short with an ellipsis past their second line (the whole in the notice's title, the cut one opening the
@@ -75,12 +74,12 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   a replay's row stands between the bottom river and the own row. On a phone
   live's decisions stand in a band along the own row's top too, from short of the left strip's lane to short of the
   right one's, under the centre and the right river (or from the centre's left edge where its bottom row cannot pass
-  under the left river's longest reach), the same cluster in 40px rows `$phone-band-row-gap` apart, inside the felt; the right rail
+  under the left river's longest reach), the same cluster with its button width, row height and gaps from the geometry, inside the felt; the right rail
   holds the cog and a replay's column at its foot (two columns at the right bar's foot above the own row where a rail
   a control wide holds no column), the left rail the switches at its foot by the screen's edge, as the geometry's form
   (`data-board-switches`: the two-by-two `block` or the `letters` column), the left bar the counters at the felt's
   corner and the notices, over the felt's edge beside the left strip: neither reserves room for the decisions, and the phone solve
-  takes no tile whose band would not hold the widest prompt's rows (`$phone-band-row-gap` mirrored in TS).
+  takes no tile whose band would not hold the widest prompt's rows.
   `_replay-state.scss` places no slot.
 - **One composition, two profiles.** Off a phone there is one desktop family: the river tile from
   the vertical stack, the own tile from the width a full hand between the side lanes keeps, 1.2 to 1.45 river

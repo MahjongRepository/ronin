@@ -99,7 +99,7 @@ table transition and call model; replay dispatch loads with the replay route.
   as it would with the menu closed (a tile discards or lifts, a decision control answers, right-click passes or
   discards), and digits and tile arrows work while it is open; only Escape closes it first.
   Digit keys 1-9 press the decision controls the mapper numbers (`DecisionAction.digit`, shown as keycaps): all
-  but the pass, in the mapper's order, never a layout's. They read the physical key (`event.code`), the numpad only while it
+  but Pass and Back, in the mapper's order, never a layout's. They read the physical key (`event.code`), the numpad only while it
   types digits, never under any panel or the open menu, and the same digit within `DIGIT_SETTLE_MS` of acting is dropped
   once the controls it presses changed, so a double tap never takes an unseen choice.
   Enter or Space outside a focused control presses the opening screen's OK (`confirm`), its only key; the board's own
@@ -108,6 +108,7 @@ table transition and call model; replay dispatch loads with the replay route.
   hand. The right-click
   preference is independent of replay controls and lives in browser storage through the live driver's dependencies;
   turned off, a right-click does nothing, yet still never opens the browser's menu where it would have acted.
+- Each meld kind has one call button. A single legal offer sends immediately. Multiple offers open a tile picker scoped to the wait, with Back beside the timer. The layout reserves the larger of the main prompt and its pickers so opening one keeps the same button size. Digits select from the visible step. Back and Escape restore focus to the call.
 - A local declaration shows its callout and plays its voice as soon as its intent is accepted, without changing the
   table. The submitted decision identifies its server echo even after the callout expires, so confirmation never
   repeats the voice or a lone callout. Other seats' calls still announce normally; a multi-ron result shows all
