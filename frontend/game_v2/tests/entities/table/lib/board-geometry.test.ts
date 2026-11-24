@@ -1170,7 +1170,7 @@ describe("boardGeometry's strips", () => {
 
             expect({
                 barsOffFelt:
-                    (switchesArea?.[2] ?? Infinity) <= length("felt-left") + 0.1 &&
+                    (switchesArea?.[2] ?? Infinity) <= length("felt-left") - 6 + 0.1 &&
                     ((corner?.[0] ?? 0) + (corner?.[2] ?? 0) - length("menu-size")) / 2 >=
                         length("felt-right") - 0.1 &&
                     length("felt-left") >= colLeft - PAGE_GUTTER - 0.1 &&

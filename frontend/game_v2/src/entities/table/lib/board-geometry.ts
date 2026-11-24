@@ -2225,7 +2225,9 @@ function desktopBars(
         named === null
             ? SWITCH_CHIPS * tier.switchH
             : rowWidth(LABELLED_SWITCHES, tier.switchH, tier.chipGap);
-    const switchesLeft = (leftBar.left + leftBar.right - switchesW) / 2;
+    const spareWidth = leftBar.right - switchesW;
+    const centredLeft = (leftBar.left + spareWidth) / 2;
+    const switchesLeft = Math.max(0, Math.min(centredLeft, spareWidth - BAR_GAP));
     const furitenBottom = leftBar.bottom - switchesH - FURITEN_GAP;
     const furiten = { ...leftBar, bottom: furitenBottom, top: furitenBottom - furitenHeight(tier) };
     const field = {
