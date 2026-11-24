@@ -5,7 +5,9 @@ import {
     type BoardMotionCue,
     type BoardPlayerDisplay,
     type TablePanel,
+    type TableState,
     boardCallouts,
+    seatEntry,
     tablePanel,
     tableSeatingPanel,
     tableStateToDisplayState,
@@ -182,6 +184,18 @@ function playHand(
     };
 }
 
+function tableForCompass(table: TableState): TableState {
+    const result = table.roundEndResult;
+    if (result === null) {
+        return table;
+    }
+    const players = table.players.map((player) => ({
+        ...player,
+        score: seatEntry(result.scoresBeforePayment, player.seat),
+    }));
+    return { ...table, players };
+}
+
 function viewerBoard(
     state: LiveClient,
     plays: ReadonlyMap<number, TilePlay>,
@@ -190,7 +204,10 @@ function viewerBoard(
     if (viewerSeat === null) {
         return null;
     }
-    const board = tableStateToDisplayState(table, { bottomSeat: viewerSeat, reveal: "bottom" });
+    const board = tableStateToDisplayState(tableForCompass(table), {
+        bottomSeat: viewerSeat,
+        reveal: "bottom",
+    });
     if (board === null) {
         return null;
     }

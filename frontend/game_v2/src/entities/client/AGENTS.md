@@ -26,7 +26,9 @@ table transition and call model; replay dispatch loads with the replay route.
   keeps the decision; a new message type must be added. A refusal reopens only when it names the decision's wait id
   (`refusalOf`).
 - A round confirm closes only on the next deal. Its deadline is the timeout the round end names, never a count of
-  result pages. A double ron confirms only from its last page.
+  result pages. A double ron confirms only from its last page. The live compass keeps the hand's pre-payment
+  scores through the result and the wait for other seats. The next deal supplies the new scores. At game end,
+  the final standings show the settled scores.
 - The start confirm is the same `RoundConfirm`, told apart by the table showing no round result
   (`startConfirmOf`): the first deal opens it for a seat the server awaits (its wait id and whole timeout), a snapshot
   of the first deal before its first draw restores it, owed, sent or in already, and the first draw closes it. Only

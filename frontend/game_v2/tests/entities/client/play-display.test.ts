@@ -40,6 +40,10 @@ function resultPage(display: PlayDisplay): number | null {
     return panel?.kind === "result" ? panel.display.page : null;
 }
 
+function compassScores(display: PlayDisplay): string[] | undefined {
+    return display.board?.nameplates.map((plate) => plate.score);
+}
+
 function noticeSheet(display: PlayDisplay): NoticeSheetDisplay | null {
     const panel = display.overlay?.panel;
     return panel?.kind === "notice_sheet" ? panel.sheet : null;
@@ -219,10 +223,9 @@ describe("playDisplay", () => {
             kind: "show_result_page",
             page: 1,
         });
-        const first = playDisplay(roundEnd, NO_PLAY_UI).result;
-        const last = playDisplay(roundEnd, lastPage).result;
-
-        expect(first).toEqual({
+        const first = playDisplay(roundEnd, NO_PLAY_UI);
+        const last = playDisplay(roundEnd, lastPage);
+        expect(first.result).toEqual({
             action: {
                 command: { kind: "show_result_page", page: 1 },
                 label: "Bob",
@@ -237,10 +240,11 @@ describe("playDisplay", () => {
             },
             waiting: false,
         });
-        expect(last?.action).toMatchObject({
+        expect(last.result?.action).toMatchObject({
             command: { intent: { type: "confirm_result" }, kind: "intent" },
             label: "OK",
         });
+        expect(compassScores(last)).toEqual(["25000", "25000", "25000", "25000"]);
     });
 
     it("once the result is confirmed shows that the seat waits for the others, still counting down", () => {
@@ -272,11 +276,16 @@ describe("playDisplay", () => {
             "result",
             "Final scores",
         ]);
+        const beforePayment = ["25000", "25000", "25000", "25000"];
+        const roundEnd = checkpointState("final_round_seat_1", "round end");
+        expect(compassScores(playDisplay(roundEnd, NO_PLAY_UI))).toEqual(beforePayment);
+        expect(compassScores(display)).toEqual(beforePayment);
         expect(display.result?.countdown).toBeNull();
         expect([
             playDisplay(dismissed, NO_PLAY_UI).overlay?.panel.kind,
             playDisplay(dismissed, NO_PLAY_UI).result,
-        ]).toEqual(["game_end", null]);
+            compassScores(playDisplay(dismissed, NO_PLAY_UI)),
+        ]).toEqual(["game_end", null, beforePayment]);
     });
 
     it("offers the game's last result again from the game's end, reopening it on its first page", () => {
@@ -694,6 +703,23 @@ describe("stepPlayUi", () => {
 });
 
 describe("playDisplay nameplates", () => {
+    it("keeps the compass at pre-payment scores through reconnect and confirmation until the next deal", () => {
+        const checkpoints = ["round end", "dropped", "reconnected", "confirmed", "next round"];
+        const displays = checkpoints.map((checkpoint) =>
+            playDisplay(checkpointState("double_ron_seat_1", checkpoint), NO_PLAY_UI),
+        );
+        const before = ["25000", "25000", "25000", "25000"];
+        const after = ["32700", "25000", "28900", "13400"];
+        expect(displays.map(compassScores)).toEqual([before, before, before, before, after]);
+        expect(displays.map((display) => display.board?.nameplates[0].scoreDiffs.left)).toEqual([
+            "0",
+            "0",
+            "0",
+            "0",
+            "+19300",
+        ]);
+    });
+
     it("marks another player's seat while an AI holds it for them, never the AI players the game seated", () => {
         const dealt = playDisplay(checkpointState("seat_left_seat_1", "first draw"), NO_PLAY_UI);
         expect(plates(dealt)).toEqual([
