@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from starlette.websockets import WebSocket
 
     from app.auth.settings import AuthSettings
+    from app.bot_pool import BotPool
     from app.occupancy import Occupancy
     from app.players import LobbyPlayer
     from app.rooms.manager import LobbyRoomManager
@@ -50,6 +51,7 @@ class _RoomContext:
 
     __slots__ = (
         "auth_settings",
+        "bot_pool",
         "game_server",
         "occupancy",
         "room_id",
@@ -64,6 +66,7 @@ class _RoomContext:
         self.game_server: httpx.AsyncClient = websocket.app.state.game_server
         self.room_manager: LobbyRoomManager = websocket.app.state.room_manager
         self.occupancy: Occupancy = websocket.app.state.occupancy
+        self.bot_pool: BotPool = websocket.app.state.bot_pool
 
 
 async def room_websocket(websocket: WebSocket) -> None:
@@ -125,7 +128,7 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
                 "room_id": room.room_id,
                 "player_name": player.username,
                 "is_owner": room.is_host(player.connection_id),
-                **_room_state(room),
+                **_room_state(room, ctx.bot_pool),
             },
         )
         if join_or_error.displaced is not None:
@@ -135,7 +138,7 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
         logger.info("player joined room", room_id=ctx.room_id, username=player.username, player_count=room.player_count)
         _broadcast(
             room,
-            {"type": "player_joined", "player_name": player.username, **_room_state(room)},
+            {"type": "player_joined", "player_name": player.username, **_room_state(room, ctx.bot_pool)},
             exclude=player.connection_id,
         )
 
@@ -152,7 +155,7 @@ def _complete_takeover(player: LobbyPlayer, ctx: _RoomContext, *, room: LobbyRoo
     displaced.send({"type": "error", "message": REPLACED_BY_NEW_CONNECTION})
     displaced.connection.close(code=4000, reason=REPLACED_BY_NEW_CONNECTION)
     logger.info("room seat taken over by a new connection", room_id=ctx.room_id, username=player.username)
-    _broadcast(room, {"type": "player_ready_changed", **_room_state(room)}, exclude=player.connection_id)
+    _broadcast(room, {"type": "player_ready_changed", **_room_state(room, ctx.bot_pool)}, exclude=player.connection_id)
 
 
 async def _reject_join(player: LobbyPlayer, ctx: _RoomContext, *, reason: str) -> None:
@@ -179,15 +182,22 @@ def _broadcast(room: LobbyRoom, message: dict, *, exclude: str | None = None) ->
             member.player.connection.send_text(payload)
 
 
-def _room_state(room: LobbyRoom) -> dict:
+def _room_state(room: LobbyRoom, bot_pool: BotPool) -> dict:
     """
-    Return the seat list and startability every room state message carries.
+    Return the seat list, startability and strong-bot availability every room state message carries.
+
+    ``strong_bots_available`` is a snapshot of the standby pool taken when the message is built; nothing is sent when
+    the pool changes.
     """
-    return {"can_start": room.can_start, "players": [p.model_dump() for p in room.get_player_info()]}
+    return {
+        "can_start": room.can_start,
+        "players": [p.model_dump() for p in room.get_player_info()],
+        "strong_bots_available": bot_pool.has_idle,
+    }
 
 
-def _send_room_state(room: LobbyRoom) -> None:
-    _broadcast(room, {"type": "player_ready_changed", **_room_state(room)})
+def _send_room_state(room: LobbyRoom, bot_pool: BotPool) -> None:
+    _broadcast(room, {"type": "player_ready_changed", **_room_state(room, bot_pool)})
 
 
 async def _message_loop(player: LobbyPlayer, ctx: _RoomContext) -> None:
@@ -200,7 +210,7 @@ async def _message_loop(player: LobbyPlayer, ctx: _RoomContext) -> None:
         if isinstance(message, LobbySetReadyMessage):
             _handle_set_ready(player, ctx, message=message)
         elif isinstance(message, LobbyStartGameMessage):
-            game_started = await _handle_start_game(player, ctx)
+            game_started = await _handle_start_game(player, ctx, message=message)
             if game_started:
                 return
         elif isinstance(message, LobbyChatMessage):
@@ -257,16 +267,21 @@ def _handle_set_ready(player: LobbyPlayer, ctx: _RoomContext, *, message: LobbyS
         ready=message.ready,
         can_start=room.can_start,
     )
-    _send_room_state(room)
+    _send_room_state(room, ctx.bot_pool)
 
 
-async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext) -> bool:
+async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext, *, message: LobbyStartGameMessage) -> bool:
     """
     Start the game when the owner asks; return True when it was created.
 
     The manager marks the room transitioning in one synchronous step, so a join or a ready toggle arriving while the
     game is created gets ``room_transitioning``. A failed start reopens the room; after a successful one the room is
     removed: transitioning is never cleared, the state never rebroadcast and creation never retried.
+
+    An owner asking for strong bots gets up to one idle standby bot per open seat, claimed in the same step; a seat
+    left over stays a tsumogiri bot. The claimed bots are closed and released from flight however the start ends: on
+    success ``start_game`` already closed them after ``game_starting``, and after a failure the close ends their
+    standby sockets, so they never return to idle and room messages reach only the members.
     """
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
@@ -278,10 +293,11 @@ async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext) -> bool:
         player.send({"type": "error", "message": error})
         return False
 
+    claimed = ctx.bot_pool.claim(room.num_ai_players) if message.use_strong_bots else []
     try:
         game_id = await start_game(
-            [member.player for member in room.members],
-            num_ai_players=room.num_ai_players,
+            [*(member.player for member in room.members), *claimed],
+            num_ai_players=room.num_ai_players - len(claimed),
             settings=ctx.settings,
             ticket_secret=ctx.auth_settings.game_ticket_secret,
             occupancy=ctx.occupancy,
@@ -290,10 +306,27 @@ async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext) -> bool:
     except GameStartError as e:
         _recover_failed_start(room, ctx, reason=e.reason)
         return False
+    finally:
+        _release_claimed_bots(claimed, ctx)
 
     ctx.room_manager.remove_room(room.room_id)
-    logger.info("room handed to its game", room_id=room.room_id, game_id=game_id)
+    logger.info(
+        "room handed to its game",
+        room_id=room.room_id,
+        game_id=game_id,
+        strong_bots=[bot.username for bot in claimed],
+    )
     return True
+
+
+def _release_claimed_bots(claimed: list[LobbyPlayer], ctx: _RoomContext) -> None:
+    """
+    Close the claimed bots' standby sockets and clear them from flight once the start settled.
+    """
+    for bot in claimed:
+        bot.connection.close()
+
+    ctx.bot_pool.clear_in_flight(bot.user_id for bot in claimed)
 
 
 def _recover_failed_start(room: LobbyRoom, ctx: _RoomContext, *, reason: str) -> None:
@@ -304,7 +337,7 @@ def _recover_failed_start(room: LobbyRoom, ctx: _RoomContext, *, reason: str) ->
     the transition in its own handler and so cannot leave during it, so the room always survives here.
     """
     ctx.room_manager.clear_transitioning(room.room_id)
-    _send_room_state(room)
+    _send_room_state(room, ctx.bot_pool)
     _broadcast(room, {"type": "error", "message": reason})
 
 
@@ -342,10 +375,10 @@ def _cleanup_connection(player: LobbyPlayer, ctx: _RoomContext, *, connection_lo
         return
 
     logger.info("player left room", room_id=ctx.room_id, username=player.username, close_code=close_code)
-    announce_departure(room, player=player, was_host=was_host)
+    announce_departure(room, player=player, was_host=was_host, bot_pool=ctx.bot_pool)
 
 
-def announce_departure(room: LobbyRoom, *, player: LobbyPlayer, was_host: bool) -> None:
+def announce_departure(room: LobbyRoom, *, player: LobbyPlayer, was_host: bool, bot_pool: BotPool) -> None:
     """
     Tell the rest of the room that the player's seat went back to a bot.
 
@@ -357,9 +390,9 @@ def announce_departure(room: LobbyRoom, *, player: LobbyPlayer, was_host: bool) 
 
     new_host = room.host
     if was_host and new_host is not None:
-        new_host.player.send({"type": "owner_changed", "is_owner": True, **_room_state(room)})
+        new_host.player.send({"type": "owner_changed", "is_owner": True, **_room_state(room, bot_pool)})
 
-    _broadcast(room, {"type": "player_left", "player_name": player.username, **_room_state(room)})
+    _broadcast(room, {"type": "player_left", "player_name": player.username, **_room_state(room, bot_pool)})
 
 
 def announce_expiry(room: LobbyRoom) -> None:

@@ -18,6 +18,7 @@ class LobbyLeaveRoomMessage(BaseModel):
 
 class LobbyStartGameMessage(BaseModel):
     type: Literal["start_game"]
+    use_strong_bots: bool = False
 
 
 LobbyClientMessage = Annotated[

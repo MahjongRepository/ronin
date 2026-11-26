@@ -144,11 +144,13 @@ def _create_seating(
         """
         return occupancy.find_standby_conflict(user_id)
 
+    bot_pool = BotPool(find_conflict=find_standby_conflict)
     room_manager = LobbyRoomManager(
-        find_conflict=find_room_conflict, announce_departure=announce_departure, announce_expiry=announce_expiry
+        find_conflict=find_room_conflict,
+        announce_departure=functools.partial(announce_departure, bot_pool=bot_pool),
+        announce_expiry=announce_expiry,
     )
     matchmaking_manager = MatchmakingManager(find_conflict=find_queue_conflict)
-    bot_pool = BotPool(find_conflict=find_standby_conflict)
     occupancy = Occupancy(
         find_room=room_manager.find_user_room,
         is_seat_held=room_manager.is_seat_held,

@@ -402,6 +402,8 @@ class TestGameTransition:
         self, client, app, game_server
     ):
         room = app.state.room_manager.create_room("game-room")
+        idle_bot = make_player(connection_id="bot-conn", user_id="ai-standby-id", username="ai-standby")
+        app.state.bot_pool.add(idle_bot)
         game_server_requests: list[httpx.Request] = []
 
         def create_game(request: httpx.Request) -> httpx.Response:
@@ -416,8 +418,11 @@ class TestGameTransition:
             msg = ws.receive_json()
 
         [create_request] = game_server_requests
-        game_id = json.loads(create_request.content)["game_id"]
+        create_body = json.loads(create_request.content)
+        game_id = create_body["game_id"]
         assert (create_request.method, str(create_request.url)) == ("POST", "http://game-server.invalid/games")
+        assert create_body["num_ai_players"] == 3
+        assert app.state.bot_pool.is_standing_by(idle_bot.user_id)
         assert msg["type"] == "game_starting"
         assert msg["game_id"] == game_id
         assert msg["ws_url"] == f"wss://game-client.invalid/ws/{game_id}"

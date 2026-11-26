@@ -23,7 +23,11 @@ A room is a pre-game table of 4 fixed seats: `models.py` holds the room and its 
 * The owner's start marks the room transitioning, so joins and ready toggles arriving during the
   game server call are refused as transitioning; the start itself is the shared `start_game`
   (`app/game_transition.py`). A failed start reopens the room with every ready flag reset and the reason
-  broadcast; a successful one removes it, never retried. A player who leaves a transitioning room
+  broadcast; a successful one removes it, never retried. The owner's start may ask for strong bots: up to one idle
+  standby bot per open seat is claimed from the pool (`app/bot_pool.py`) at Start, and any seat left over stays a
+  tsumogiri bot. However the start ends, the claimed bots' standby sockets are closed and they never return to idle;
+  a failed start's room messages go only to the members. Every room state message carries
+  `strong_bots_available`, a snapshot of the pool that nothing rebroadcasts when the pool changes. A player who leaves a transitioning room
   keeps the seat, because the ticket is already issued and the game server seats AI for a no-show;
   nothing is announced to the room.
 * Each connection has its own rate limit (`websocket.py`, `_read_message`), so one client's chat cannot overflow
