@@ -11,6 +11,7 @@ import {
     type RoomConfigAnswer,
     type RoomState,
     canAct,
+    countOpenSeats,
     getMyReadyState,
     hasEnded,
     isMe,
@@ -25,9 +26,10 @@ type RenderRoom = () => void;
 type Navigate = (url: string, options?: NavigateOptions) => void;
 
 interface ActionCallbacks {
+    handleAddStrongBot: () => void;
     handleLeaveRoom: () => void;
+    handleRemoveStrongBot: () => void;
     handleSendChat: (text: string) => boolean;
-    handleSetStrongBots: (checked: boolean) => void;
     handleStartGame: () => void;
     handleToggleReady: () => void;
 }
@@ -107,6 +109,7 @@ function updateFromServerState(
     state.players = (message.players as PlayerInfo[]) ?? state.players;
     state.canStart = (message.can_start as boolean) ?? false;
     state.strongBotsAvailable = message.strong_bots_available === true;
+    state.strongBotSeats = Math.min(state.strongBotSeats, countOpenSeats(state));
     // Derive isOwner from the authoritative player list as a fallback,
     // so ownership is corrected even if the owner_changed message was missed.
     const self = state.players.find((player) => isMe(state, player));
@@ -324,12 +327,24 @@ async function fetchRoomConfig(roomId: string): Promise<RoomConfigAnswer> {
     return answer;
 }
 
-function buildActionCallbacks(state: RoomState, navigate: Navigate): ActionCallbacks {
+function buildActionCallbacks(
+    state: RoomState,
+    render: RenderRoom,
+    navigate: Navigate,
+): ActionCallbacks {
     return {
+        handleAddStrongBot() {
+            state.strongBotSeats = Math.min(state.strongBotSeats + 1, countOpenSeats(state));
+            render();
+        },
         handleLeaveRoom() {
             state.socket?.send({ type: "leave_room" });
             state.socket?.disconnect();
             navigate(LOBBY_PATH, { replace: true });
+        },
+        handleRemoveStrongBot() {
+            state.strongBotSeats = Math.max(state.strongBotSeats - 1, 0);
+            render();
         },
         handleSendChat(text) {
             const trimmed = text.trim();
@@ -338,16 +353,13 @@ function buildActionCallbacks(state: RoomState, navigate: Navigate): ActionCallb
             }
             return state.socket.send({ text: trimmed, type: "chat" });
         },
-        handleSetStrongBots(checked) {
-            state.useStrongBots = checked;
-        },
         handleStartGame() {
             if (!state.socket || !canAct(state) || !state.canStart) {
                 return;
             }
             state.socket.send(
-                state.useStrongBots
-                    ? { type: "start_game", use_strong_bots: true }
+                state.strongBotSeats > 0
+                    ? { strong_bots: state.strongBotSeats, type: "start_game" }
                     : { type: "start_game" },
             );
         },

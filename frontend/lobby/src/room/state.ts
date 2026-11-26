@@ -52,8 +52,8 @@ interface RoomState {
     reconnectAttempts: number;
     reconnecting: boolean;
     socket: LobbySocket | null;
+    strongBotSeats: number;
     strongBotsAvailable: boolean;
-    useStrongBots: boolean;
 }
 
 function createRoomState(): RoomState {
@@ -71,8 +71,8 @@ function createRoomState(): RoomState {
         reconnectAttempts: 0,
         reconnecting: false,
         socket: null,
+        strongBotSeats: 0,
         strongBotsAvailable: false,
-        useStrongBots: false,
     };
 }
 
@@ -106,12 +106,13 @@ function getMyReadyState(state: RoomState): boolean {
     return state.players.find((player) => isMe(state, player))?.ready ?? false;
 }
 
+function countOpenSeats(state: RoomState): number {
+    return state.players.filter((player) => player.is_bot).length;
+}
+
 function offersStrongBots(state: RoomState): boolean {
     return (
-        state.isOwner &&
-        isSeated(state) &&
-        state.players.some((player) => player.is_bot) &&
-        (state.strongBotsAvailable || state.useStrongBots)
+        state.isOwner && isSeated(state) && (state.strongBotsAvailable || state.strongBotSeats > 0)
     );
 }
 
@@ -167,6 +168,7 @@ export {
     PAGE_ERROR,
     ROOM_SEATS,
     canAct,
+    countOpenSeats,
     createRoomState,
     describeStartBlocker,
     getMyReadyState,

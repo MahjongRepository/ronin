@@ -40,7 +40,7 @@ function showRoomFrame(
     state.pageError = pageError;
     function draw(): void {
         renderRoom({
-            actions: buildActionCallbacks(state, navigate),
+            actions: buildActionCallbacks(state, draw, navigate),
             chatMaxLength: 0,
             container: host,
             roomName: t("room.fallback_name"),
@@ -63,7 +63,7 @@ function leaveGoneRoom(gameUrl: string | null, navigate: Navigate): MountedView 
 function openRoom(host: HTMLElement, config: RoomConfig, navigate: Navigate): MountedView {
     const state = createRoomState();
     const page = {
-        actions: buildActionCallbacks(state, navigate),
+        actions: buildActionCallbacks(state, draw, navigate),
         chatMaxLength: config.chatMaxLength,
         container: host,
         roomName: config.roomName,

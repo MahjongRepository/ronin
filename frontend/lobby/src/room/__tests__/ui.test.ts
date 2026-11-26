@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { type MockInstance, afterEach, describe, expect, test, vi } from "vitest";
 
 import { LobbySocket } from "@/lobby-socket";
 import { buildActionCallbacks, buildMessageHandlers, handleMessage } from "@/room/handlers";
@@ -22,13 +22,11 @@ function seatedState(): RoomState {
 function mount(state: RoomState): HTMLElement {
     const container = document.createElement("div");
     document.body.append(container);
-    renderRoom({
-        actions: buildActionCallbacks(state, () => {}),
-        chatMaxLength: 1000,
-        container,
-        roomName: ROOM_NAME,
-        state,
-    });
+    function draw(): void {
+        renderRoom({ actions, chatMaxLength: 1000, container, roomName: ROOM_NAME, state });
+    }
+    const actions = buildActionCallbacks(state, draw, () => {});
+    draw();
     return container;
 }
 
@@ -45,8 +43,27 @@ function submitChat(container: HTMLElement, text: string): void {
     container.querySelector("form")?.dispatchEvent(new Event("submit", { cancelable: true }));
 }
 
-function showsStrongBotsOption(state: RoomState): boolean {
-    return mount(state).querySelector(".room-strong-bots input") !== null;
+function mountOwnerWithThreeOpenSeats(): {
+    container: HTMLElement;
+    send: MockInstance<LobbySocket["send"]>;
+} {
+    const state = seatedState();
+    state.players.push(
+        { is_bot: true, is_owner: false, name: "ai-tsumogiri-3", ready: true },
+        { is_bot: true, is_owner: false, name: "ai-tsumogiri-4", ready: true },
+    );
+    Object.assign(state, { canStart: true, strongBotsAvailable: true });
+    state.socket = new LobbySocket(vi.fn(), vi.fn());
+    const send = vi.spyOn(state.socket, "send").mockReturnValue(true);
+    return { container: mount(state), send };
+}
+
+function clickStart(container: HTMLElement): void {
+    container.querySelector<HTMLButtonElement>(".room-start-btn")?.click();
+}
+
+function addBotButtons(container: HTMLElement): HTMLButtonElement[] {
+    return [...container.querySelectorAll<HTMLButtonElement>(".room-player-item.open button")];
 }
 
 describe("renderRoom", () => {
@@ -210,34 +227,38 @@ describe("renderRoom", () => {
     });
 });
 
-describe("renderRoom strong bots option", () => {
+describe("renderRoom strong bot seats", () => {
     afterEach(() => {
         document.body.replaceChildren();
     });
 
-    test("sends use_strong_bots with the start only once the owner ticked strong bots", () => {
-        const state = seatedState();
-        Object.assign(state, { canStart: true, strongBotsAvailable: true });
-        state.socket = new LobbySocket(vi.fn(), vi.fn());
-        const send = vi.spyOn(state.socket, "send").mockReturnValue(true);
-        const container = mount(state);
-        const start = container.querySelector<HTMLButtonElement>(".room-start-btn");
+    test("sends the owner's marked seats as strong_bots with the start, and a plain start with none", () => {
+        const { container, send } = mountOwnerWithThreeOpenSeats();
 
-        start?.click();
-        container.querySelector<HTMLInputElement>(".room-strong-bots input")?.click();
-        start?.click();
+        clickStart(container);
+        addBotButtons(container)[0]?.click();
+        addBotButtons(container)[0]?.click();
+        clickStart(container);
 
         expect(send.mock.calls).toEqual([
             [{ type: "start_game" }],
-            [{ type: "start_game", use_strong_bots: true }],
+            [{ strong_bots: 2, type: "start_game" }],
         ]);
+        expect(
+            [...container.querySelectorAll(".room-player-name")].map((name) => name.textContent),
+        ).toEqual(["dev", "Bot", "Bot", "Open seat"]);
+
+        container.querySelector<HTMLButtonElement>('[aria-label="Remove bot"]')?.click();
+        clickStart(container);
+
+        expect(send).toHaveBeenLastCalledWith({ strong_bots: 1, type: "start_game" });
     });
 
     test.each([
         { available: true, shown: true },
         { available: false, shown: false },
     ])(
-        "shows the strong bots option to the owner only while a strong bot stands by (available $available)",
+        "offers Add bot to the owner only while a strong bot stands by, never to a guest (available $available)",
         ({ available, shown }) => {
             const owner = seatedState();
             owner.strongBotsAvailable = available;
@@ -245,10 +266,10 @@ describe("renderRoom strong bots option", () => {
             guest.strongBotsAvailable = available;
             guest.isOwner = false;
 
-            expect([showsStrongBotsOption(owner), showsStrongBotsOption(guest)]).toEqual([
-                shown,
-                false,
-            ]);
+            expect([
+                addBotButtons(mount(owner)).length > 0,
+                addBotButtons(mount(guest)).length > 0,
+            ]).toEqual([shown, false]);
         },
     );
 });

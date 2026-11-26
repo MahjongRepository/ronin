@@ -278,10 +278,10 @@ async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext, *, message:
     game is created gets ``room_transitioning``. A failed start reopens the room; after a successful one the room is
     removed: transitioning is never cleared, the state never rebroadcast and creation never retried.
 
-    An owner asking for strong bots gets up to one idle standby bot per open seat, claimed in the same step; a seat
-    left over stays a tsumogiri bot. The claimed bots are closed and released from flight however the start ends: on
-    success ``start_game`` already closed them after ``game_starting``, and after a failure the close ends their
-    standby sockets, so they never return to idle and room messages reach only the members.
+    An owner asking for strong bots gets up to that many idle standby bots, never more than the open seats, claimed in
+    the same step; a seat left over stays a tsumogiri bot. The claimed bots are closed and released from flight however
+    the start ends: on success ``start_game`` already closed them after ``game_starting``, and after a failure the close
+    ends their standby sockets, so they never return to idle and room messages reach only the members.
     """
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
@@ -293,7 +293,7 @@ async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext, *, message:
         player.send({"type": "error", "message": error})
         return False
 
-    claimed = ctx.bot_pool.claim(room.num_ai_players) if message.use_strong_bots else []
+    claimed = ctx.bot_pool.claim(min(message.strong_bots, room.num_ai_players))
     try:
         game_id = await start_game(
             [*(member.player for member in room.members), *claimed],

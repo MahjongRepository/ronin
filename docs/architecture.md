@@ -258,8 +258,9 @@ sequenceDiagram
     end
 ```
 
-The owner's `start_game` may carry `use_strong_bots`, which fills the open seats with idle standby
-bots (see Bot standby) claimed at Start; a seat left over stays a tsumogiri bot.
+The owner's `start_game` may carry `strong_bots`, the number of open seats the owner marked for a bot
+on the room page; that many idle standby bots (see Bot standby), at most one per open seat, are claimed
+at Start, and a seat left over stays a tsumogiri bot.
 
 Nothing starts automatically, and a room stays open while anyone is seated in it. A lost socket
 holds its seat for a while, and the room page reconnects to take it back. Ready, ownership,

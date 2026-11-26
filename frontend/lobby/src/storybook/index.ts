@@ -100,7 +100,7 @@ function storybookTemplate(): TemplateResult {
                         <circle cx="5" cy="12" r="2.25"/>
                     </svg>
                     <span class="lobby-action-text">
-                        <span class="lobby-action-label">Play with strong bots</span>
+                        <span class="lobby-action-label">Play with bots</span>
                         <span class="lobby-action-hint">Standard rules, unranked</span>
                     </span>
                 </a>
@@ -154,7 +154,7 @@ function storybookTemplate(): TemplateResult {
             </div>
             <div class="lobby-empty lobby-empty--boxed">
                 <p class="lobby-empty-title">No custom tables open</p>
-                <p class="lobby-empty-hint">Host one, or play with strong bots.</p>
+                <p class="lobby-empty-hint">Host one, or play with bots.</p>
             </div>
         </section>
 

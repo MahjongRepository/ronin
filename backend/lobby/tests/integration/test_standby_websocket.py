@@ -59,42 +59,48 @@ async def test_matchmaking_websocket__when_bot_stands_by__should_reject_with_alr
     assert not app.state.bot_pool.has_idle
 
 
-async def test_room_websocket__when_owner_starts_with_strong_bots__should_start_the_game_with_the_idle_standby_bots(
+async def test_room_websocket__when_owner_starts_with_strong_bots__should_claim_that_many_idle_standby_bots(
     app, game_server
 ):
     bot_pool = app.state.bot_pool
+    standby_users = [*_STRONG_BOTS, _STANDBY_BOT]
     create_bodies: list[dict] = []
-    claimed_during_create: list[bool] = []
+    claimed_during_create: list[str] = []
 
     def create_game(request: httpx.Request) -> httpx.Response:
         create_bodies.append(json.loads(request.content))
-        claimed_during_create.extend(bot_pool.is_claimed(bot.user_id) for bot in _STRONG_BOTS)
+        claimed_during_create.extend(bot.user_id for bot in standby_users if bot_pool.is_claimed(bot.user_id))
         return httpx.Response(201)
 
     game_server.respond = create_game
-    bots = [await _stand_by(app, bot) for bot in _STRONG_BOTS]
+    bots = {bot.user_id: await _stand_by(app, bot) for bot in standby_users}
     room = app.state.room_manager.create_room("strong-room")
     owner_peer, owner_handler = await _seat(app, room_id=room.room_id, user=_OWNER)
 
-    owner_peer.send_from_client(json.dumps({"type": "start_game", "use_strong_bots": True}))
+    owner_peer.send_from_client(json.dumps({"type": "start_game", "strong_bots": 2}))
     await owner_handler
-    for _peer, handler in bots:
-        await handler
 
     [body] = create_bodies
+    seated_bot_ids = sorted(player["user_id"] for player in body["players"] if player["user_id"] != _OWNER.user_id)
+    [left_over_id] = [bot.user_id for bot in standby_users if bot.user_id not in seated_bot_ids]
     assert owner_peer.received_json()[0]["strong_bots_available"] is True
-    assert claimed_during_create == [True, True]
-    assert sorted(player["user_id"] for player in body["players"]) == sorted(
-        [_OWNER.user_id, *(bot.user_id for bot in _STRONG_BOTS)]
-    )
+    assert sorted(claimed_during_create) == seated_bot_ids
+    assert len(seated_bot_ids) == 2
     assert body["num_ai_players"] == 1
-    for peer, _handler in bots:
+    for bot_id in seated_bot_ids:
+        peer, handler = bots[bot_id]
+        await handler
         bot_messages = peer.received_json()
         assert [message["type"] for message in bot_messages] == ["standby_joined", "game_starting"]
         assert bot_messages[-1]["game_id"] == body["game_id"]
         assert peer.close_codes() == [1000]
-    assert not bot_pool.has_idle
-    assert not any(bot_pool.is_claimed(bot.user_id) for bot in _STRONG_BOTS)
+    assert bot_pool.is_standing_by(left_over_id)
+    assert not any(bot_pool.is_claimed(bot.user_id) for bot in standby_users)
+
+    left_over_peer, left_over_handler = bots[left_over_id]
+    assert left_over_peer.received_json() == [{"type": "standby_joined"}]
+    left_over_peer.disconnect()
+    await left_over_handler
 
 
 async def test_room_websocket__when_strong_bots_start_fails__should_close_the_claimed_bots(app):
@@ -103,7 +109,7 @@ async def test_room_websocket__when_strong_bots_start_fails__should_close_the_cl
     room = app.state.room_manager.create_room("failing-strong-room")
     owner_peer, owner_handler = await _seat(app, room_id=room.room_id, user=_OWNER)
 
-    owner_peer.send_from_client(json.dumps({"type": "start_game", "use_strong_bots": True}))
+    owner_peer.send_from_client(json.dumps({"type": "start_game", "strong_bots": 3}))
     for _peer, handler in bots:
         await handler
     owner_peer.disconnect()

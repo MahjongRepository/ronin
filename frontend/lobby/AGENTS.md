@@ -76,7 +76,7 @@ handoff contract in `docs/architecture.md`; change them only together with the g
 
 The lobby and tournament views never leave for a running game on their own, so a second tab cannot take a seat
 over unasked. Each asks `GET /api/game-session` when it mounts (`session/live-game.ts`), and a user who plays any
-game is offered the way back: the lobby swaps Quick match for it and hides every way to open or join a table, the
+game is offered the way back: the lobby swaps Play with bots for it and hides every way to open or join a table, the
 tournament page shows it above its panels, finished tournaments included. The click asks again and enters with the
 fresh handoff. A tournament's own `game_starting` still hands the player off at once.
 

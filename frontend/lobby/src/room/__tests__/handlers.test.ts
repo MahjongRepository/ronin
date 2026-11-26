@@ -220,7 +220,7 @@ describe("buildActionCallbacks", () => {
     test("leaves for the lobby without a history entry, so Back cannot take the seat again", () => {
         const navigate = vi.fn();
 
-        buildActionCallbacks(createRoomState(), navigate).handleLeaveRoom();
+        buildActionCallbacks(createRoomState(), vi.fn(), navigate).handleLeaveRoom();
 
         expect(navigate).toHaveBeenCalledExactlyOnceWith("/", { replace: true });
     });

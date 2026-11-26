@@ -106,9 +106,6 @@ function noticeTemplate(state: RoomState): TemplateResult | typeof nothing {
 }
 
 function seatStatus(player: PlayerInfo): { glyph: string; label: string; tone: string } {
-    if (player.is_bot) {
-        return { glyph: "", label: t("room.seat.open"), tone: "open" };
-    }
     if (player.is_owner) {
         return { glyph: "", label: t("room.seat.host"), tone: "host" };
     }
@@ -131,11 +128,11 @@ function playerRowTemplate(state: RoomState, player: PlayerInfo): TemplateResult
     const status = seatStatus(player);
     const me = isMe(state, player);
     return html`
-        <div class="room-player-item ${player.is_bot ? "open" : ""} ${me ? "me" : ""}">
+        <div class="room-player-item ${me ? "me" : ""}">
             <span class="room-player-status ${status.tone}" role="img" title=${status.label} aria-label=${status.label}>
                 ${status.glyph}
             </span>
-            <span class="room-player-name">${player.is_bot ? t("room.seat.open") : player.name}</span>
+            <span class="room-player-name">${player.name}</span>
             ${
                 me
                     ? html`
@@ -144,6 +141,47 @@ function playerRowTemplate(state: RoomState, player: PlayerInfo): TemplateResult
                     : nothing
             }
             ${seatBadge(player)}
+        </div>
+    `;
+}
+
+function openSeatRowTemplate(control: TemplateResult | typeof nothing): TemplateResult {
+    const label = t("room.seat.open");
+    return html`
+        <div class="room-player-item open">
+            <span class="room-player-status open" role="img" title=${label} aria-label=${label}></span>
+            <span class="room-player-name">${label}</span>
+            ${control}
+        </div>
+    `;
+}
+
+function addBotButtonTemplate(state: RoomState, actions: ActionCallbacks): TemplateResult {
+    return html`
+        <button class="room-seat-btn"
+                ?disabled=${!canAct(state)}
+                @click=${actions.handleAddStrongBot}>
+            ${t("room.seat.add_bot")}
+        </button>
+    `;
+}
+
+function strongBotRowTemplate(state: RoomState, actions: ActionCallbacks): TemplateResult {
+    const label = t("room.seat.bot");
+    const remove = t("room.seat.remove_bot");
+    return html`
+        <div class="room-player-item strong-bot">
+            <span class="room-player-status" role="img" title=${label} aria-label=${label}></span>
+            <span class="room-player-name">${label}</span>
+            <button class="room-seat-btn room-seat-remove-btn"
+                    title=${remove}
+                    aria-label=${remove}
+                    ?disabled=${!canAct(state)}
+                    @click=${actions.handleRemoveStrongBot}>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </button>
         </div>
     `;
 }
@@ -164,14 +202,26 @@ function pendingSeatsTemplate(): TemplateResult {
     `;
 }
 
-function playerListTemplate(state: RoomState): TemplateResult {
+function playerListTemplate(state: RoomState, actions: ActionCallbacks): TemplateResult {
     if (state.players.length === 0) {
         return pendingSeatsTemplate();
     }
+    const offered = offersStrongBots(state);
+    let openSeat = 0;
+    function rowTemplate(player: PlayerInfo): TemplateResult {
+        if (!player.is_bot) {
+            return playerRowTemplate(state, player);
+        }
+        openSeat += 1;
+        if (!offered) {
+            return openSeatRowTemplate(nothing);
+        }
+        return openSeat <= state.strongBotSeats
+            ? strongBotRowTemplate(state, actions)
+            : openSeatRowTemplate(addBotButtonTemplate(state, actions));
+    }
     return html`
-        <div class="room-player-list">
-            ${state.players.map((player) => playerRowTemplate(state, player))}
-        </div>
+        <div class="room-player-list">${state.players.map(rowTemplate)}</div>
     `;
 }
 
@@ -180,31 +230,6 @@ function actionHintTemplate(hint: string | null): TemplateResult | typeof nothin
         return nothing;
     }
     return html`<p class="room-action-hint" id="room-action-hint">${hint}</p>`;
-}
-
-function strongBotsTemplate(
-    state: RoomState,
-    actions: ActionCallbacks,
-    enabled: boolean,
-): TemplateResult | typeof nothing {
-    if (!offersStrongBots(state)) {
-        return nothing;
-    }
-    function toggle(event: Event): void {
-        const input = event.currentTarget;
-        if (input instanceof HTMLInputElement) {
-            actions.handleSetStrongBots(input.checked);
-        }
-    }
-    return html`
-        <label class="room-strong-bots">
-            <input type="checkbox"
-                   .checked=${state.useStrongBots}
-                   ?disabled=${!enabled}
-                   @change=${toggle}>
-            ${t("room.strong_bots")}
-        </label>
-    `;
 }
 
 function actionTemplate(
@@ -218,7 +243,6 @@ function actionTemplate(
     if (state.isOwner) {
         const blocker = enabled ? describeStartBlocker(state) : null;
         return html`
-            ${strongBotsTemplate(state, actions, enabled)}
             <button class="room-start-btn"
                     ?disabled=${!enabled || !state.canStart}
                     aria-describedby=${blocker ? "room-action-hint" : nothing}
@@ -247,7 +271,7 @@ function panelsTemplate(page: RoomPage): TemplateResult {
         <div class="room-content">
             <section class="room-panel room-players-panel" aria-labelledby="room-players-title">
                 <h3 class="room-panel-title" id="room-players-title">${t("room.players_title")}</h3>
-                ${playerListTemplate(state)}
+                ${playerListTemplate(state, actions)}
                 <div class="room-action">${actionTemplate(state, actions)}</div>
             </section>
             <section class="room-panel room-chat-panel" aria-labelledby="room-chat-title">

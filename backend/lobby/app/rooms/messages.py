@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, TypeAdapter
 
 from app.chat_messages import LobbyChatMessage, decode_client_frame
+from app.rooms.models import TOTAL_SEATS
 
 
 class LobbySetReadyMessage(BaseModel):
@@ -18,7 +19,7 @@ class LobbyLeaveRoomMessage(BaseModel):
 
 class LobbyStartGameMessage(BaseModel):
     type: Literal["start_game"]
-    use_strong_bots: bool = False
+    strong_bots: int = Field(default=0, ge=0, le=TOTAL_SEATS - 1)
 
 
 LobbyClientMessage = Annotated[
