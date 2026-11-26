@@ -5,7 +5,6 @@ import (
 	"iter"
 )
 
-// TileIDCount is the number of tiles in a set.
 const TileIDCount = KindCount * CopiesPerKind
 
 const (

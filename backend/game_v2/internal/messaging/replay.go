@@ -9,10 +9,6 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-// ReplayLog collects a game's replay records as the server saves them: the game start with its
-// seed, each round's deal as one record of every hand, each draw once with the live tiles left
-// after it, every other event the engine emits but the draw notices and furiten changes, and the
-// seat control records added between them. The version record is not among them.
 type ReplayLog struct {
 	seed      engine.Seed
 	roster    Roster
@@ -20,13 +16,10 @@ type ReplayLog struct {
 	liveTiles int
 }
 
-// NewReplayLog returns an empty log of the game seed starts, played by roster.
 func NewReplayLog(seed engine.Seed, roster Roster) *ReplayLog {
 	return &ReplayLog{seed: seed, roster: roster}
 }
 
-// Collect appends the records of one engine call's events. table gives the Table after the call,
-// and is asked for only when a record names what it holds. The error is EventPayload's.
 func (r *ReplayLog) Collect(events []play.Emitted, table func() Table) error {
 	var dealt []play.RoundStarted
 	flush := func() {
@@ -56,24 +49,18 @@ func (r *ReplayLog) Collect(events []play.Emitted, table func() Table) error {
 	return nil
 }
 
-// AddSeatControl appends the seat control record of a handover: to an AI player for reason, or
-// back to the seat's participant when reason is absent.
 func (r *ReplayLog) AddSeatControl(seat tile.Seat, reason play.Option[wire.SeatControlReason]) {
 	r.records = append(r.records, ReplaySeatControlPayload(seat, reason))
 }
 
-// Records returns the records collected so far, in their order.
 func (r *ReplayLog) Records() []wire.Map {
 	return slices.Clone(r.records)
 }
 
-// RecordsSince returns the records collected after the first n, in their order.
 func (r *ReplayLog) RecordsSince(n int) []wire.Map {
 	return slices.Clone(r.records[n:])
 }
 
-// EncodeReplayRecords encodes records, as Records returns them, into a replay's content: the
-// version record first, then records. The error is wire.EncodeReplay's.
 func EncodeReplayRecords(records []wire.Map) ([]byte, error) {
 	return wire.EncodeReplay(append([]wire.Map{wire.VersionRecord()}, records...))
 }

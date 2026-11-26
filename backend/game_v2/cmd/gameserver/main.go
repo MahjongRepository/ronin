@@ -1,12 +1,3 @@
-// Command gameserver runs the Go game server: it reads its environment, opens the shared database
-// and the replay store, binds its address, closes the games a previous run left unfinished as
-// errors, and serves the lobby's routes and the game sockets until SIGINT or SIGTERM,
-// then stops within the container's grace period: the HTTP server stops taking connections, every
-// socket closes as a disconnect, the games' finalizers drain, and the database closes last. With
-// -profiledir it profiles the whole run for make profile-games: it writes the CPU profile
-// (cpu.prof), the allocations (allocs.prof), the mutex contention sampled 1 in 5 (mutex.prof) and
-// the runtime's own CPU, GC, allocation and mutex wait totals (runtime.json) into that existing
-// directory as it stops, even when the run fails.
 package main
 
 import (

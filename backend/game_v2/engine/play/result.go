@@ -125,13 +125,9 @@ type NagashiRiver struct {
 	River []RiverTile
 }
 
-// WinResult is one seat's win and what it was paid. Loser is the discarder on a ron, absent on a
-// tsumo; Hand holds the concealed tiles without the winning tile, in hand order, and Melds the
-// declared melds in call order. Value counts the dora; Limit is absent below mangan. Yaku is
-// sorted by yaku id, the dora counted in Dora instead. UraIndicators are the ura dora indicators
-// a riichi winner counted, empty without a riichi. Pao is the seat liable for the yakuman its
-// discard completed, having fed the winner's third dragon or fourth wind pon. ScoreChanges is
-// what this win moved by seat: the hand, the honba and the riichi sticks it took.
+// WinResult is one seat's win and what it was paid. Loser is absent on a tsumo; Hand excludes the
+// winning tile; Yaku is sorted by yaku id and leaves the dora to Dora; Pao is the seat liable for
+// the yakuman.
 type WinResult struct {
 	Winner        tile.Seat
 	Loser         Option[tile.Seat]
@@ -147,13 +143,9 @@ type WinResult struct {
 	ScoreChanges  [tile.SeatCount]int
 }
 
-// GameEndCause is the rule that ended a game: a score fell below the tobi threshold; South ended
-// with a seat at the winning threshold, or its last dealer stopped in first place there; a seat
-// reached the winning threshold in the West extension; West 4 ended with no seat at it; or every
-// wall of a fixed-wall setup was dealt and the game asked for one more.
+// GameEndCause is the rule that ended a game.
 type GameEndCause uint8
 
-// The game end causes.
 const (
 	EndTobi GameEndCause = iota
 	EndLength
@@ -162,10 +154,9 @@ const (
 	EndFixedWallsDealt
 )
 
-// Standings are the end of a game: why it ended, the final scores by seat with the riichi sticks
-// left on the table added to first place, the place of each seat from 1 to 4 (by score, a tie to
-// the seat nearer after the first dealer), and the uma- and oka-adjusted points by seat in tenths
-// of a point, 100 of score each, unrounded, summing to 0.
+// Standings are the end of a game: the final scores by seat with the leftover riichi sticks added
+// to first place, places 1 to 4 (a tie to the seat nearer after the first dealer), and the uma- and
+// oka-adjusted points by seat in tenths of a point, unrounded, summing to 0.
 type Standings struct {
 	Cause      GameEndCause
 	Scores     [tile.SeatCount]int

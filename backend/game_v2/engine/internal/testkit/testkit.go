@@ -1,9 +1,3 @@
-// Package testkit stages and drives games for the engine's scenario tests: tile ids from mpsz
-// notation, a wall laid out from the hands, draws and dead wall a test names, the scripted actions
-// that play it, and the events a test reads back. It never asserts: a helper returns its value or
-// the error that stopped it, and the test asserts.
-//
-// It is imported only by external test packages, as package game_test, since it imports game.
 package testkit
 
 import (
@@ -32,9 +26,6 @@ const (
 	maxUra           = 5
 )
 
-// Copies returns the tile ids of the tiles in mpsz, each kind's copies counted from first: the
-// n-th repeat of a kind in mpsz takes copy first+n. A ParseTiles error for invalid notation, a
-// CopyOutOfRangeError for a kind repeated past its fourth copy.
 func Copies(first int, mpsz string) ([]tile.TileID, error) {
 	parsed, err := tile.ParseTiles(mpsz)
 	if err != nil {
@@ -78,10 +69,6 @@ func (b *builder) tile(first int, mpsz string) tile.TileID {
 	return append(b.copies(first, mpsz), tile.TileID{})[0]
 }
 
-// StartWall is a wall laid out by role: each seat's dealt hand, by seat, at most 13 tiles; the
-// live draws after the deal, in order; up to 4 rinshan tiles in draw order; the first dora
-// indicator; up to 4 kan dora indicators; and up to 5 ura indicators. Every tile it leaves out
-// fills the free places in id order.
 type StartWall struct {
 	Hands   [tile.SeatCount][]tile.TileID
 	Draws   []tile.TileID
@@ -122,9 +109,6 @@ type placement struct {
 	id   tile.TileID
 }
 
-// Tiles returns w as the 136 tile ids of a wall dealt by dealer, in the layout of a Fixed wall
-// source. A WallLayoutError when a role holds more tiles than it has places or a tile is placed
-// twice.
 func (w StartWall) Tiles(dealer tile.Seat) ([tile.TileIDCount]tile.TileID, error) {
 	var tiles [tile.TileIDCount]tile.TileID
 	for _, role := range []struct {

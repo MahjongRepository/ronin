@@ -1,17 +1,3 @@
-// Command migrate moves the data the Python game server left into the Go server's formats, once:
-// it rewrites every stored replay of version 0.4-dev into the current version and converts every
-// played game's final scores to tenths (internal/migrate). It is run by hand, with both servers
-// stopped; nothing runs it automatically.
-//
-// Usage:
-//
-//	migrate [-replay-dir dir] [-database path] [-dry-run]
-//
-// The replay directory defaults to GAME_REPLAY_DIR and the database to AUTH_DATABASE_PATH, the game
-// server's; neither is created when missing. With -dry-run nothing is written and the report shows
-// what a run would do. It prints counts per transform and per failure, then each failure, and exits
-// 1 when anything failed or the run could not complete, 2 on a usage error. A second run changes
-// nothing.
 package main
 
 import (

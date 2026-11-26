@@ -10,17 +10,10 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-// DefaultObserveDelay is the observer delay of a Config that sets none.
 const DefaultObserveDelay = 5 * time.Minute
 
 const observedRetention = time.Minute
 
-// Observation is what an observer may see of a game: the game as the lobby lists it, how long
-// until its first records may be seen, the records collected at least the delay ago from the
-// cursor asked for with when each was collected since the start, the cursor after them, the
-// delay's cutoff since the start (negative before the start is that old), and whether the game's
-// end is itself that old and every record was returned. Records hold no seed and are never
-// written to.
 type Observation struct {
 	Game        StartedGame
 	AvailableIn time.Duration
@@ -105,9 +98,6 @@ func (t *observerTimeline) observe(from int, now time.Time, delay time.Duration)
 	}
 }
 
-// Observe returns what an observer may see of a game from cursor from, a count of records, not
-// below zero. It reports false for a game that never started playing, or whose end is past the
-// delay and the retention after it.
 func (m *Manager) Observe(gameID string, from int) (Observation, bool) {
 	now := m.cfg.Clock.Now()
 	t := m.observedTimeline(gameID, now)

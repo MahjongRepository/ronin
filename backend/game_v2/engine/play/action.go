@@ -5,8 +5,6 @@ import "github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 // KanKind is which kan a kan action declares.
 type KanKind uint8
 
-// The kan kinds: four concealed copies on the seat's own turn, the fourth copy added to the
-// seat's own pon on its turn, or the prompt's discard called with three held copies.
 const (
 	KanClosed KanKind = iota
 	KanAdded
@@ -16,7 +14,6 @@ const (
 // ActionKind is what an Action does. It starts at 1, so the zero Action is no action.
 type ActionKind uint8
 
-// The action kinds.
 const (
 	ActionDiscard ActionKind = iota + 1
 	ActionRiichi

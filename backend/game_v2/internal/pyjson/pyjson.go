@@ -1,6 +1,3 @@
-// Package pyjson writes JSON strings and numbers as Python's json.dumps does with its defaults:
-// every character outside printable ASCII escaped as \uXXXX, astral ones as a surrogate pair, and a
-// float in Python's repr. Callers lay out the objects and decide what a non-finite float becomes.
 package pyjson
 
 import (
@@ -9,9 +6,6 @@ import (
 	"unicode/utf16"
 )
 
-// Float returns a finite float as Python's json.dumps writes it: the shortest repr that reads back
-// to the same value, in exponent form for a magnitude below 1e-4 or from 1e16, else fixed with at least one
-// decimal. A NaN or an infinity has no JSON form, and its result is not JSON.
 func Float(f float64) string {
 	scientific := strconv.FormatFloat(f, 'e', -1, 64)
 	_, exponent, _ := strings.Cut(scientific, "e")

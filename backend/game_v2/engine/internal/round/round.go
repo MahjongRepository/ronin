@@ -1,11 +1,3 @@
-// Package round plays one round: the wall, the hands, melds and rivers, riichi and furiten, the
-// draws, discards, calls and kans that move them, the call prompt on a discard or a kan, how the
-// round ends, and the table's points ledger.
-//
-// A Round is a value, changed only through the copy its methods are called on: hands and melds
-// are fixed-size arrays sized from their proven bounds (14 tiles, 4 melds), and every slice it
-// holds is replaced, never written in place, so a copy taken before a change keeps its state. A
-// method that refuses an action changes nothing.
 package round
 
 import (
@@ -180,9 +172,6 @@ func (r *Round) seatWind(seat tile.Seat) tile.Wind {
 	return seat.Wind(r.dealer)
 }
 
-// CheckOwnership checks that each of the 136 tiles is in exactly one place: the wall, a hand, a
-// meld or a river, a called tile counting in its discarder's river and not in the meld. The
-// error is wall.CheckOwnership's.
 func (r *Round) CheckOwnership() error {
 	return wall.CheckOwnership(r.wall, slices.Values(r.heldTiles()))
 }

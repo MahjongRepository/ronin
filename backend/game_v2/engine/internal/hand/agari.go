@@ -1,11 +1,3 @@
-// Package hand reads the concealed tiles of a hand: whether they are complete (agari), every way
-// a winning hand splits into sets and a pair or seven pairs (the divider), and the formal waits
-// and the discards that keep a hand tenpai. Yaku and scoring stay out.
-//
-// An opt-in exhaustive check compares the suit walk and the divider with brute-force references
-// over every single-suit shape:
-//
-//	go test -tags exhaustive -run 'TestSuitChecks|TestDivide_WhenEverySingleSuit' ./engine/internal/hand
 package hand
 
 import "github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -18,9 +10,6 @@ const (
 
 type suitCounts = [kindsPerSuit]uint8
 
-// IsAgari reports whether the tiles form a complete hand: zero to four sets plus one pair, seven
-// different pairs, or thirteen orphans. Pass only the concealed tiles; the tiles of declared melds
-// stay out. A hand of more than 14 tiles is never complete.
 func IsAgari(c tile.Counts) bool {
 	return isAgari(c.Array())
 }

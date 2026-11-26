@@ -1,13 +1,3 @@
-// Package migrate moves the data the Python game server left into the Go server's formats, once:
-// every stored replay of version 0.4-dev rewritten into the current replay version, and the final
-// scores of every `played_games` row from whole points into tenths. cmd/migrate runs it, and
-// nothing else calls it.
-//
-// A rewritten replay shows the game as it was played and scored under the old rules, so it keeps
-// rules profile wire.MigratedRulesProfileID and does not reproduce under the engine. Each change is
-// derived from what the old file holds, and a replay the rewrite cannot carry over whole is left as
-// it was and reported. Both halves are idempotent: a replay at the current version and a row marked
-// in tenths are never touched again.
 package migrate
 
 import (
@@ -22,19 +12,12 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 )
 
-// Config is what Run migrates: the replay directory and the SQLite database the game server
-// shares with the lobby, both of which must exist, and whether to write the changes or only report
-// them.
 type Config struct {
 	ReplayDir    string
 	DatabasePath string
 	Apply        bool
 }
 
-// Run migrates the replays and then the final scores cfg names, and writes its report to out:
-// counts per transform and per failure, each failure and each ignored path. It returns whether
-// nothing failed; the error is for a run that could not complete, one matching fs.ErrNotExist for a
-// missing input, which Run never creates. The logger takes the store's warnings.
 func Run(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) (ok bool, err error) {
 	err = errors.Join(checkExists(cfg.ReplayDir, true), checkExists(cfg.DatabasePath, false))
 	if err != nil {

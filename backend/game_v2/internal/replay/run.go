@@ -45,16 +45,6 @@ var (
 	errBeginRefused = errors.New("the engine refused the dealer's first draw")
 )
 
-// Run starts a game from setup and plays actions in order, one engine call each, and returns every
-// step: the game's start first. Before each action it deals the next round when the last one is
-// over, and it passes for every seat an open call prompt still waits on, in seat order, but the
-// action's own seat when the action answers the prompt, and after a ron the seats of the rons that
-// directly follow it, which answer the same prompt. Once every action is played it passes for the
-// seats a prompt still waits on and deals a round that is over.
-//
-// The error is engine.NewGame's for a setup it refuses, a RefusedError for any action or pass the
-// engine refuses, an ActionAfterGameEndError for actions left once the game is over, or an error
-// when the engine refuses the next deal or the dealer's first draw.
 func Run(setup engine.Setup, actions []SeatAction) ([]Step, error) {
 	g, events, err := engine.NewGame(setup)
 	if err != nil {

@@ -1,10 +1,5 @@
 //go:build ignore
 
-// Extract_maps writes the shanten package's tables from the source of the xiangting crate: the
-// shupai and zipai replacement-number maps as little-endian uint32 blobs, and lookup_hash.go with
-// the hash tables that index them. It prints each blob's SHA-256.
-//
-// Run it in the package directory: go run extract_maps.go <xiangting-6.0.2 crate directory>
 package main
 
 import (

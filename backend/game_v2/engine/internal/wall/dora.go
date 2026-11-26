@@ -12,9 +12,6 @@ func (w *Wall) AddDoraIndicator() (tile.TileID, error) {
 	return w.indicators[w.revealed-1].Top, nil
 }
 
-// IncrementPendingDora defers one kan dora reveal until the kan caller's discard settles or a
-// further kan stands. An IndicatorsExhaustedError when the revealed and pending indicators already
-// make five.
 func (w *Wall) IncrementPendingDora() error {
 	if w.revealed+w.pending >= indicatorStacks {
 		return IndicatorsExhaustedError{}

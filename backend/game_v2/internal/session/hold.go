@@ -18,9 +18,6 @@ const (
 	discardHoldPauseRate = 0.08
 )
 
-// RandomDiscardHold draws how long a discard's or a kan's consequences are held, for Config.DiscardHold: a
-// 150 ms floor, and for 8 in 100 discards a pause from there to 2.1 s, most often near 950 ms, the
-// length of a quick pass. It is safe for concurrent use and independent of every game's seed.
 func RandomDiscardHold() time.Duration {
 	return discardHoldOf(rand.Float64(), rand.Float64())
 }

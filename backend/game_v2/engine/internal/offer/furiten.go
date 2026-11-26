@@ -11,10 +11,6 @@ import (
 
 const kokushiMinKinds = 12
 
-// Furiten is the flags that forbid a seat's ron, and the value it is shown. Temporary is a ron
-// passed or missed, cleared by the seat's next discard; Riichi a ron a riichi seat passed or
-// missed, lasting the round; Shown the value the seat was last shown. The zero value is no
-// furiten.
 type Furiten struct {
 	Temporary bool
 	Riichi    bool
@@ -81,17 +77,12 @@ func (c RonCandidate) isBlocked(waits tile.Kinds) bool {
 // RonOutcome is what a discard is to a seat it might complete.
 type RonOutcome uint8
 
-// The ron outcomes: the tile does not complete the hand; it completes the hand but furiten or no
-// yaku forbids the ron; or the ron is offered.
 const (
 	RonNotComplete RonOutcome = iota
 	RonMissed
 	RonOffered
 )
 
-// DiscardRon returns whether candidate is offered the ron on a discarded tile in situation,
-// scored with no dora since dora never makes a yaku. It panics with a play.EngineFaultError when
-// the scorer rejects the completed hand for anything but no yaku.
 func DiscardRon(candidate RonCandidate, discard tile.TileID, situation score.Situation) RonOutcome {
 	if !candidate.completesOn(discard) {
 		return RonNotComplete

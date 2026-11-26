@@ -148,12 +148,9 @@ func (DoraRevealed) isEvent()    {}
 func (RoundEnded) isEvent()      {}
 func (GameEnded) isEvent()       {}
 
-// MeldKind is what kind of meld a MeldView is: a sequence called from the kamicha's discard, a
-// triplet or a quad called from any other seat's discard, a pon with its fourth copy added from the
-// hand, or a quad of four concealed copies, which keeps the hand closed.
+// MeldKind is what kind of meld a MeldView is.
 type MeldKind uint8
 
-// The meld kinds.
 const (
 	MeldChi MeldKind = iota
 	MeldPon

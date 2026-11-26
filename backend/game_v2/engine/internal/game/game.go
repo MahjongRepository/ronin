@@ -1,12 +1,3 @@
-// Package game plays a game of riichi mahjong under the engine's fixed rules: its setup, its
-// phases and the calls that move it, the position each round is dealt at, how a round's end counts
-// the honba and passes the deal, the rule that ends the game and its final standings. A game is a
-// hanchan: East and South, then the West extension, played until a seat reaches the winning
-// threshold or the last West round ends.
-//
-// A Game is a value. Every method that moves it returns the new game and leaves its receiver as it
-// was, so a caller may keep or branch from any state; a refused action returns the receiver
-// itself.
 package game
 
 import (
@@ -62,15 +53,6 @@ type Game struct {
 	drawPending     bool
 }
 
-// New sets a game up from its walls and an optional start position and deals its first round. It
-// returns the game in play.PhasePlaying, awaiting play.AwaitingDealt, and its first events:
-// GameStarted, then one RoundStarted per seat; Begin makes the dealer's first draw. A Fixed source
-// deals seat 0 first with every throw (1, 1).
-//
-// The errors, checked in this order: the start position's StartInNorthError,
-// StartScoreOffHundredsError, StartScoreBelowTobiError, NegativeStartCountError and
-// StartPointsOffTotalError; an InvalidWallError for a fixed wall that repeats a tile; a
-// NoFixedWallError for an empty Fixed list or a nil source.
 func New(source play.WallSource, start play.Option[play.StartPosition]) (Game, []play.Emitted, error) {
 	g := Game{firstDealerDice: [2]tile.Dice{{First: 1, Second: 1}, {First: 1, Second: 1}}}
 	var fixedWalls [][tile.TileIDCount]tile.TileID
@@ -199,10 +181,6 @@ func (g *Game) roundStartedEvents() []play.Emitted {
 	return events
 }
 
-// DealNextRound deals the round that follows the one just over: play.PhasePlaying, awaiting
-// play.AwaitingDealt, and one RoundStarted per seat; Begin makes its dealer's first draw. Once
-// every fixed wall has been dealt it ends the game instead with play.EndFixedWallsDealt:
-// play.PhaseGameOver and a GameEnded. Outside play.PhaseRoundOver it is refused as not awaited.
 func (g Game) DealNextRound() (Game, []play.Emitted, play.Option[play.Refusal]) {
 	if !g.next.OK {
 		return g, nil, notAwaited(play.CodeWrongPhase)
@@ -267,11 +245,6 @@ func (g Game) isCallFor(seat tile.Seat) bool {
 	return g.phase == play.PhasePlaying && prompt.OK && prompt.Value.IsPending(seat)
 }
 
-// LegalActions returns every action seat may take now, none for a seat that is not awaited. On a
-// turn the discards come first in hand order (in riichi only the drawn tile, right after a call
-// none of a kind kuikae forbids), then the riichi discards, tsumo, one closed kan per kind, one
-// added kan per pon and kyuushu; on a call prompt ron, open kan, one pon per look, one chi per
-// shape, then pass.
 func (g Game) LegalActions(seat tile.Seat) []play.Action {
 	if g.isCallFor(seat) {
 		return g.round.Prompt().Value.Offers(seat)
@@ -282,9 +255,6 @@ func (g Game) LegalActions(seat tile.Seat) []play.Action {
 	return g.round.TurnActions(seat, g.points.Score(seat))
 }
 
-// DefaultAction returns the action a timeout plays for seat: on a turn the drawn tile when it is
-// a legal discard, else the last legal discard; on a call prompt pass. False for a seat that is not
-// awaited.
 func (g Game) DefaultAction(seat tile.Seat) (play.Action, bool) {
 	if g.isCallFor(seat) {
 		return play.PassAction(), true
@@ -337,13 +307,6 @@ func (g Game) decisionContext() play.DecisionContext {
 	return play.TurnAfterCall{Kuikae: g.round.Kuikae()}
 }
 
-// Act applies one answer of seat and returns the game after it and the events it caused, each
-// furiten change it brought last. A refusal returns the receiver unchanged and no events: not
-// awaited outside a round in play or before its dealer's first draw, from a seat not awaited, for
-// a turn action while a call prompt is open and for a call answer outside one; not offered for a
-// tile the seat does not hold or an action it was not offered, a kan among them; rule for a riichi
-// discard that breaks tenpai, a discard in riichi other than the drawn tile and a discard kuikae
-// forbids.
 func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, play.Option[play.Refusal]) {
 	if g.phase != play.PhasePlaying || g.drawPending {
 		return g, nil, notAwaited(play.CodeWrongPhase)
@@ -442,10 +405,6 @@ func (g *Game) endGame(cause play.GameEndCause) play.Emitted {
 	return toAll(play.GameEnded{Standings: standings})
 }
 
-// SeatView returns what seat may see of the game now: its own hand, drawn tile, furiten and
-// decision, every seat's public table, the round's header (the ended round's while the game waits
-// on its end or is over, beside its result) and every finished round. It holds no other seat's
-// concealed tiles, decision, furiten or pending answer, and shares no slice with the game.
 func (g Game) SeatView(seat tile.Seat) play.SeatView {
 	decision, awaited := g.Decision(seat)
 	var drawn play.Option[tile.TileID]
@@ -495,18 +454,10 @@ func (g Game) SeatView(seat tile.Seat) play.SeatView {
 	}
 }
 
-// CheckOwnership checks that each of the 136 tiles is in exactly one place: the wall, a hand, a
-// meld or a river, a called tile counting in its discarder's river and not in the meld. The error
-// is a wall.MissingTileError or wall.TileInTwoPlacesError naming the lowest tile id at fault.
 func (g Game) CheckOwnership() error {
 	return g.round.CheckOwnership()
 }
 
-// CheckInvariants checks what every step of a game keeps: each tile in one place (see
-// CheckOwnership), the scores and riichi sticks adding up to the points the game started with,
-// and once the game is over final scores that add up to them too, points that sum to 0 and the
-// places 1 to 4. The first broken one is returned, in that order: an OwnershipError,
-// TablePointsError, FinalScoresError, FinalPointsError or PlacementsError.
 func (g Game) CheckInvariants() error {
 	if err := g.CheckOwnership(); err != nil {
 		return OwnershipError{Err: err}

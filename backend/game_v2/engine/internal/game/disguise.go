@@ -8,12 +8,6 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// Disguised returns action naming other physical copies of the same tiles: each tile a pon or chi
-// takes from seat's hand becomes one of the held copies that look the same, and the copy a closed
-// kan names one of its four, each chosen by pick, which returns an index below the count it is
-// given. Which copy a seat plays then says nothing of the copies it holds or the order it drew
-// them in. Any other action, and a pon or chi naming one tile twice or a tile seat does not hold,
-// is returned as it is, for the engine to refuse.
 func (g Game) Disguised(seat tile.Seat, action play.Action, pick func(n int) int) play.Action {
 	hand := g.round.Hand(seat)
 	if kind, isKan := action.Kan(); isKan {

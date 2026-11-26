@@ -179,10 +179,6 @@ func (g *game) begin(actor play.Option[tile.Seat]) error {
 	return g.followEngine(events, actor)
 }
 
-// SeatPlayers seats a game's players, given by name in input order, as the session seats them by
-// seating: shuffled, the n-th player at the n-th seat of the seed's seat permutation, or fixed, the
-// n-th player n seats after the seed's first dealer. It returns the game's roster, an AI player
-// named in each seat no player takes, and each player's seat in input order.
 func SeatPlayers(gameID string, names []string, seed engine.Seed, seating Seating) (messaging.Roster, []tile.Seat) {
 	seats := playerSeats(len(names), seed, seating)
 	roster := messaging.Roster{GameID: gameID}

@@ -7,13 +7,8 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// FuReason is what a reading scores fu for. FuBase is 20 for an open hand or a tsumo, 30 for a
-// closed ron and 25 for chiitoitsu; FuValuedPair is a pair of dragons, the seat wind or the round
-// wind, FuDoubleValuedPair a pair valued twice, such as East when East is both the seat and the
-// round wind; FuHandWithoutFu is an open hand won by ron with no other fu.
 type FuReason uint8
 
-// The fu reasons.
 const (
 	FuBase FuReason = iota
 	FuPenchan

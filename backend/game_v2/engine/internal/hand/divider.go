@@ -22,7 +22,6 @@ const (
 // SetShape is the shape of a concealed set.
 type SetShape uint8
 
-// The set shapes.
 const (
 	Sequence SetShape = iota
 	Triplet
@@ -77,9 +76,6 @@ func (d Decomposition) SevenPairs() ([sevenPairs]tile.Kind, bool) {
 	return d.pairs, d.sevenPairs
 }
 
-// KindSets returns every set of d as its kinds, the pair included, sorted by lowest kind and then
-// by shape: triplet, pair, sequence. A pair is [k, k], a triplet [k, k, k] and a sequence
-// [k, k+1, k+2].
 func (d Decomposition) KindSets() [][]tile.Kind {
 	blocks := d.blocks()
 	sets := make([][]tile.Kind, 0, blocks.len)
@@ -89,9 +85,6 @@ func (d Decomposition) KindSets() [][]tile.Kind {
 	return sets
 }
 
-// WinBlocks yields each distinct concealed block of d holding the winning kind once, in KindSets
-// order: the sequences from two and one kinds below, the triplet, the pair, then the sequence from
-// the winning kind. Seven pairs yields the pair of the winning kind.
 func (d Decomposition) WinBlocks(win tile.Kind) iter.Seq[WinBlock] {
 	return func(yield func(WinBlock) bool) {
 		for _, b := range d.winBlocks(win) {
@@ -221,12 +214,6 @@ func MeldSetsOf(melds []meld.Meld) MeldSets {
 	return sets
 }
 
-// Reading is one reading's sets with the declared melds' sets, as masks of kinds, kind 0 the
-// lowest bit. Sequences holds the first kind of every sequence and Triplets every triplet and
-// quad, concealed or declared; OpenTriplets the pons and kans declared open; Kans the declared
-// quads, open or closed. IdenticalSequencePairs counts the concealed sequences that repeat an
-// unpaired one: 1 is iipeikou, 2 ryanpeikou. A seven-pairs reading sets SevenPairs and leaves
-// every other field zero.
 type Reading struct {
 	SevenPairs             bool
 	Pair                   tile.Kind
@@ -274,15 +261,6 @@ func (ds *Decompositions) push(d Decomposition) {
 	ds.len++
 }
 
-// Divide returns every reading of the concealed tiles of a winning hand as sets and one pair, plus
-// seven pairs when the 14 tiles are seven different pairs. Pass the tiles outside the declared
-// melds, the winning tile included. Four of a kind reads as a triplet and one more tile; quads come
-// only from melds. A hand that does not divide, thirteen orphans included, gives no readings.
-//
-// The readings are sorted, each compared as the list KindSets gives, set by set: by lowest kind,
-// then by shape in the order triplet, pair, sequence.
-//
-// A WrongTileCountError when the tile count is not 2, 5, 8, 11 or 14.
 func Divide(concealed tile.Counts) (Decompositions, error) {
 	counts := concealed.Array()
 	count := total(counts)

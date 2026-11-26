@@ -6,9 +6,6 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 )
 
-// Clone returns a copy of r that shares no slice with it: its hand, every seat's river and melds
-// with their tiles, the dora indicators, and the round results of its result and history down to
-// every hand, meld and river they show. An empty slice of r is nil in the copy.
 func Clone(r play.SeatRecord) play.SeatRecord {
 	r.Hand = cloneSlice(r.Hand)
 	for i := range r.Players {

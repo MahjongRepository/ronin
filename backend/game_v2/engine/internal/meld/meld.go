@@ -1,6 +1,3 @@
-// Package meld holds the shapes of declared melds: tile groups called from another seat's
-// discard, or a concealed kan, built only from tiles that fit their kind. It reads the melds the
-// table sees as those shapes, and checks the hand and melds a rule helper is given.
 package meld
 
 import (
@@ -13,8 +10,6 @@ import (
 // Kind is what a meld is.
 type Kind uint8
 
-// The meld kinds. An open kan is called from a discard or added to a pon; a closed kan is declared
-// from four concealed tiles.
 const (
 	Chi Kind = iota
 	Pon

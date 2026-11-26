@@ -1,22 +1,3 @@
-// Command fixtures generates the fixtures the game client's tests and storybook read: the seat
-// transcripts, by playing the seat scenarios through the real session manager, message router and
-// engine on virtual time (what each named seat's client received, the game actions it sent, and
-// the sockets it opened and saw close); and the replay files, by playing the replay scenarios
-// through the engine and recording them as the session does (games dealt from a staged wall and
-// played seat by seat, games dealt from their seed and played by a fixed policy, and cuts of
-// those), each reproducing its game through the replay runner before it is written.
-//
-// Usage:
-//
-//	fixtures [-check] [-seat-scenarios dir] [-replays dir]
-//
-// The directories default to the game client's seat scenarios and replay fixtures, relative to
-// backend/game_v2. It writes every fixture and removes the ones no scenario produces; with -check
-// nothing is written, and it exits 1 naming each fixture that differs from what the server and the
-// engine produce now, is missing, or has no scenario. It exits 2 on a usage error, and 1 when a
-// scenario fails.
-//
-// Ported from ronin's Python seat scenario and replay fixture generators and their harnesses.
 package main
 
 import (

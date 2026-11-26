@@ -1,17 +1,3 @@
-// Package replay plays a replay this server wrote again through the engine: Load reads the seed,
-// the names and every seat's action out of its records, and Run plays those actions from a game
-// setup, so a caller can compare what the run emits with what the replay recorded.
-//
-// A replay records the engine's events, not the actions behind them. A discard and a declared meld
-// are their seat's actions; a round end names the winners, the seats whose ron lost to head bump,
-// the kyuushu declarer and the triple ron's declarers; every other answer to a call prompt was a
-// pass, which Run answers itself. A closed kan's record holds its four tiles but not the copy its
-// declarer named, which only a robbing ron's winning tile shows: Load names that copy for a
-// robbed closed kan and the lowest one for any other. A replay holds its seed and no wall, so a game dealt from fixed
-// walls plays again only from the same setup. Only a replay of this server's rules profile loads:
-// a game rewritten from an older format was scored under other rules and does not reproduce.
-//
-// Ported from ronin's Python replay loader and runner.
 package replay
 
 import (
@@ -27,10 +13,6 @@ import (
 
 const gameStartPosition = 2
 
-// Replay is a replay read for a run: its records as wire.DecodeReplay returned them, the version
-// record first; the seed its game start records; the name at each seat and whether an AI player
-// held it from the start; and every seat action its records imply, in play order, the passes left
-// out.
 type Replay struct {
 	Records []wire.Map
 	Seed    engine.Seed
@@ -60,10 +42,6 @@ func (e LoadError) Unwrap() error {
 	return e.Err
 }
 
-// Load reads a replay's content, uncompressed. It returns what wire.DecodeReplay refuses as that
-// error, and a LoadError for a replay whose second record is not the game start of this server's
-// rules (the hanchan, the shake256-v1 scheme, wire.RulesProfileID and a name at every seat), or
-// for a record after it that no replay of this server holds there.
 func Load(content []byte) (Replay, error) {
 	records, err := wire.DecodeReplay(content)
 	if err != nil {

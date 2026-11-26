@@ -27,10 +27,6 @@ const (
 	copySum          = 0 + 1 + 2 + 3
 )
 
-// Meld is a declared meld as the wire packs it (KeyPackedMeld, KeyMelds): Caller declared it,
-// Tiles are all of its tiles, Called the one taken from From's discard (for an added kan, the one
-// its pon took) and Added the tile an added kan raised its pon with. A closed kan has no Called and
-// no From; only an added kan has Added.
 type Meld struct {
 	Caller tile.Seat
 	Kind   play.MeldKind
@@ -40,7 +36,6 @@ type Meld struct {
 	Added  play.Option[tile.TileID]
 }
 
-// InvalidMeldError reports a Meld that is no meld of its Kind, so packs to no integer.
 type InvalidMeldError struct {
 	Reason string
 }
@@ -49,9 +44,6 @@ func (e InvalidMeldError) Error() string {
 	return "invalid meld: " + e.Reason
 }
 
-// PackMeld returns m as one integer, 0 to 27687: the meld's index within the range of its kind,
-// times four, plus the caller's seat. The tiles may come in any order; an InvalidMeldError when m
-// is no meld of its kind.
 func PackMeld(m Meld) (int, error) {
 	tiles := slices.SortedFunc(slices.Values(m.Tiles), tile.TileID.Compare)
 	if m.Added.OK && m.Kind != play.MeldAddedKan {
@@ -193,8 +185,6 @@ func copyOf(t tile.TileID) int {
 	return t.Index() % tile.CopiesPerKind
 }
 
-// UnpackMeld returns the meld PackMeld packed into packed, its tiles in ascending order; an
-// InvalidMeldError for a value outside 0 to 27687.
 func UnpackMeld(packed int) (Meld, error) {
 	if packed < 0 || packed >= meldIndexCount*tile.SeatCount {
 		return Meld{}, InvalidMeldError{Reason: "packed meld " + strconv.Itoa(packed) + " out of range"}

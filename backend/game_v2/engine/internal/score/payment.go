@@ -35,9 +35,6 @@ func RiichiSticksBonus(riichiSticks int) int {
 	return riichiSticks * rules.RiichiStickValue
 }
 
-// NagashiMangan returns the payment of a nagashi mangan by the player in seatWind: a mangan paid
-// as a tsumo. Tenhou settles it as a draw, in place of the tenpai payments, so honba and riichi
-// sticks stay on the table and are not in it.
 func NagashiMangan(seatWind tile.Wind) play.Payment {
 	shares := sharesOf(manganBase)
 	if seatWind == tile.East {

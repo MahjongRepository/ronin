@@ -31,11 +31,6 @@ type Dora struct {
 	UraIndicators []tile.Tile
 }
 
-// HandValue is the value of a winning hand's most expensive reading. Value counts the dora; Limit
-// is absent below mangan; Payment holds the honba; Total is what the winner gains, the payment
-// plus 1000 per riichi stick. Yaku is sorted by yaku id, the dora counted in Dora instead, which is
-// all 0 for a yakuman. FuDetails are unrounded, sorted by fu from most to least, and empty for
-// kokushi musou.
 type HandValue struct {
 	Value     play.Value
 	Limit     play.Option[play.Limit]
@@ -46,23 +41,6 @@ type HandValue struct {
 	FuDetails []FuDetail
 }
 
-// EstimateHandValue values a winning hand. The hand is split into every reading of its concealed
-// tiles plus the winning tile, each scored once per block the winning tile can complete, and the
-// most expensive is returned: the highest total, then a real yakuman over a counted one, then
-// more double-yakuman forms, then the given winning tile, then more han, then more fu, then more
-// unrounded fu, and on a full tie the first reading. Dora count from the indicators, red fives
-// from the tiles, and ura dora only with a riichi.
-//
-// A tenhou hand has no winning tile, so every kind in it is tried as the winning tile: another
-// kind replaces h.WinTile only when it pays more or names a double-yakuman form, so the payment
-// never depends on h.WinTile.
-//
-// The checks run in order and the first failure is returned: a WrongTileCountError, a
-// tile.TooManyCopiesError over the concealed tiles, the winning tile and the melds, then the
-// situation's OpenHandRiichiError, RinshanWithoutKanError, IppatsuWithRinshanError,
-// FirstTurnWithMeldError, FirstTurnSpecialWinError, FirstTurnWithRiichiError and
-// FirstTurnDealerRonError; then a NotWinningError when no reading wins, and a NoYakuError when
-// the most expensive reading has no yaku.
 func EstimateHandValue(h Hand, situation Situation, dora Dora, rules Rules) (HandValue, error) {
 	counts, err := countHand(h)
 	if err != nil {

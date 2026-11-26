@@ -21,9 +21,6 @@ const (
 	withdrawnTTL = 24 * time.Hour
 )
 
-// Manager is the registry of live games and connections. Its methods are safe for concurrent use;
-// each connection's own calls (Connect, Join, Reconnect, Resync, Act, Disconnect) come in the
-// order its socket read them.
 type Manager struct {
 	cfg      Config
 	storeCtx context.Context
@@ -170,9 +167,6 @@ func (m *Manager) PlayingGames() []StartedGame {
 	return games
 }
 
-// PlayingGame returns the game a user plays and their participant's ticket: a user plays a game
-// from its creation, pending included, until its end is claimed or Shutdown begins, connected or
-// not, so the lobby keeps them out of rooms and can hand them back their ticket.
 func (m *Manager) PlayingGame(userID string) (Playing, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -191,10 +185,6 @@ func (m *Manager) playingLocked(userID string) (Playing, bool) {
 	return Playing{}, false
 }
 
-// CreatePendingGame registers a pending game waiting for its players' JOIN_GAME, its pending
-// timeout armed, to seat them by seating once it starts. In one step it refuses a player already playing (ErrPlayerPlaying), a full
-// registry (ErrAtCapacity), a taken id (ErrGameExists), a withdrawn id (ErrGameWithdrawn), no
-// player or more than four (ErrPlayerCount), and any game once Shutdown began (ErrShuttingDown).
 func (m *Manager) CreatePendingGame(gameID string, players []PlayerSpec, seating Seating) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -235,10 +225,6 @@ func (m *Manager) anyPlayingLocked(players []PlayerSpec) bool {
 	return false
 }
 
-// WithdrawGame drops a game its creator gave up on, whether or not its creation has arrived, and
-// reports false when it keeps it: a game someone joined, or one already playing. A pending game
-// nobody joined is abandoned at once; the id is refused for a ticket's lifetime from then on, so
-// a creation that arrives after the withdrawal never registers.
 func (m *Manager) WithdrawGame(gameID string) bool {
 	for {
 		g, found := m.listedOrWithdrawn(gameID)
@@ -320,9 +306,6 @@ func (m *Manager) evictLocked(conn Connection) {
 	entry.authTimer()
 }
 
-// Join binds a connection to its participant in the connection's pending game, replacing the
-// connection the participant still has; the last expected join starts the game. A JOIN_GAME on a
-// connection the session already evicted is dropped unanswered.
 func (m *Manager) Join(conn Connection, ticket string) {
 	g, registered := m.pathGame(conn)
 	if !registered {
@@ -432,9 +415,6 @@ func (m *Manager) bindLocked(p *participant, entry *connEntry) Connection {
 	return replaced
 }
 
-// Act runs a game action of the participant a connection is bound to: a round confirmation goes
-// to the session's pause, any other action to the game. A connection bound to no participant is
-// answered not_in_game, and one the session evicted nothing.
 func (m *Manager) Act(conn Connection, message messaging.GameActionMessage) {
 	g := m.boundGame(conn)
 	if g == nil {
@@ -527,10 +507,6 @@ func (m *Manager) boundGame(conn Connection) *game {
 	return bound.game
 }
 
-// Disconnect evicts a closed connection and takes the participant bound to it out of its game: a
-// pending game waits for its new JOIN_GAME, and in a playing game an AI player takes the seat, or,
-// when nobody connected remains, the game is abandoned. The late disconnect of a connection the
-// session already evicted or replaced touches no one.
 func (m *Manager) Disconnect(conn Connection) {
 	p := m.evictBound(conn)
 	if p == nil {
@@ -541,21 +517,10 @@ func (m *Manager) Disconnect(conn Connection) {
 	})
 }
 
-// Settle waits until every game ran each step posted to it so far, every agent call a game made
-// returned and its answer ran as a step, and every game whose end was claimed ran its finalizer. It
-// is for a caller that is the only source of the session's work, such as a harness that drives the
-// session on a Clock whose timers it fires itself: a step posted from elsewhere while it waits races
-// it, and an agent call that waits holds it, on its ctx too, since the deadline that would end that
-// ctx fires only once the harness moves the Clock after Settle returns. Under such a harness the
-// agent must answer without waiting.
 func (m *Manager) Settle() {
 	m.inFlight.Wait()
 }
 
-// Shutdown stops the session once the server stopped serving: it refuses new games, cancels the
-// auth timeouts, empties the registry and lets every game it held vanish with no record, since a
-// graceful stop ends games only through each socket's disconnect, and waits for every game's
-// goroutine, finalizers and store writes included, until ctx is done.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	for _, g := range m.close() {
 		g.post(g.vanish)

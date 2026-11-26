@@ -1,14 +1,3 @@
-// Package server is the game server's transport: the lobby's REST routes, /health and /status,
-// and the WebSocket endpoint each client plays its game over.
-//
-// The server owns every socket: one goroutine reads it and hands each decoded, rate-limited
-// message to the session, one writes its queued sends in order, and one pings it. The session sees
-// a socket only as a session.Connection whose sends and close never wait on the client. A graceful
-// stop closes every socket with 1012 so each runs its disconnect, and only then shuts the session
-// down, so a game ends through its players' disconnects and its finalizer still runs.
-//
-// Ported from ronin's Python game server: its app, WebSocket endpoint, message router, socket
-// counters and settings, and the shared queued WebSocket and token bucket.
 package server
 
 import (
@@ -23,10 +12,6 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 )
 
-// SocketConfig is how the server serves each socket: its liveness ping and how long a pong may
-// take, how long one send may block before the socket is dropped, the message budget every frame
-// draws on (a rate per second over a burst), the far tighter budget of resync requests, and how
-// many undecodable frames in a row close the socket.
 type SocketConfig struct {
 	PingInterval    time.Duration
 	PingTimeout     time.Duration
@@ -38,9 +23,6 @@ type SocketConfig struct {
 	MaxDecodeErrors int
 }
 
-// DefaultSocketConfig returns the production socket settings: a ping every 20 s answered within
-// 20 s, a 10 s send deadline, 50 messages a second over a burst of 80, a resync every 5 s over a
-// burst of 2, and 5 undecodable frames in a row.
 func DefaultSocketConfig() SocketConfig {
 	return SocketConfig{
 		PingInterval:    20 * time.Second,
@@ -54,11 +36,6 @@ func DefaultSocketConfig() SocketConfig {
 	}
 }
 
-// Config is what a Server runs on. Session and Logger are required, and so are both secrets.
-// Replays is where the Tenhou export reads the stored replays; CORSOrigins are the origins whose
-// scripts may read the REST answers ("*" for any); Version and Commit are what /health and /status
-// report; Now is where the server reads the time its tickets, rate limits and process start are
-// taken at, time.Now when nil.
 type Config struct {
 	Session        *session.Manager
 	Replays        replayfile.Dir
@@ -72,7 +49,6 @@ type Config struct {
 	Now            func() time.Time
 }
 
-// ErrConfig is returned by New for a Config it cannot run on.
 var ErrConfig = errors.New("invalid server config")
 
 func (c Config) valid() bool {
@@ -141,10 +117,6 @@ func (s *Server) Handler() http.Handler {
 	return s.handler
 }
 
-// Shutdown stops the server once its HTTP server stopped taking connections: it refuses new
-// sockets, closes every open one with 1012 and waits until each ran its disconnect, and then shuts
-// the session down, which waits for the finalizers and store writes. When ctx ends first, the
-// sockets still open are dropped and the session is cut short.
 func (s *Server) Shutdown(ctx context.Context) error {
 	for _, conn := range s.stopServing() {
 		conn.closeForShutdown()

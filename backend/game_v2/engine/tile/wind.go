@@ -3,7 +3,6 @@ package tile
 // Wind is a seat or round wind.
 type Wind uint8
 
-// The four winds, in turn order.
 const (
 	East Wind = iota
 	South

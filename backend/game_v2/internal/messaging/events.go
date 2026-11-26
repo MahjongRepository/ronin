@@ -9,29 +9,17 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-// Roster is who plays a game, as its messages name them and the engine never does: the game's id,
-// each seat's name, and the seats AI players hold from the start, where no participant sits.
 type Roster struct {
 	GameID string
 	Names  [tile.SeatCount]string
 	AI     [tile.SeatCount]bool
 }
 
-// Table is what the messages of an engine call's events name beyond the events: the game's roster,
-// and a seat's record once the call's events are applied, from which a round end takes its round's
-// dealer, honba and dora indicators, and a game end its count of rounds and the riichi sticks left
-// over.
 type Table struct {
 	Roster Roster
 	Record play.SeatRecord
 }
 
-// EventPayload returns the message of one engine event, for the socket and the replay alike. A
-// draw carries no live wall count here (ReplayDrawPayload adds it for the replay); a game start
-// names no recipient (StampViewerSeat), and a replay's game start record adds what only a replay
-// keeps. table gives the Table after the event's call, and is asked for only by a game start, a
-// round end and a game end. The error is a wire.InvalidMeldError for a meld the engine cannot have
-// built.
 func EventPayload(event play.Event, table func() Table) (wire.Map, error) {
 	switch e := event.(type) {
 	case play.GameStarted:
@@ -68,7 +56,6 @@ func EventPayload(event play.Event, table func() Table) (wire.Map, error) {
 	return nil, errors.New("no event to shape")
 }
 
-// ReplayDrawPayload returns a draw's replay record: its message with the live tiles left after it.
 func ReplayDrawPayload(drew play.Drew, liveTiles int) wire.Map {
 	return wire.Map{
 		{Key: wire.KeyEventType, Value: wire.Int(wire.EventDraw)},
@@ -77,8 +64,6 @@ func ReplayDrawPayload(drew play.Drew, liveTiles int) wire.Map {
 	}
 }
 
-// ReplaySeatControlPayload returns the replay-only record of seat changing hands: an AI player
-// standing in for its participant for reason, or, without one, the participant taking it back.
 func ReplaySeatControlPayload(seat tile.Seat, reason play.Option[wire.SeatControlReason]) wire.Map {
 	record := eventMap(wire.EventSeatControl, wire.KeySeat, seatValue(seat))
 	if !reason.OK {
@@ -242,9 +227,6 @@ func packMelds(caller tile.Seat, views []play.MeldView) (wire.Array, error) {
 	return packed, nil
 }
 
-// ReplayGameStartedPayload returns the game start's replay record: its message plus what only a
-// replay keeps of the start, the aka dora flag, the seed, the randomness scheme and the rules
-// envelope.
 func ReplayGameStartedPayload(e play.GameStarted, roster Roster, seed engine.Seed) wire.Map {
 	return append(gameStartedPayload(e, roster),
 		wire.Field{Key: wire.KeyHasAkadora, Value: wire.Bool(true)},
@@ -253,9 +235,6 @@ func ReplayGameStartedPayload(e play.GameStarted, roster Roster, seed engine.See
 		wire.Field{Key: wire.KeyGameSettings, Value: wire.ReplaySettings()})
 }
 
-// ReplayRoundStartedPayload returns the one replay record of a deal from its per-seat events: the
-// first event's message with every seat's hand beside its score (wire.KeyTiles), naming no seat
-// and no hand of its own. A seat without an event shows no hand.
 func ReplayRoundStartedPayload(dealt []play.RoundStarted) wire.Map {
 	if len(dealt) == 0 {
 		return nil

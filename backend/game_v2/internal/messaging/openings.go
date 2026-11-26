@@ -9,19 +9,12 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-// Opening is the message that opens one seat's decision, built from the decision alone
-// (BuildOpening), for the live wait and its re-send on a reconnect alike; the session stamps it
-// with the seat's wait id and bank (StampOpening). ReplacesDraw marks a turn after a draw, whose
-// opening is the seat's draw itself, with its offers.
 type Opening struct {
 	Seat         tile.Seat
 	Payload      wire.Map
 	ReplacesDraw bool
 }
 
-// BuildOpening returns the opening of a decision: for a turn after a draw the seat's draw, naming
-// what it offers besides a discard (wire.KeyAvailableActions, only when it offers any); for a turn
-// after the seat's own chi or pon the kinds kuikae forbids it to discard; for a call its prompt.
 func BuildOpening(decision play.Decision) Opening {
 	switch context := decision.Context.(type) {
 	case play.TurnAfterDraw:
@@ -151,17 +144,11 @@ func availableCalls(legal []play.Action) wire.Array {
 	return calls
 }
 
-// Placed is one item of an engine call's output in the order each seat gets it: the opening of a
-// decision when Opening holds one, else the engine event Event.
 type Placed struct {
 	Event   play.Emitted
 	Opening play.Option[Opening]
 }
 
-// PlaceOpenings returns an engine call's events with the openings of the decisions it opened in
-// place, so each seat gets its messages in the engine's order: a turn after a draw opens on the
-// seat's draw, which its opening replaces, and on nothing when the events hold no draw to that
-// seat; every other opening goes after the call's events, in the order given.
 func PlaceOpenings(events []play.Emitted, openings []Opening) iter.Seq[Placed] {
 	return func(yield func(Placed) bool) {
 		var draws [tile.SeatCount]play.Option[Opening]
@@ -188,9 +175,6 @@ func PlaceOpenings(events []play.Emitted, openings []Opening) iter.Seq[Placed] {
 	}
 }
 
-// StampOpening returns a copy of an opening's payload stamped for its recipient: how long, in
-// seconds, its timer has run when it is re-sent, its wait id, and the bank its timer starts with.
-// The replay never sees these.
 func StampOpening(payload wire.Map, waitID int, bank Seconds, elapsed play.Option[float64]) wire.Map {
 	stamps := []wire.Field{
 		{Key: wire.KeyWaitElapsed, Value: wire.Float(elapsed.Value)},

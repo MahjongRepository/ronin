@@ -62,9 +62,6 @@ func (e DuplicateTileError) Error() string {
 	return "tile " + strconv.Itoa(e.Tile.Index()) + " is held twice"
 }
 
-// CheckHandInput returns a MisfitMeldError for the first meld that does not fit its kind, then a
-// DuplicateTileError for the first tile id held twice among hand and the tiles of melds, in that
-// order; nil when neither holds.
 func CheckHandInput(hand []tile.TileID, melds []play.MeldView) error {
 	for index, view := range melds {
 		if _, ok := FromView(view); !ok {

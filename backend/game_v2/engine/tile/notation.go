@@ -7,12 +7,8 @@ import (
 )
 
 // ParseTiles parses mpsz notation such as "123m406p11z" into tiles, in the order written. Ranks
-// come before their suit letter: m (man), p (pin), s (sou), z or h (honors, 1 to 7 for East
-// through Chun); 0 or r in a suit is its red five. Any number of copies of a tile is accepted.
-//
-// The error is an InvalidCharacterError for a character that is neither a rank nor a suit letter,
-// or 0 and r among honors; a TileOutOfRangeError for an honor rank of 8 or 9; a MissingSuitError
-// when the string ends in ranks.
+// come before their suit letter: m, p, s, z or h (honors, 1 to 7 for East through Chun); 0 or r in
+// a suit is its red five. Any number of copies of a tile is accepted.
 func ParseTiles(mpsz string) ([]Tile, error) {
 	tiles := make([]Tile, 0, len(mpsz))
 	var ranks []rune

@@ -7,13 +7,6 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-// ReconnectionPayload returns the reconnect snapshot of a seat, built from its view's record
-// alone, plus the roster and the reason an AI player stands in for each seat's participant, by
-// seat. A seat an AI player held from the start is marked by the roster instead. The round shown
-// is the one in play, or the one that ended while the game waits on its end, with its result in
-// a round end's shape (wire.KeyRoundResult); the seat of the round's latest discard is absent
-// before its first discard and once a call claimed it. GameReconnected wraps it for the socket.
-// The error is a wire.InvalidMeldError for a meld the engine cannot have built.
 func ReconnectionPayload(
 	record play.SeatRecord, roster Roster, standIns [tile.SeatCount]play.Option[wire.SeatControlReason],
 ) (wire.Map, error) {

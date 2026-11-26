@@ -5,8 +5,6 @@ import "github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 // CallSource is what a call prompt offers a tile from.
 type CallSource uint8
 
-// The call sources: a discard, the tile an added kan adds, which a chankan may rob, or a closed
-// kan, which only a thirteen orphans hand may rob.
 const (
 	SourceDiscard CallSource = iota
 	SourceAddedKan

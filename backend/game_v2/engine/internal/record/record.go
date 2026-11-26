@@ -1,18 +1,3 @@
-// Package record keeps a seat's record of the game: the facts of the table as one seat knows
-// them, kept up from the events visible to it alone.
-//
-// FromStart is a test oracle with no production caller, and Apply has one, the facade's Follow, for
-// a record that trails the game by some events; the parity tests check both: they build each
-// seat's play.SeatRecord with FromStart from the events game.New returned, or take the one of a
-// seat view as a reconnect would, fold every later event it sees through Apply, and compare it with
-// the game's seat view after every batch, so the events a seat sees carry everything its view shows.
-// Clone and CloneResult are the production part: the game's seat view and the facade's events hand
-// out copies made with them.
-//
-// A record is a value: Apply returns the record after the event and leaves the one it was given
-// as it was, every slice it changes replaced rather than written in place, and it keeps its own
-// copy of every slice it takes from an event. Clone gives a record that shares no slice with
-// the one it copies.
 package record
 
 import (

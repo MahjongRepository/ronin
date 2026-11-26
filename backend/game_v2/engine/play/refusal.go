@@ -7,14 +7,13 @@ import "strconv"
 // offered; or a call in the wrong phase, or an action from a seat the engine is not waiting on.
 type RefusalKind uint8
 
-// The refusal kinds.
 const (
 	RefusalRule RefusalKind = iota
 	RefusalNotOffered
 	RefusalNotAwaited
 )
 
-// String returns k's identifier: "rule", "not_offered" or "not_awaited".
+// String returns k's snake_case identifier.
 func (k RefusalKind) String() string {
 	switch k {
 	case RefusalRule:
@@ -28,15 +27,9 @@ func (k RefusalKind) String() string {
 	}
 }
 
-// RefusalCode is what exactly a Refusal refused: the seat does not hold the tile; it was not
-// offered the action; the game is not in a phase that takes the call; the engine is not waiting on
-// the seat; the seat has already answered the pending prompt; a seat in riichi may discard only the
-// tile it drew; the riichi discard leaves the hand not tenpai; or kuikae forbids the discard, right
-// after the seat's own call, of the called kind or after a chi of the kind at the other end of the
-// sequence.
+// RefusalCode is what exactly a Refusal refused.
 type RefusalCode uint8
 
-// The refusal codes.
 const (
 	CodeTileNotHeld RefusalCode = iota
 	CodeNotOffered
@@ -48,9 +41,7 @@ const (
 	CodeKuikae
 )
 
-// String returns c's identifier: "tile_not_held", "not_offered", "wrong_phase",
-// "seat_not_awaited", "already_answered", "riichi_drawn_tile_only", "riichi_breaks_tenpai" or
-// "kuikae".
+// String returns c's snake_case identifier.
 func (c RefusalCode) String() string {
 	switch c {
 	case CodeTileNotHeld:

@@ -45,11 +45,8 @@ const (
 	endError     endReason = "error"
 )
 
-// ErrUnknownSeat is returned for a placement whose seat the game's start has no player for.
 var ErrUnknownSeat = errors.New("placement seat has no player at the game's start")
 
-// ErrGameRecorded is returned for a start whose game id already has a row: the row is the id's
-// claim, so the first start keeps it.
 var ErrGameRecorded = errors.New("game already recorded")
 
 const (
@@ -64,8 +61,6 @@ const (
 	closeUnfinishedColumnsSQL = "UPDATE played_games SET ended_at = ?, end_reason = ? WHERE id = ? AND ended_at IS NULL"
 )
 
-// FinalScoreUnit marks a row's `data` as holding final scores in tenths: every row this package
-// writes ends with it, and a row without it holds the Python server's whole points.
 const FinalScoreUnit = "tenths"
 
 type playedGameJSON struct {
@@ -143,11 +138,6 @@ func (db *DB) RecordFailed(ctx context.Context, start GameStart, endedAt time.Ti
 	return db.recordFinish(ctx, start, finish{endedAt, endError}, nil, seatOrderStandings(start))
 }
 
-// CloseUnfinished finishes every row with no end yet, one a game server left when it stopped before
-// its game's finish, as RecordFailed would for that game's start at endedAt. A row whose `data` is
-// not the JSON this package writes gets only its end columns, with a warning. It returns how many
-// rows it closed. It closes the live games of any other server writing the same database, so it
-// runs only while this server is that database's one writer.
 func (db *DB) CloseUnfinished(ctx context.Context, endedAt time.Time) (int, error) {
 	rows, err := storedRows(ctx, db.conn, selectUnfinishedSQL)
 	if err != nil {

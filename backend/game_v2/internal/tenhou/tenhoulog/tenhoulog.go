@@ -1,14 +1,3 @@
-// Package tenhoulog checks the engine's hand scoring against real Tenhou wins. A Win is one AGARI
-// of a Tenhou log, one line of an agari-000NN.jsonl shard unpacked from the 2025 phoenix-room
-// logs, Rounds groups the wins of one round, and Compare settles a round's wins through the
-// engine's SettleTsumo or SettleRon and lists where the engine and Tenhou disagree: han and fu, the
-// yaku, the limit, the points and every seat's score change.
-//
-// The tests check the comparison on hands made up for them, and no Tenhou log is committed. The
-// corpus, local only, runs behind the tenhou build tag. It reads the shards from the directory
-// TENHOU_AGARI_DIR names, which it requires, and TENHOU_MAX_LOGS caps how many logs it reads:
-//
-//	cd backend/game_v2 && TENHOU_AGARI_DIR=<shard dir> TENHOU_MAX_LOGS=200 mise exec -- go test -tags tenhou ./internal/tenhou/tenhoulog -run WholeTenhouCorpus -v
 package tenhoulog
 
 import (
@@ -36,11 +25,6 @@ type Meld struct {
 	Tiles []int  `json:"tiles"`
 }
 
-// Win is one AGARI of a Tenhou log, RoundIndex counting the log's rounds from 0. Seats count from
-// the log's first dealer; Honba and RiichiSticks are the table's; Closed holds the
-// winning tile; Yaku pairs a Tenhou yaku id with its han, Yakuman lists the Tenhou yakuman ids
-// instead; Points is the hand's price without honba or riichi sticks; Pao is the seat liable for
-// the yakuman, nil without one; IsFirstAgari is false for the later wins of a multiple ron.
 type Win struct {
 	ID             string   `json:"id"`
 	LogID          string   `json:"log_id"`
@@ -72,8 +56,6 @@ type Win struct {
 // Check names what a Mismatch compares.
 type Check string
 
-// The checks. CheckInput is a Win the engine cannot take as a hand, CheckScore a hand it refuses
-// to score; the rest compare the engine's value with Tenhou's.
 const (
 	CheckInput  Check = "input"
 	CheckScore  Check = "score"
@@ -139,10 +121,6 @@ func Rounds(r io.Reader) iter.Seq2[[]Win, error] {
 	}
 }
 
-// Compare settles the wins of one round by the engine's rules, a tsumo alone or the wins of one
-// ron in Tenhou's order, and returns every check on which the engine and Tenhou disagree, none
-// when they agree. A round the engine cannot take, a win scored without aka dora or kuitan
-// included, is a CheckInput mismatch, and one it refuses to settle a CheckScore mismatch.
 func Compare(round []Win) []Mismatch {
 	ids := make([]string, len(round))
 	for i, win := range round {

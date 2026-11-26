@@ -41,12 +41,9 @@ func (v Yakuman) String() string {
 	return strconv.Itoa(v.Count) + "x yakuman"
 }
 
-// Limit is one of the fixed payments from mangan up: mangan (5 han, fewer han whose base points
-// reach the mangan cap, or with kiriage 4 han 30 fu and 3 han 60 fu), haneman (6-7 han), baiman
-// (8-10 han), sanbaiman (11-12 han) and yakuman (13 han and up, or any number of yakuman).
+// Limit is one of the fixed payments from mangan up.
 type Limit uint8
 
-// The limits.
 const (
 	LimitMangan Limit = iota
 	LimitHaneman

@@ -8,12 +8,9 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-// ClientMessageType is what a client's message asks, the value of wire.KeyEventType in it. A code
-// is never renumbered or reused.
+// A code is never renumbered or reused.
 type ClientMessageType uint8
 
-// The client message types. A ping is answered before any routing, so ParseClientMessage refuses
-// it as it refuses any other unknown type.
 const (
 	ClientGameAction ClientMessageType = 3
 	ClientReconnect  ClientMessageType = 6
@@ -22,11 +19,9 @@ const (
 	ClientPing       ClientMessageType = 9
 )
 
-// GameAction is a game action's code, the value of wire.KeyAction. A code is never renumbered or
-// reused.
+// A code is never renumbered or reused.
 type GameAction uint8
 
-// The game actions.
 const (
 	GameActionDiscard      GameAction = 0
 	GameActionRiichi       GameAction = 1
@@ -42,17 +37,11 @@ const (
 
 const maxTicketLength = 2000
 
-// ClientMessage is a message a client sent, parsed: GameActionMessage, ReconnectMessage,
-// JoinGameMessage or ResyncMessage.
-//
 //sumtype:decl
 type ClientMessage interface {
 	isClientMessage()
 }
 
-// GameActionMessage is a game action, echoing the id of the wait it answers. Play is the engine
-// action it asks for, absent for a round confirmation, which is the session's. Called is the tile
-// a pon, chi or open kan names as the one it calls, which the engine action does not carry.
 type GameActionMessage struct {
 	Action GameAction
 	WaitID int
@@ -60,18 +49,14 @@ type GameActionMessage struct {
 	Called play.Option[tile.TileID]
 }
 
-// ReconnectMessage asks to take back the seat its game ticket names.
 type ReconnectMessage struct {
 	Ticket string
 }
 
-// JoinGameMessage asks to join the game its game ticket names.
 type JoinGameMessage struct {
 	Ticket string
 }
 
-// ResyncMessage asks, on the connection that holds a seat, for the seat's snapshot and its pending
-// wait again.
 type ResyncMessage struct{}
 
 func (GameActionMessage) isClientMessage() {}
@@ -79,8 +64,6 @@ func (ReconnectMessage) isClientMessage()  {}
 func (JoinGameMessage) isClientMessage()   {}
 func (ResyncMessage) isClientMessage()     {}
 
-// InvalidMessageError reports a client message that names no known type or action, or lacks a
-// field its action needs, or holds one of the wrong type or out of range.
 type InvalidMessageError struct {
 	Reason string
 }
@@ -89,11 +72,6 @@ func (e InvalidMessageError) Error() string {
 	return "invalid client message: " + e.Reason
 }
 
-// ParseClientMessage reads a decoded client message. A game action needs a wait id of 0 or more;
-// a discard, riichi, pon, chi or kan a tile id; a pon or chi its two held tiles
-// (wire.KeySequenceTiles); a kan its kan type ("open", "closed" or "added"); a reconnect or join
-// a game ticket of 1 to 2000 characters. Fields an action does not use are ignored. A boolean or a
-// float is never an integer. An InvalidMessageError otherwise.
 func ParseClientMessage(m wire.Map) (ClientMessage, error) {
 	typ, ok := m.Int(wire.KeyEventType)
 	switch {
@@ -113,8 +91,6 @@ func ParseClientMessage(m wire.Map) (ClientMessage, error) {
 	return nil, InvalidMessageError{Reason: "unknown message type"}
 }
 
-// RefusedWaitID returns the wait id a decoded game action echoes; false for any other message, or
-// an id that is not an integer of 0 or more.
 func RefusedWaitID(m wire.Map) (int, bool) {
 	typ, isInt := m.Int(wire.KeyEventType)
 	waitID, ok := m.Int(wire.KeyWaitID)

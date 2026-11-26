@@ -7,11 +7,8 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-// GameErrorCode is why a seat's game action was refused, the value of wire.KeyGameErrorCode; the
-// action changed nothing.
 type GameErrorCode string
 
-// The game error codes.
 const (
 	GameNotYourTurn    GameErrorCode = "not_your_turn"
 	GameInvalidDiscard GameErrorCode = "invalid_discard"
@@ -25,15 +22,12 @@ const (
 	GameStaleAction    GameErrorCode = "stale_action"
 )
 
-// GameError is the error message to a seat whose game action was refused, naming the wait id that
-// action echoed, never the current wait's.
 type GameError struct {
 	Code    GameErrorCode
 	Message string
 	WaitID  int
 }
 
-// Payload returns e as its message.
 func (e GameError) Payload() wire.Map {
 	return wire.Map{
 		{Key: wire.KeyEventType, Value: wire.Int(wire.EventError)},
@@ -43,12 +37,6 @@ func (e GameError) Payload() wire.Map {
 	}
 }
 
-// RefusalError returns the game error answering action, which the engine refused, so the client
-// never reads the engine's refusal codes: a round not in play is an invalid action; a seat the
-// engine does not await gets "not your turn" for a turn action and the action's own invalid code
-// for a call answer or pass; a discard kuikae or riichi forbids, or a riichi discard that breaks
-// tenpai, names its tile. False for any other refusal, input no client builds (a tile not held, an
-// action not offered), which the session treats as a protocol violation.
 func RefusalError(action play.Action, refusal play.Refusal, waitID int) (GameError, bool) {
 	refused := GameError{WaitID: waitID}
 	switch {
@@ -85,14 +73,10 @@ func ruleError(action play.Action, refusal play.Refusal, refused GameError) (Gam
 	return refused, true
 }
 
-// CalledTileMismatch returns the game error answering a pon, chi or open kan whose called tile is
-// not the open call's: the answer's own invalid code.
 func CalledTileMismatch(action play.Action, waitID int) GameError {
 	return GameError{Code: invalidCode(action), Message: "tile_id mismatch", WaitID: waitID}
 }
 
-// StaleAction returns the game error answering an action or a confirmation for a decision that is
-// not the seat's current one.
 func StaleAction(waitID int) GameError {
 	return GameError{Code: GameStaleAction, Message: "the wait this action answers has already ended", WaitID: waitID}
 }

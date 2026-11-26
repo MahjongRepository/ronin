@@ -6,20 +6,14 @@ import (
 	"strconv"
 )
 
-// ReplayVersion is the replay format a replay's first record names. It follows 0.4-dev, whose
-// files a one-off rewrite brings to this version.
 const ReplayVersion = "0.5-dev"
 
-// ReplaySeedBytes is the size of the seed a replay's game start records, as binary data.
 const ReplaySeedBytes = 96
 
-// MaxReplayBytes is the largest replay DecodeReplay reads.
 const MaxReplayBytes = 16 * 1024 * 1024
 
-// MigratedRulesProfileID is the rules profile every replay rewritten from 0.4-dev was played under.
 const MigratedRulesProfileID = 1
 
-// RulesProfileID is the rules profile this server plays, the only other a rules envelope may name.
 const RulesProfileID = 2
 
 var replayKeys = keySet(func(k Key) bool {
@@ -33,14 +27,10 @@ var replayProfile = profile{
 }
 
 var (
-	// ErrNoVersionRecord reports a replay without records, so without its version record.
 	ErrNoVersionRecord = errors.New("replay is missing its version record")
-	// ErrReplayTooLarge reports content above MaxReplayBytes.
-	ErrReplayTooLarge = errors.New("replay exceeds " + strconv.Itoa(MaxReplayBytes) + " bytes")
+	ErrReplayTooLarge  = errors.New("replay exceeds " + strconv.Itoa(MaxReplayBytes) + " bytes")
 )
 
-// ReplayError reports the record a replay breaks at, counted from 1, and the byte offset it starts
-// at; Incomplete when the content ends inside it.
 type ReplayError struct {
 	Record     int
 	Offset     int
@@ -60,8 +50,6 @@ func (e ReplayError) Unwrap() error {
 	return e.Err
 }
 
-// UnsupportedVersionError reports a first record that is not the version record of ReplayVersion;
-// Version is the value it holds under KeyReplayVersion, nil when it holds none.
 type UnsupportedVersionError struct {
 	Version Value
 }
@@ -73,22 +61,14 @@ func (e UnsupportedVersionError) Error() string {
 	return "the first record is no version record"
 }
 
-// ReplaySettings returns the rules envelope a replay of this server records: RulesProfileID with
-// no overrides.
 func ReplaySettings() StrMap {
 	return StrMap{{Key: "id", Value: Int(RulesProfileID)}, {Key: "overrides", Value: StrMap{}}}
 }
 
-// VersionRecord returns a replay's first record, naming ReplayVersion.
 func VersionRecord() Map {
 	return Map{{Key: KeyReplayVersion, Value: Str(ReplayVersion)}}
 }
 
-// EncodeReplay returns records as a replay: each record one MessagePack map, back to back, the
-// first the VersionRecord. Every other record must be an event a replay records, holding the
-// fields its type requires, each of its type; no float, no binary data but a seed of
-// ReplaySeedBytes and no key outside the replay's. A refused record comes back as a ReplayError
-// whose Offset is where it would have started.
 func EncodeReplay(records []Map) ([]byte, error) {
 	if len(records) == 0 {
 		return nil, ErrNoVersionRecord
@@ -105,11 +85,6 @@ func EncodeReplay(records []Map) ([]byte, error) {
 	return content, nil
 }
 
-// EncodeObserverRecords returns the records an observer of a live game is sent: each record one
-// MessagePack map, back to back, the VersionRecord first when withVersion. Every record must be an
-// event a replay records, checked as EncodeReplay checks it, except that no record may hold a seed,
-// the game start included. A refused record comes back as a ReplayError counting records from 1,
-// the VersionRecord not among them, whose Offset is where it would have started.
 func EncodeObserverRecords(records []Map, withVersion bool) ([]byte, error) {
 	var content []byte
 	if withVersion {
@@ -125,15 +100,10 @@ func EncodeObserverRecords(records []Map, withVersion bool) ([]byte, error) {
 	return content, nil
 }
 
-// EncodeStrMap returns m as one MessagePack map with string keys, each value written as a replay
-// record's is.
 func EncodeStrMap(m StrMap) []byte {
 	return appendValue(nil, m)
 }
 
-// DecodeStrMap reads one MessagePack map with string keys, as EncodeStrMap writes it, every map in
-// it string-keyed too, with DecodeReplay's limits but binary data up to MaxReplayBytes; content
-// past the map is refused.
 func DecodeStrMap(content []byte) (StrMap, error) {
 	d := decoder{data: content, limits: limits{
 		str:   replayProfile.limits.str,
@@ -152,12 +122,6 @@ func DecodeStrMap(content []byte) (StrMap, error) {
 	return m, nil
 }
 
-// DecodeReplay reads a replay EncodeReplay wrote, refusing what it refuses, any extension type, a
-// string or array over 4096, a map over 128 entries, binary data over ReplaySeedBytes, and content
-// above MaxReplayBytes (ErrReplayTooLarge) or with no record (ErrNoVersionRecord); EncodeReplay
-// applies none of these limits. A
-// record it cannot read comes back as a ReplayError; a first record of another version as one
-// wrapping an UnsupportedVersionError.
 func DecodeReplay(content []byte) ([]Map, error) {
 	records, err := decodeRecords(content, validateRecord)
 	if err != nil {
@@ -166,11 +130,6 @@ func DecodeReplay(content []byte) ([]Map, error) {
 	return records, nil
 }
 
-// DecodeRecords reads the records of a replay of any version, 0.4-dev included: each a map of
-// replay keys, read with DecodeReplay's limits, holding no float and binary data only as a seed,
-// with neither the version record nor the record schema checked. A record it cannot read ends the
-// read, and the records before it come back with the ReplayError; content above MaxReplayBytes is
-// ErrReplayTooLarge, and content with no record ErrNoVersionRecord.
 func DecodeRecords(content []byte) ([]Map, error) {
 	return decodeRecords(content, func(record Map, _ int) error {
 		return replayProfile.validate(record, 0)

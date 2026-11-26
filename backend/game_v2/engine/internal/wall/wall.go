@@ -1,11 +1,3 @@
-// Package wall holds the wall of a round by role: the live wall in draw order, and the dead
-// wall's rinshan tiles, dora indicator stacks and reserve.
-//
-// The 136 tiles lie in a ring of 68 two-tile stacks, 17 in front of each seat. The dice pick the
-// break; the seven stacks from the break are the dead wall, two rinshan stacks then five
-// indicator stacks, each showing a dora indicator on top with its ura dora indicator beneath. The
-// live wall starts at the stack before the break and runs away from it. A rinshan draw moves the
-// last live tile into the reserve, so the dead wall always holds 14 tiles.
 package wall
 
 import (
@@ -26,13 +18,10 @@ const (
 	dealtTiles      = tile.SeatCount * StartingHandSize
 )
 
-// LiveWallSize is the live wall before the deal: the 136 tiles less the dead wall's 14.
 const LiveWallSize = tile.TileIDCount - 2*deadWallStacks
 
-// StartingHandSize is the number of tiles the deal gives each seat.
 const StartingHandSize = 13
 
-// LiveTilesAtDeal is the live wall once the hands are dealt: 122 tiles less the 52 dealt.
 const LiveTilesAtDeal = LiveWallSize - dealtTiles
 
 // Stack is one stack of the dead wall: Top lies over Bottom. Top is a rinshan tile drawn first or a
@@ -41,10 +30,6 @@ type Stack struct {
 	Top, Bottom tile.TileID
 }
 
-// Wall is the wall of one round, a value: copying it copies every tile. Every tile it owns is in
-// exactly one role. The live wall is held whole in its draw order: the deal and the draws take
-// from its front, and a rinshan draw moves its back tile into the reserve, so the reserve is the
-// live wall's tail in reverse and holds one tile per rinshan tile drawn.
 type Wall struct {
 	live       [LiveWallSize]tile.TileID
 	drawn      int
@@ -122,10 +107,6 @@ func FromShuffle(shuffled [tile.TileIDCount]tile.TileID, dice tile.Dice, dealer 
 	return fromParts(live, dead, dice)
 }
 
-// FromTiles returns a wall in an explicit order, as ronin's tests and replays give it: the first
-// 122 tiles are the live wall in draw order, the last 14 the dead wall's stacks from the break,
-// the 7 tops then the 7 bottoms. The dice are (1, 1). A DuplicateTileError names the first tile
-// listed twice.
 func FromTiles(tiles [tile.TileIDCount]tile.TileID) (Wall, error) {
 	var seen [tile.TileIDCount]bool
 	for _, id := range tiles {
@@ -153,10 +134,6 @@ func fromParts(live [LiveWallSize]tile.TileID, dead [deadWallStacks]Stack, dice 
 	}
 }
 
-// Deal deals the starting hands from the front of the live wall: three blocks of four tiles to
-// each seat from dealer, then one each. The hands are by seat, each sorted by id. A round deals
-// once, on a wall fresh from its constructor: Deal always deals the first 52 tiles the live wall
-// was built with and leaves the draws to start after them.
 func (w *Wall) Deal(dealer tile.Seat) [tile.SeatCount][StartingHandSize]tile.TileID {
 	var hands [tile.SeatCount][StartingHandSize]tile.TileID
 	var held [tile.SeatCount]int
@@ -188,9 +165,6 @@ func (w *Wall) Draw() (tile.TileID, bool) {
 	return w.live[w.drawn-1], true
 }
 
-// DrawRinshan draws the next rinshan tile and moves the last live tile into the reserve. A
-// RinshanExhaustedError after four rinshan draws, and a LiveWallEmptyError when no live tile is
-// left to move.
 func (w *Wall) DrawRinshan() (tile.TileID, error) {
 	if w.reserved == rinshanTiles {
 		return tile.TileID{}, RinshanExhaustedError{}

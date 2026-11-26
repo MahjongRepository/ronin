@@ -59,9 +59,6 @@ func IsFourKans(kans [tile.SeatCount]int) bool {
 	return rules.Suukaikan && totalKans(kans) >= rules.MaxKans && declaring >= rules.MinPlayersForKanAbort
 }
 
-// CheckedKanOffers returns KanOffers for a hand and melds given from outside the engine; a
-// meld.MisfitMeldError for the first meld that does not fit its kind, else a
-// meld.DuplicateTileError for the first tile id held twice among hand and the melds' tiles.
 func CheckedKanOffers(
 	hand []tile.TileID, melds []play.MeldView, drawn tile.TileID, inRiichi bool,
 	kans [tile.SeatCount]int, liveTiles int,
@@ -72,10 +69,6 @@ func CheckedKanOffers(
 	return KanOffers(hand, melds, drawn, inRiichi, kans, liveTiles), nil
 }
 
-// KanOffers returns the closed kans, then the added kans, a seat may declare after drawing drawn,
-// its hand holding the drawn tile, beside the kans of each seat, 0 or more. A closed kan names
-// the first held copy of its kind, an added kan the held fourth copy of its pon. In riichi only a
-// closed kan of the drawn kind that keeps the waits.
 func KanOffers(
 	hand []tile.TileID, melds []play.MeldView, drawn tile.TileID, inRiichi bool,
 	kans [tile.SeatCount]int, liveTiles int,

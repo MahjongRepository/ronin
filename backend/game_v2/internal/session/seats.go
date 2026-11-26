@@ -8,14 +8,6 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-// Reconnect binds a connection to the participant of a playing game its verified ticket names and
-// sends it the seat's state. A participant who left takes its seat back from its AI player: the
-// others get seat_control, and a turn the AI player had not played yet becomes the participant's
-// new decision: one the seat left running keeps its original deadline and bank, any other is
-// timed from the reconnect. A participant still bound to a connection has that connection
-// replaced instead, closed with 4002, and its wait, timers and bank carry on.
-// A ticket of no live game, of another game than the connection's, of a pending game or a
-// connection already bound is answered why; a connection the session evicted, nothing.
 func (m *Manager) Reconnect(conn Connection, ticket string) {
 	g, refused, registered := m.reconnecting(conn, ticket)
 	switch {
@@ -35,10 +27,6 @@ func (m *Manager) Reconnect(conn Connection, ticket string) {
 
 const noLiveGame = "No live game for this ticket"
 
-// Resync sends the participant a connection is bound to its seat's state again, as a reconnect
-// does, on the same connection: nothing changes hands and nobody else hears of it, and the wait,
-// its timers and the bank carry on. A connection bound to no participant is answered not_in_game,
-// one the session evicted nothing, and a pending game game_not_started.
 func (m *Manager) Resync(conn Connection) {
 	g := m.boundGame(conn)
 	if g == nil {

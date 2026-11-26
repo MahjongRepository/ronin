@@ -1,19 +1,3 @@
-// Command measurewall measures the wall generator: it samples games from the engine's own seed,
-// dealer and wall functions and compares what comes out with exact references (tile by position,
-// dice, first dealer, seats, hand composition) and, for starting-hand shanten, with an independent
-// control shuffle. Structural failures (a wall that does not own every tile once, a game that does
-// not regenerate from its seed) exit 1; statistical warnings are printed and never fail the run,
-// since under a correct generator each family warns with at most a 0.1% chance. Compare with
-// -baseline against the JSON of an earlier run; give the rerun another -experiment-seed to get an
-// independent comparison with z scores rather than paired differences.
-//
-// Usage:
-//
-//	measurewall [-games n] [-rounds n] [-experiment-seed n] [-json path] [-baseline path]
-//
-// The engine seeds and the control shuffle come from a port of Python's random.Random, so the same
-// arguments measure the same walls and a run reads an earlier run's JSON as a baseline. It exits 2
-// on a usage error.
 package main
 
 import (

@@ -1,16 +1,3 @@
-// Package auth holds the game server's two credentials: the HMAC-signed game ticket the lobby
-// hands a player, and the internal bearer secret the lobby presents on its credential-bearing
-// calls.
-//
-// A ticket is base64url(payload) "." base64url(signature), both padded. The payload is the JSON the
-// lobby writes, keys sorted, `expires_at` a JSON float of epoch seconds; the signature is
-// HMAC-SHA256 of the payload bytes under the shared ticket secret. Decoding takes padded base64url
-// only: the padding is required and the alphabet is the URL one, as the lobby writes it, where
-// Python also took the standard alphabet and skipped other characters; line breaks are skipped,
-// as in Python. The game keys a participant by the exact ticket string anyway.
-//
-// Ported from ronin's Python shared auth: its game ticket module and the game server's internal
-// caller check.
 package auth
 
 import (
@@ -35,7 +22,6 @@ type Ticket struct {
 	ExpiresAt float64
 }
 
-// The reasons VerifyTicket refuses a ticket.
 var (
 	ErrNoSecret        = errors.New("no ticket secret configured")
 	ErrTicketEncoding  = errors.New("game ticket is not two base64url parts")
@@ -57,9 +43,6 @@ func SignTicket(t Ticket, secret string) string {
 		base64.URLEncoding.EncodeToString(signature(payload, secret))
 }
 
-// VerifyTicket checks a token's signature under secret and its expiry against now, and returns the
-// ticket it carries. The payload must hold exactly the four ticket fields, the three ids as strings
-// and `expires_at` as a finite JSON float; an integer is refused, as the lobby never writes one.
 func VerifyTicket(token, secret string, now time.Time) (Ticket, error) {
 	if secret == "" {
 		return Ticket{}, ErrNoSecret

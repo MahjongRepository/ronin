@@ -1,11 +1,3 @@
-// Package rng is ronin's shake256-v1 randomness: a game seed, and from it each round's wall and
-// dice, the first dealer and the seating.
-//
-// Every use reads its own stream of 64-bit words, SHAKE256 of a domain string and the seed (and,
-// for a round, the round number as 4 little-endian bytes) read as consecutive little-endian 8-byte
-// words. A number in [0, n) comes from rejection sampling: a word in the incomplete top bucket of
-// the 2^64 word space, the last 2^64 mod n words, is rejected and the next one read, so a bound
-// that divides 2^64 rejects nothing. A shuffle is the forward Fisher-Yates.
 package rng
 
 import (
@@ -18,10 +10,8 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// Version is the name of this randomness scheme, as ronin writes it into its replays.
 const Version = "shake256-v1"
 
-// SeedBytes is the size of a seed; its hex form is twice as many characters.
 const SeedBytes = 96
 
 const (
@@ -86,9 +76,6 @@ func (s Seed) String() string {
 	return fmt.Sprintf("%x", s[:])
 }
 
-// RoundWall returns the 136 tile ids of a round shuffled, and the dice of its wall break.
-// roundNumber counts every hand of the game from 0, renchan included. The dice come from the same
-// stream after the shuffle.
 func RoundWall(seed Seed, roundNumber uint32) ([tile.TileIDCount]tile.TileID, tile.Dice) {
 	round := []byte{byte(roundNumber), byte(roundNumber >> 8), byte(roundNumber >> 16), byte(roundNumber >> 24)}
 	words := newWordStream(wallDomain, seed[:], round)
@@ -97,9 +84,6 @@ func RoundWall(seed Seed, roundNumber uint32) ([tile.TileIDCount]tile.TileID, ti
 	return tiles, rollDice(words.next)
 }
 
-// FirstDealer returns the first dealer by the two-throw rule, and both throws: seat 0 throws, the
-// sum counted from seat 0 picks a seat, that seat throws, and the second sum counted from it picks
-// the dealer.
 func FirstDealer(seed Seed) (dealer tile.Seat, first, second tile.Dice) {
 	words := newWordStream(dealerDomain, seed[:])
 	seats := tile.Seats()

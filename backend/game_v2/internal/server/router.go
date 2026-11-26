@@ -21,11 +21,6 @@ const (
 
 const invalidMessageReason = "Invalid message"
 
-// Router hands one decoded client message to the session, as a socket's reader does once the
-// frame passed its rate limit and was not answered before routing (a ping, a resync over its
-// budget): it parses the message, verifies a join's or reconnect's ticket against the connection's
-// game, and answers a message it refuses itself. A harness with no socket routes its clients'
-// messages through one.
 type Router struct {
 	session *session.Manager
 	secret  string

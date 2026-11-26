@@ -37,7 +37,6 @@ type WinningHand struct {
 // Win is how the winning tile came.
 type Win = score.Win
 
-// The wins.
 const (
 	WinRon     = score.WinRon
 	WinChankan = score.WinChankan
@@ -64,11 +63,8 @@ type MisfitMeldError = meld.MisfitMeldError
 // MisfitWinError reports a win settled as the other kind.
 type MisfitWinError = offer.MisfitWinError
 
-// SettleTsumo settles a tsumo as a game does, by the engine's rules and with its aka dora: the
-// winner's seat wind from the dealer, the hand scored, and the payment, the table's honba and
-// riichi sticks charged and paid, all of it to a liable seat. It returns a MisfitWinError for a
-// ron, a MisfitMeldError, or the scorer's errors: a wrong tile count, a fifth copy of a kind, a
-// situation the hand cannot have, a hand that is not complete, or one with no yaku.
+// SettleTsumo settles a tsumo as a game does, honba, riichi sticks and a liable seat included.
+// It returns a MisfitWinError for a ron, a MisfitMeldError, or the scorer's errors.
 func SettleTsumo(table Table, h WinningHand) (SettledWin, error) {
 	if !h.Win.IsTsumo() {
 		return SettledWin{}, MisfitWinError{Win: h.Win}
@@ -84,9 +80,7 @@ func SettleTsumo(table Table, h WinningHand) (SettledWin, error) {
 
 // SettleRon settles the winners of one ron on discarder's tile as a game does, in the order given,
 // which a game sets from the discarder's next seat on: the first winner takes the table's honba
-// and riichi sticks, and a liable seat other than the discarder pays half of a hand and its honba.
-// It returns SettleTsumo's errors for the first winner that has one, a MisfitWinError for a
-// tsumo.
+// and riichi sticks. It returns SettleTsumo's errors for the first winner that has one.
 func SettleRon(table Table, discarder tile.Seat, winners []WinningHand) ([]SettledWin, error) {
 	settled := make([]SettledWin, 0, len(winners))
 	for position, h := range winners {

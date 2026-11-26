@@ -10,12 +10,8 @@ import (
 	"strings"
 )
 
-// FinalScoreFactor is the tenths in one whole point of a final score.
 const FinalScoreFactor = 10
 
-// ScoreMigration is what MigrateFinalScores found in `played_games`: the rows whose final scores it
-// converted to tenths, those already in tenths, those holding no final score, and those it could not
-// read as a row this package writes, which it left as they were.
 type ScoreMigration struct {
 	Converted     int
 	AlreadyTenths int
@@ -33,7 +29,6 @@ func (f RowFailure) Error() string {
 	return "played game " + f.GameID + ": " + f.Err.Error()
 }
 
-// The reasons MigrateFinalScores leaves a row as it was.
 var (
 	ErrRowData       = errors.New("data is not the played-game JSON this server writes")
 	ErrUnknownMarker = errors.New("final_score_unit names no unit this server writes")
@@ -52,12 +47,6 @@ type storedRow struct {
 	data string
 }
 
-// MigrateFinalScores converts every row written in whole points, as the Python game server wrote
-// them, to tenths of a point: each final score times ten, and the row marked with FinalScoreUnit,
-// as every row this package writes is. A marked row, a row with no final score and a row whose
-// `data` is not exactly the JSON this package would write for it are left as they are, so a second
-// run changes nothing and no row is ever converted twice. Every row converts in one transaction;
-// with apply false the transaction is rolled back, so the counts are what a run would do.
 func (db *DB) MigrateFinalScores(ctx context.Context, apply bool) (migration ScoreMigration, err error) {
 	tx, err := db.conn.BeginTx(ctx, nil)
 	if err != nil {

@@ -41,15 +41,10 @@ type Game struct {
 	game game.Game
 }
 
-// NewGame sets a game up and deals its first round. It returns the game, awaiting
-// play.AwaitingDealt, and its first events: GameStarted, then one RoundStarted per seat; Begin
-// makes the dealer's first draw. A play.Fixed source deals seat 0 first with every throw (1, 1)
-// and ends the game with play.EndFixedWallsDealt once its walls run out.
-//
-// The errors, checked in this order: the start position's StartInNorthError,
-// StartScoreOffHundredsError, StartScoreBelowTobiError, NegativeStartCountError and
-// StartPointsOffTotalError; an InvalidWallError for a fixed wall that repeats a tile; a
-// NoFixedWallError for an empty Fixed list or a nil source.
+// NewGame sets a game up and deals its first round, returning the game awaiting
+// play.AwaitingDealt and its first events; Begin makes the dealer's first draw. A play.Fixed
+// source deals seat 0 first with every throw (1, 1) and ends the game with
+// play.EndFixedWallsDealt once its walls run out.
 func NewGame(setup Setup) (Game, []play.Emitted, error) {
 	g, events, err := game.New(setup.Walls, setup.Start)
 	if err != nil {
@@ -82,11 +77,7 @@ type StartPointsOffTotalError = game.StartPointsOffTotalError
 type StartInNorthError = game.StartInNorthError
 
 // Act applies one answer of seat and returns the game after it and the events it caused. A
-// refusal returns the receiver unchanged and no events: not awaited outside a round in play or
-// while it awaits play.AwaitingDealt, from a seat not awaited, for a turn action while a call
-// prompt is open and for a call answer outside one; not offered for a tile the seat does not hold
-// or an action it was not offered; rule for a riichi discard that breaks tenpai, a discard in
-// riichi other than the drawn tile and a discard kuikae forbids.
+// refusal returns the receiver unchanged and no events.
 func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, play.Option[play.Refusal]) {
 	next, events, refusal := g.game.Act(seat, action)
 	return Game{game: next}, detachFreshEvents(events), refusal
@@ -129,8 +120,6 @@ func (g Game) Outranked(seat tile.Seat) bool {
 }
 
 // LegalActions returns every action seat may take now, none for a seat the game does not await.
-// On a turn the discards come first in hand order, then the riichi discards, tsumo, the closed
-// kans, the added kans and kyuushu; on a call prompt ron, open kan, the pons, the chis, then pass.
 func (g Game) LegalActions(seat tile.Seat) []play.Action {
 	return g.game.LegalActions(seat)
 }
@@ -142,12 +131,9 @@ func (g Game) DefaultAction(seat tile.Seat) (play.Action, bool) {
 	return g.game.DefaultAction(seat)
 }
 
-// Disguised returns action naming other physical copies of the same tiles: each tile a pon or chi
-// takes from seat's hand becomes one of the held copies that look the same, and the copy a closed
-// kan names one of its four, each chosen by pick, which returns an index below the count it is
-// given. The engine accepts either action alike; the copies a seat's own client names follow its
-// hand order, so playing them as named would tell the table which copies the seat does not hold
-// and, with a kan, which tile it just drew. Any other action is returned as it is.
+// Disguised returns action naming other held copies of the same tiles, each picked by pick, which
+// returns an index below the count it is given; the engine accepts either action alike. Any other
+// action is returned as it is.
 func (g Game) Disguised(seat tile.Seat, action play.Action, pick func(n int) int) play.Action {
 	return g.game.Disguised(seat, action, pick)
 }
@@ -160,9 +146,7 @@ func (g Game) View(seat tile.Seat) play.SeatView {
 }
 
 // Follow returns seen after one more event of the game, taken in the order the game returned it;
-// an event seen's seat may not see changes nothing. Following every event of a call from the
-// record of a seat's View before it reaches the record of its View after it, and following only the
-// first of them the record of a seat that has seen no more yet.
+// an event seen's seat may not see changes nothing.
 func Follow(seen play.SeatRecord, event play.Emitted) play.SeatRecord {
 	return record.Apply(seen, event)
 }
@@ -175,8 +159,7 @@ func (g Game) Standings() play.Option[play.Standings] {
 // CheckInvariants checks what every step of a game keeps: each of the 136 tiles in exactly one
 // place, the scores and riichi sticks adding up to the points the game started with, and once the
 // game is over final scores that add up to them too, points that sum to 0 and the places 1 to 4.
-// The first broken one is returned, in that order: an OwnershipError, TablePointsError,
-// FinalScoresError, FinalPointsError or PlacementsError.
+// The first broken one is returned.
 func (g Game) CheckInvariants() error {
 	return g.game.CheckInvariants()
 }
@@ -218,19 +201,12 @@ func cloneEvent(event play.Event) play.Event {
 	return event
 }
 
-// SeedBytes is the size of a seed; its hex form is twice as many characters.
-const SeedBytes = rng.SeedBytes
-
-// RiichiStickValue is the points one riichi stick on the table pays the winner who takes it.
-const RiichiStickValue = rules.RiichiStickValue
-
-// HonbaRonBonus is what a win adds per honba in all: a ron's discarder pays it, a tsumo's three
-// payers a third each.
-const HonbaRonBonus = rules.HonbaRonBonus
-
-// RNGVersion is the name of the randomness scheme that turns a seed into a game, as ronin writes
-// it into its replays.
-const RNGVersion = rng.Version
+const (
+	SeedBytes        = rng.SeedBytes
+	RiichiStickValue = rules.RiichiStickValue
+	HonbaRonBonus    = rules.HonbaRonBonus
+	RNGVersion       = rng.Version
+)
 
 // Seed is a game seed: SeedBytes bytes, written as twice as many hex characters. A play.Seeded
 // source takes it as is.

@@ -581,12 +581,7 @@ code under `engine/`:
 
 ## Comments
 
-The commit hook rejects every added comment. In Go that leaves only doc comments on exported
-functions, methods and types, the package doc, `//go:` directives and `//nolint:<linter> // reason`.
-A sum type's `//sumtype:decl` line belongs to its doc comment. An unexported identifier or a line
-inside a function body gets none, and a `_test.go` file gets none at all, so a test's name and its
-variables' names carry what it pins. `.golangci.yml` takes no
-comments either: a forbidigo pattern's `msg` is where its reason goes.
+A comment explains business logic, and only where the code really cannot say it.
 
 ## Tooling
 

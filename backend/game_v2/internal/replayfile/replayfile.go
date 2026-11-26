@@ -1,7 +1,3 @@
-// Package replayfile keeps the replay files the game server persists beside the lobby, which the
-// lobby serves, so their layout and compression are a contract.
-//
-// Ported from ronin's Python shared storage: its replay storage.
 package replayfile
 
 import (
@@ -26,23 +22,15 @@ const (
 	shardPrefixLength = 2
 )
 
-// Suffix ends the name of every stored replay file.
 const Suffix = ".msgpack.gz"
 
-// MaxFileSize is the largest stored replay file Dir.Read returns, in bytes.
 const MaxFileSize = 1 << 20
 
-// The reasons Dir refuses a replay.
 var (
 	ErrInvalidGameID = errors.New("game id cannot name a stored replay")
 	ErrTooLarge      = errors.New("stored replay is over the size cap")
 )
 
-// Dir stores gzip-compressed replay files under one directory, each at
-// `aa/bb/<game id>.msgpack.gz` for a game id starting `aabb`: owner-only directories, owner-only
-// files, each written whole to a temporary file, synced and renamed into place. Every path is
-// opened through an os.Root, so neither a game id nor a symbolic link reaches outside the
-// directory. The zero value is not usable; build one with New.
 type Dir struct {
 	dir        string
 	idleWriter chan *gzip.Writer
@@ -98,9 +86,6 @@ func (r Dir) Save(gameID string, content []byte) (err error) {
 	return nil
 }
 
-// Read returns a stored replay's gzip-compressed bytes. It returns ErrInvalidGameID for an id
-// IsValidGameID refuses, ErrTooLarge for a file over MaxFileSize, and an error matching
-// fs.ErrNotExist when no replay is stored for the game.
 func (r Dir) Read(gameID string) (data []byte, err error) {
 	if !IsValidGameID(gameID) {
 		return nil, fmt.Errorf("read replay %q: %w", gameID, ErrInvalidGameID)
@@ -128,9 +113,6 @@ func (r Dir) Read(gameID string) (data []byte, err error) {
 	return data, nil
 }
 
-// Decompress returns the content of a replay file Read returned, reading at most limit+1
-// bytes of it, so a caller that refuses content over limit sees that it is; an error for data
-// that is not gzip.
 func Decompress(compressed []byte, limit int) ([]byte, error) {
 	reader, err := gzip.NewReader(bytes.NewReader(compressed))
 	if err != nil {

@@ -1,13 +1,3 @@
-// Package store keeps the `played_games` rows the game server persists beside the lobby, in the
-// SQLite database both servers share.
-//
-// The lobby reads them, so their shape is a contract. The game server creates only the table it
-// writes, `played_games` with its index, in the lobby's own DDL; the lobby creates the rest of the
-// schema when it opens the same file. A row's times keep the lobby's text forms, and its `data`
-// keeps the JSON the lobby validates.
-//
-// Ported from ronin's Python shared storage: its database connection, game repository and
-// played-game model.
 package store
 
 import (
@@ -43,7 +33,6 @@ CREATE INDEX IF NOT EXISTS idx_played_games_started_at
     ON played_games (started_at DESC);
 `
 
-// ErrDatabasePath is returned by Open for a path the SQLite driver would misread.
 var ErrDatabasePath = errors.New("database path holds a '?'")
 
 // DB is the shared SQLite database, open for the game server's writes. It is safe for concurrent
@@ -53,10 +42,6 @@ type DB struct {
 	logger *slog.Logger
 }
 
-// Open opens the database at path, creating it and its directory when missing, creates the
-// `played_games` table, and sets the file and its WAL and SHM siblings to owner-only access. A file
-// whose permissions cannot be set is logged at warning level and left as it is. The logger, which
-// also takes the DB's warnings, must not be nil.
 func Open(ctx context.Context, path string, logger *slog.Logger) (*DB, error) {
 	if strings.Contains(path, "?") {
 		return nil, fmt.Errorf("open database %s: %w", path, ErrDatabasePath)

@@ -36,10 +36,6 @@ func DealerPonFromSeatThree(
 	return DealerCallFromSeatThree(dealer, called, pon, discardAfterPon, laterDraws, dora)
 }
 
-// DealerCallFromSeatThree returns the game where seat 0 deals dealer, seats 1 and 2 hold
-// 123456789p1379s and seat 3 holds 123456789p139s with called; the first three seats discard
-// East to West as drawn, seat 3 discards called, and seat 0 makes call on it, then discards
-// discardAfterCall. laterDraws follow the four winds in the wall; dora is the first indicator.
 func DealerCallFromSeatThree(
 	dealer []tile.TileID, called tile.TileID, call play.Action, discardAfterCall tile.TileID,
 	laterDraws []tile.TileID, dora play.Option[tile.TileID],

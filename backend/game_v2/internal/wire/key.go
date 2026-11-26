@@ -2,13 +2,9 @@ package wire
 
 import "strconv"
 
-// Key is a metadata key of the wire: every map of a message or a replay record is keyed by Key,
-// except a score map and the replay's rules envelope, which keep string keys as data. A key's
-// number is never renumbered or reused; three names share a number with another key (see
-// KeyPendingGameTimeout).
+// A number is never renumbered or reused; a few aliases share one with another key.
 type Key uint8
 
-// The keys, by number.
 const (
 	KeyReplayVersion       Key = 0
 	KeyEventType           Key = 1
@@ -123,7 +119,6 @@ const (
 	KeyShownHands          Key = 110
 )
 
-// The keys that share a number with another key, named for the message they belong to.
 const (
 	KeyPendingGameTimeout = KeyPoints
 	KeySeatControlReason  = KeyRiichiSticks
@@ -246,7 +241,6 @@ var keyNames = [keyCount]string{
 	KeyShownHands:          "SHOWN_HANDS",
 }
 
-// String returns k's name, as "EVENT_TYPE"; an alias reads as the key it shares a number with.
 func (k Key) String() string {
 	if int(k) < keyCount {
 		return keyNames[k]

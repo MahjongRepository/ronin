@@ -4,7 +4,6 @@ package tile
 // 27 to 33 (East, South, West, North, Haku, Hatsu, Chun).
 type Kind uint8
 
-// The honor kinds.
 const (
 	KindEast Kind = 27 + iota
 	KindSouth
@@ -15,19 +14,14 @@ const (
 	KindChun
 )
 
-// KindCount is the number of tile kinds.
 const KindCount = 34
 
-// HonorStart is the first honor kind.
 const HonorStart = KindEast
 
-// CopiesPerKind is the number of physical tiles of each kind in a set.
 const CopiesPerKind = 4
 
-// MaxConcealedTiles is the most tiles a concealed hand holds.
 const MaxConcealedTiles = 14
 
-// Bit masks over the 34 kinds, kind 0 the lowest bit.
 const (
 	TerminalMask        uint64 = 1<<0 | 1<<8 | 1<<9 | 1<<17 | 1<<18 | 1<<26
 	HonorMask           uint64 = 0x7F << KindEast

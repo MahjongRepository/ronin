@@ -1,14 +1,9 @@
 package play
 
-// YakuID is a yaku, numbered by its yaku id: 0 to 39 for regular yaku, 100 to 116 for yakuman,
-// some numbers in those ranges unused. Only the named constants are yaku; any other number has no
-// name and no han. Chantai is a terminal or honor in every set and Junchan a
-// terminal in every set, each with at least one chi; Daisuushii, DaburuKokushiMusou (won on a
-// thirteen-sided wait), SuuankouTanki (won on the pair) and DaburuChuurenPoutou (won on a
-// nine-sided wait) are the double yakuman forms.
+// YakuID is a yaku, numbered by its yaku id: 0 to 39 regular, 100 to 116 yakuman, some unused.
+// Only the named constants are yaku; any other number has no name and no han.
 type YakuID uint8
 
-// The yaku, in yaku id order.
 const (
 	YakuTsumo               YakuID = 0
 	YakuRiichi              YakuID = 1
@@ -63,7 +58,6 @@ const (
 	YakuChiihou             YakuID = 116
 )
 
-// YakuCount is the number of yaku.
 const YakuCount = 51
 
 type yakuData struct {

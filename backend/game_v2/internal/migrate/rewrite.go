@@ -16,7 +16,6 @@ import (
 // version record, which every rewrite replaces.
 type Transform uint8
 
-// The transforms, each named by its String.
 const (
 	TransformRon Transform = iota
 	TransformDoubleRon
@@ -43,7 +42,6 @@ func (t Transform) String() string {
 // FailureKind is why a replay was left as it was.
 type FailureKind uint8
 
-// The failure kinds, each named by its String.
 const (
 	FailureUnreadable FailureKind = iota
 	FailureVersion
@@ -88,9 +86,6 @@ func (e RewriteError) Unwrap() error {
 	return e.Err
 }
 
-// Rewritten is a replay of version 0.4-dev rewritten into the current version: its Content, the
-// Transforms it took, in Transform order, whether it holds the game's end, and whether the old file
-// ended inside a record, so only the records before it were rewritten.
 type Rewritten struct {
 	Content    []byte
 	Transforms []Transform
@@ -98,13 +93,6 @@ type Rewritten struct {
 	Cut        bool
 }
 
-// Rewrite rewrites the content of a replay of version 0.4-dev into the current version, the bytes
-// the Go server would have written for the game as it was played and scored. Every record it does
-// not change keeps its bytes. A replay with no game end is rewritten whole, and one that ends
-// inside a record up to that record. A replay it cannot rewrite without loss comes back as a
-// RewriteError: a record or field the old format never held, records whose robbed kan or pao it
-// cannot place, a rewrite the current codec refuses or, for a game with its end, a rewrite that
-// converts to no Tenhou log.
 func Rewrite(content []byte) (Rewritten, error) {
 	records, err := wire.DecodeRecords(content)
 	replayErr, isReplayErr := errors.AsType[wire.ReplayError](err)

@@ -2,7 +2,6 @@ package tenhou
 
 import "github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 
-// The ids Tenhou's AGARI yaku lists the dora counts by, past every yaku's.
 const (
 	DoraID    = 52
 	UraDoraID = 53

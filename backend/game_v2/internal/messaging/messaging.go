@@ -1,14 +1,3 @@
-// Package messaging shapes the game for the wire and reads what clients send: a client message
-// parsed into the engine's action, every engine event shaped into its message, the opening that
-// starts a seat's decision built from the decision alone, the reconnect snapshot built from a
-// seat's view alone, and the session's and the game's error messages.
-//
-// The engine emits facts only, so every field a message names beyond them comes from the session
-// (the roster, the wait ids, the timers) or is derived here from the engine's output, never from
-// its state. Scores, payments and stick values go out in wire score units.
-//
-// Ported from ronin's Python game server: its messaging package (client message models, event
-// payloads, serialization, openings, the reconnect snapshot and the game errors).
 package messaging
 
 import (

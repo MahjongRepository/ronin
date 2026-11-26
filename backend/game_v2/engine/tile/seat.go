@@ -1,6 +1,5 @@
 package tile
 
-// SeatCount is the number of seats at the table.
 const SeatCount = 4
 
 // Seat is an absolute seat, 0 to 3, counted counter-clockwise: the seat after seat n in turn

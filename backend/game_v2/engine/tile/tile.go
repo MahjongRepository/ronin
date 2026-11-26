@@ -6,7 +6,6 @@ package tile
 // AkaDora says whether the red fives are told apart from the other fives.
 type AkaDora uint8
 
-// The two ways to read the red fives.
 const (
 	AkaDoraDisabled AkaDora = iota
 	AkaDoraEnabled

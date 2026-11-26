@@ -1,14 +1,3 @@
-// Package tenhou writes a replay this server stored as a tenhou.net mjlog, the replay format other
-// mahjong services read, for the lobby's Tenhou download.
-//
-// It reads the replay's records only and never runs the engine, so it converts a replay of either
-// rules profile: one this server played, or one rewritten from replay version 0.4-dev. Every seat
-// moves to Tenhou's numbering as it is read: a Tenhou log seats its first dealer at 0, so its seat
-// order is the dealer order and each INIT's round counter counts the dealer rotations.
-//
-// The tenhou XML replay format belongs to tenhou.net; this converter is not affiliated with
-// tenhou.net. Ported from ronin's Python game server's Tenhou export; the meld integers are
-// checked against the melds of a captured Tenhou play that mahjong-bot's tenhou-mjlog crate keeps.
 package tenhou
 
 import (
@@ -34,8 +23,6 @@ const (
 	dieFaceOffset = 1
 )
 
-// ErrNoGameEnd reports the replay of a game that failed before its end: a Tenhou log closes on
-// the final scores, which such a game never reached.
 var ErrNoGameEnd = errors.New("replay has no game end")
 
 var errBeforeGameStart = errors.New("a record comes before the game start")
@@ -55,9 +42,6 @@ func (e RecordError) Unwrap() error {
 	return e.Err
 }
 
-// Convert returns the mjlog of a stored replay's content. The error is wire.DecodeReplay's for
-// content it refuses, ErrNoGameEnd for the replay of a game that failed before its end, and a
-// RecordError for a record the log cannot be written from.
 func Convert(content []byte) (string, error) {
 	records, err := wire.DecodeReplay(content)
 	if err != nil {
