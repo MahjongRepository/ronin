@@ -89,8 +89,9 @@ async def test_room_websocket__when_owner_starts_with_strong_bots__should_start_
     )
     assert body["num_ai_players"] == 1
     for peer, _handler in bots:
-        last_message = peer.received_json()[-1]
-        assert (last_message["type"], last_message["game_id"]) == ("game_starting", body["game_id"])
+        bot_messages = peer.received_json()
+        assert [message["type"] for message in bot_messages] == ["standby_joined", "game_starting"]
+        assert bot_messages[-1]["game_id"] == body["game_id"]
         assert peer.close_codes() == [1000]
     assert not bot_pool.has_idle
     assert not any(bot_pool.is_claimed(bot.user_id) for bot in _STRONG_BOTS)
@@ -113,4 +114,7 @@ async def test_room_websocket__when_strong_bots_start_fails__should_close_the_cl
         assert peer.close_codes() == [1000]
     assert not bot_pool.has_idle
     assert not any(bot_pool.is_claimed(bot.user_id) for bot in _STRONG_BOTS)
-    assert owner_peer.received_json()[-1] == {"type": "error", "message": "game_server_unavailable"}
+    owner_messages = owner_peer.received_json()
+    assert [message["type"] for message in owner_messages] == ["room_joined", "player_ready_changed", "error"]
+    assert owner_messages[1]["strong_bots_available"] is False
+    assert owner_messages[-1] == {"type": "error", "message": "game_server_unavailable"}
