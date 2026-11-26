@@ -51,7 +51,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   browser paints, with no projection to take back. A piece's transform is one static value per resize, never per
   frame. The surface makes no stacking context and clips nothing. Its full-board
   layers (the surface, the rivers, the strips) pass the pointer through, so the plates under them take presses; a
-  piece that takes the pointer opts back in (the centre, each strip).
+  piece that takes the pointer opts back in (the centre, the strips' tiles, never a strip's whole box, which reaches
+  over the side plates).
 - **The top hand stands in its own host.** The top seat's hand is not in its strip's piece but in
   `.board-strip--top-hand`, a sibling on the same grid area, stood on its foot by a flat `matrix()` (`topHandValues`
   in `table-view.ts`). It stays an unturned child of `.board-strips`, so it casts its shadow with the strips' and

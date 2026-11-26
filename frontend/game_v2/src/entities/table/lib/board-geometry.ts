@@ -2935,10 +2935,12 @@ const HAND_PLATE_AIR = 0.2;
 
 /**
  * Every seat's plate stands over its own hand: a side seat's a plate's gap along from the hand's start and a gap short
- * of its inner edge, the own one centred on the hand's first tile, moved off it only as far as clears the left strip's
- * reach, the top one ending where the hand starts; both with more air under them. An opponent's plate is the own one turned with its
- * seat, from the inner corner where its hand starts (`plate-<seat>-x/y`); `plate-<seat>-along` and `plate-<seat>-rise` place
- * it in that turned frame, the left one further along where the top strip's corner would cover it, the right one where the own row would; the top one no wider than its room beside the top river.
+ * of its lane's inner edge, where a stacked added kan reaches, the own one centred on the hand's first tile, moved off it
+ * only as far as clears the left strip's reach, the top one ending where the hand starts; both with more air under them.
+ * An opponent's plate is the own one turned with its seat, from the inner corner where its hand starts
+ * (`plate-<seat>-x/y`); `plate-<seat>-along` and `plate-<seat>-rise` place it in that turned frame, the left one further
+ * along where the top strip's corner would cover it, the right one where the own row would; the top one runs on past
+ * the hand's start where the room beside the top river is narrower than the plate, short of the right strip's lane.
  */
 function handPlateLengths(
     { at, frame, tier }: ShellRoom,
@@ -2959,9 +2961,11 @@ function handPlateLengths(
     const ownStart = lengths.find(([name]) => name === "own-start")?.[1] ?? hand.left;
     const ownX = Math.max(ownStart + (at("ow") - wanted) / 2, left.right + PLATE_GAP);
     const ownY = ownRowTop - clearance - air;
-    const sideDepth = at("rh");
+    const sideDepth = STACKED_DEPTH * at("rw");
     const topFoot = (TILE_ASPECT + TOP_HAND_EDGE_SHARE) * at("rw");
-    const topWidth = Math.min(wanted, top.right - at("cx") - at("hx") - PLATE_GAP);
+    const topStart = at("cx") + at("hx") + PLATE_GAP;
+    const topWidth = Math.min(wanted, right.left - PLATE_GAP - topStart);
+    const topPastHand = Math.max(0, topStart + topWidth - top.right);
     const leftReach = left.left + sideDepth + clearance;
     const leftAlong =
         leftReach > top.left ? Math.max(PLATE_GAP, top.bottom + PLATE_GAP - left.top) : PLATE_GAP;
@@ -2988,7 +2992,7 @@ function handPlateLengths(
         ...places,
         ["plate-left-along", leftAlong],
         ["plate-right-along", rightAlong],
-        ["plate-top-along", 0],
+        ["plate-top-along", -topPastHand],
         ["plate-left-rise", clearance],
         ["plate-right-rise", clearance],
         ["plate-top-rise", clearance + air],

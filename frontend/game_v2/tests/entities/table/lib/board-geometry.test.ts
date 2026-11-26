@@ -1445,7 +1445,7 @@ function platePlaces(board: BoardGeometry): Readonly<Record<string, boolean>> {
     const { hand, "strip-left": left, "strip-right": right, "strip-top": top } = board.areas;
     assert(hand && left && right && top);
     const ownRowTop = Math.floor(hand.top - lengthOf(board, "own-meld-rise"));
-    const sideDepth = lengthOf(board, "rh");
+    const laneDepth = lengthOf(board, "strip-depth");
     const own = shownPlate(board, "bottom");
     const far = shownPlate(board, "top");
     const centred =
@@ -1453,9 +1453,9 @@ function platePlaces(board: BoardGeometry): Readonly<Record<string, boolean>> {
     return {
         ownAiry: pillGap(board, "bottom", ownRowTop) >= 12,
         ownOnFirstTile: Math.abs(own.left - Math.max(centred, left.right + 6)) < 0.01,
-        sidesOffHands:
-            pillGap(board, "left", left.left + sideDepth) >= 6 &&
-            pillGap(board, "right", right.right - sideDepth) >= 6,
+        sidesOffStackedMelds:
+            pillGap(board, "left", left.left + laneDepth) >= 6 &&
+            pillGap(board, "right", right.right - laneDepth) >= 6,
         sidesUncovered:
             !overlaps(shownPlate(board, "left"), top) &&
             !overlaps(shownPlate(board, "right"), { ...hand, top: ownRowTop }),
@@ -1465,9 +1465,11 @@ function platePlaces(board: BoardGeometry): Readonly<Record<string, boolean>> {
                 "top",
                 top.top + (UPRIGHT_DEPTH + TOP_HAND_EDGE_SHARE) * lengthOf(board, "rw"),
             ) >= 12,
-        topAtHandEnd:
-            Math.abs(far.right - top.right) < 0.01 &&
-            far.left >= lengthOf(board, "cx") + lengthOf(board, "hx"),
+        topAtHandEndOrWhole:
+            Math.abs(far.right - far.left - (own.right - own.left)) < 0.01 &&
+            far.left >= lengthOf(board, "cx") + lengthOf(board, "hx") &&
+            far.right <= right.left &&
+            (Math.abs(far.right - top.right) < 0.01 || far.right > top.right),
     };
 }
 
@@ -1499,10 +1501,10 @@ describe("boardGeometry's plates", () => {
             expect(platePlaces(windowGeometry({ height, width }))).toEqual({
                 ownAiry: true,
                 ownOnFirstTile: true,
-                sidesOffHands: true,
+                sidesOffStackedMelds: true,
                 sidesUncovered: true,
                 topAiry: true,
-                topAtHandEnd: true,
+                topAtHandEndOrWhole: true,
             });
         },
     );

@@ -416,9 +416,10 @@ as a number, not seen, so the count turns red from ten tiles left.
   on the hand's inner side toward the centre, the badge turned with its seat as the seat's tiles are: the side names
   read along their strips, the top name stays upright. The local name is centred on the own hand's first tile, moved
   right only as far as clears the left strip's reach; the top name ends where the top hand starts (the hand's right
-  end on screen), no wider than the room beside the top river; a side name starts a 6px gap along from where its hand
+  end on screen) and starts no nearer the top river than 6px, running on past the hand's start, short of the right
+  strip's lane, where that room is narrower than the band; a side name starts a 6px gap along from where its hand
   starts, further along where the top strip (the left name) or the own row (the right name) would cover it. A side
-  band keeps 6px off its hand; the local and top bands keep more air, a fifth of a river tile and at least 6px more.
+  band keeps 6px off its lane's inner edge, where a stacked added kan reaches, so a seat's melds never touch it; the local and top bands keep more air, a fifth of a river tile and at least 6px more.
   Anchors stay fixed as hands shorten or offers open. A crowded prompt or notice may briefly
   cover a name. Decision: the badge carries no wind or score; the
   centre holds every seat's score, and hovering a badge shows the other seats' scores in the centre as differences

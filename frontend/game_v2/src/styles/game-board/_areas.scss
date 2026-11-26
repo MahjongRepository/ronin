@@ -27,7 +27,7 @@ $max-melds: 4;
 .board-strips {
     pointer-events: none;
 
-    > .board-strip {
+    .tile {
         pointer-events: auto;
     }
 }

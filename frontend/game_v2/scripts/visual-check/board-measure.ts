@@ -374,7 +374,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 const head = name.querySelector(".player-name__head");
                 return (
                     name.scrollHeight > name.clientHeight + 1 ||
-                    (head !== null && head.scrollWidth > head.getBoundingClientRect().width + 1)
+                    (head !== null && head.scrollWidth > head.clientWidth + 1)
                 );
             })
             .map((name) => name.getAttribute("title") ?? "");
