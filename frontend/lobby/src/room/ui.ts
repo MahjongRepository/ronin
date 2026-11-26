@@ -17,6 +17,7 @@ import {
     isConnectionLost,
     isMe,
     isSeated,
+    offersStrongBots,
 } from "@/room/state";
 
 const STATUS_LABEL: Readonly<Record<ConnectionStatus, MessageKey>> = {
@@ -181,6 +182,31 @@ function actionHintTemplate(hint: string | null): TemplateResult | typeof nothin
     return html`<p class="room-action-hint" id="room-action-hint">${hint}</p>`;
 }
 
+function strongBotsTemplate(
+    state: RoomState,
+    actions: ActionCallbacks,
+    enabled: boolean,
+): TemplateResult | typeof nothing {
+    if (!offersStrongBots(state)) {
+        return nothing;
+    }
+    function toggle(event: Event): void {
+        const input = event.currentTarget;
+        if (input instanceof HTMLInputElement) {
+            actions.handleSetStrongBots(input.checked);
+        }
+    }
+    return html`
+        <label class="room-strong-bots">
+            <input type="checkbox"
+                   .checked=${state.useStrongBots}
+                   ?disabled=${!enabled}
+                   @change=${toggle}>
+            ${t("room.strong_bots")}
+        </label>
+    `;
+}
+
 function actionTemplate(
     state: RoomState,
     actions: ActionCallbacks,
@@ -192,6 +218,7 @@ function actionTemplate(
     if (state.isOwner) {
         const blocker = enabled ? describeStartBlocker(state) : null;
         return html`
+            ${strongBotsTemplate(state, actions, enabled)}
             <button class="room-start-btn"
                     ?disabled=${!enabled || !state.canStart}
                     aria-describedby=${blocker ? "room-action-hint" : nothing}

@@ -200,6 +200,26 @@
     }
 }
 
+.room-strong-bots {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: fit-content;
+    margin: 0 0 0.75rem;
+    cursor: pointer;
+
+    input[type="checkbox"] {
+        flex: none;
+        width: auto;
+        height: auto;
+        margin: 0;
+        padding: 0;
+        appearance: auto;
+        accent-color: var(--pico-primary);
+        cursor: pointer;
+    }
+}
+
 .room-action-hint {
     margin: 0.5rem 0 0;
     font-size: 0.8rem;

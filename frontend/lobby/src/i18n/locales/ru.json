@@ -291,6 +291,7 @@
     "room.status.connecting": "Подключение…",
     "room.status.disconnected": "Отключено",
     "room.status.error": "Ошибка соединения",
+    "room.strong_bots": "Игра с сильными ботами",
     "room.taking_seat": "Занимаем место…",
     "room.waiting_for": "Ждём готовности: {names}.",
     "seat.free": "Свободно",

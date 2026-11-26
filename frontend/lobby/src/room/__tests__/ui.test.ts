@@ -45,6 +45,10 @@ function submitChat(container: HTMLElement, text: string): void {
     container.querySelector("form")?.dispatchEvent(new Event("submit", { cancelable: true }));
 }
 
+function showsStrongBotsOption(state: RoomState): boolean {
+    return mount(state).querySelector(".room-strong-bots input") !== null;
+}
+
 describe("renderRoom", () => {
     afterEach(() => {
         document.documentElement.lang = "";
@@ -204,4 +208,43 @@ describe("renderRoom", () => {
         expect(container.querySelector<HTMLButtonElement>(".room-ready-btn")?.disabled).toBe(true);
         expect(container.querySelector(".room-action-hint")).toBeNull();
     });
+});
+
+describe("renderRoom strong bots option", () => {
+    afterEach(() => {
+        document.body.replaceChildren();
+    });
+
+    test("sends use_strong_bots with the start when the owner ticked strong bots", () => {
+        const state = seatedState();
+        state.canStart = true;
+        state.strongBotsAvailable = true;
+        state.socket = new LobbySocket(vi.fn(), vi.fn());
+        const send = vi.spyOn(state.socket, "send").mockReturnValue(true);
+        const container = mount(state);
+
+        container.querySelector<HTMLInputElement>(".room-strong-bots input")?.click();
+        container.querySelector<HTMLButtonElement>(".room-start-btn")?.click();
+
+        expect(send).toHaveBeenCalledExactlyOnceWith({ type: "start_game", use_strong_bots: true });
+    });
+
+    test.each([
+        { available: true, shown: true },
+        { available: false, shown: false },
+    ])(
+        "shows the strong bots option to the owner only while a strong bot stands by (available $available)",
+        ({ available, shown }) => {
+            const owner = seatedState();
+            owner.strongBotsAvailable = available;
+            const guest = seatedState();
+            guest.strongBotsAvailable = available;
+            guest.isOwner = false;
+
+            expect([showsStrongBotsOption(owner), showsStrongBotsOption(guest)]).toEqual([
+                shown,
+                false,
+            ]);
+        },
+    );
 });

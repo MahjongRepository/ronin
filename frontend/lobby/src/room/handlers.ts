@@ -27,6 +27,7 @@ type Navigate = (url: string, options?: NavigateOptions) => void;
 interface ActionCallbacks {
     handleLeaveRoom: () => void;
     handleSendChat: (text: string) => boolean;
+    handleSetStrongBots: (checked: boolean) => void;
     handleStartGame: () => void;
     handleToggleReady: () => void;
 }
@@ -105,6 +106,7 @@ function updateFromServerState(
 ): void {
     state.players = (message.players as PlayerInfo[]) ?? state.players;
     state.canStart = (message.can_start as boolean) ?? false;
+    state.strongBotsAvailable = message.strong_bots_available === true;
     // Derive isOwner from the authoritative player list as a fallback,
     // so ownership is corrected even if the owner_changed message was missed.
     const self = state.players.find((player) => isMe(state, player));
@@ -336,11 +338,18 @@ function buildActionCallbacks(state: RoomState, navigate: Navigate): ActionCallb
             }
             return state.socket.send({ text: trimmed, type: "chat" });
         },
+        handleSetStrongBots(checked) {
+            state.useStrongBots = checked;
+        },
         handleStartGame() {
             if (!state.socket || !canAct(state) || !state.canStart) {
                 return;
             }
-            state.socket.send({ type: "start_game" });
+            state.socket.send(
+                state.useStrongBots
+                    ? { type: "start_game", use_strong_bots: true }
+                    : { type: "start_game" },
+            );
         },
         handleToggleReady() {
             if (!state.socket || !canAct(state)) {

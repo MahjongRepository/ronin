@@ -267,6 +267,7 @@
     "room.status.connecting": "接続しています…",
     "room.status.disconnected": "切断",
     "room.status.error": "接続エラー",
+    "room.strong_bots": "強いボットと対局",
     "room.taking_seat": "着席しています…",
     "room.waiting_for": "{names}の準備完了を待っています。",
     "seat.free": "空席",

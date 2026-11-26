@@ -275,6 +275,7 @@
     "room.status.connecting": "Connecting…",
     "room.status.disconnected": "Disconnected",
     "room.status.error": "Connection error",
+    "room.strong_bots": "Play with strong bots",
     "room.taking_seat": "Taking a seat…",
     "room.waiting_for": "Waiting for {names} to get ready.",
     "seat.free": "Free seat",

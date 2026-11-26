@@ -52,6 +52,8 @@ interface RoomState {
     reconnectAttempts: number;
     reconnecting: boolean;
     socket: LobbySocket | null;
+    strongBotsAvailable: boolean;
+    useStrongBots: boolean;
 }
 
 function createRoomState(): RoomState {
@@ -69,6 +71,8 @@ function createRoomState(): RoomState {
         reconnectAttempts: 0,
         reconnecting: false,
         socket: null,
+        strongBotsAvailable: false,
+        useStrongBots: false,
     };
 }
 
@@ -100,6 +104,15 @@ function isConnectionLost(state: RoomState): boolean {
 
 function getMyReadyState(state: RoomState): boolean {
     return state.players.find((player) => isMe(state, player))?.ready ?? false;
+}
+
+function offersStrongBots(state: RoomState): boolean {
+    return (
+        state.isOwner &&
+        isSeated(state) &&
+        state.players.some((player) => player.is_bot) &&
+        (state.strongBotsAvailable || state.useStrongBots)
+    );
 }
 
 function describeStartBlocker(state: RoomState): string | null {
@@ -161,6 +174,7 @@ export {
     isConnectionLost,
     isMe,
     isSeated,
+    offersStrongBots,
     readRoomConfigAnswer,
     resetSeat,
 };
