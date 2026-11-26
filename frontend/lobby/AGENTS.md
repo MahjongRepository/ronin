@@ -1,17 +1,14 @@
 # Lobby app (TypeScript / lit-html)
 
-The lobby's pages as one single-page app. `src/index.ts` loads on every lobby page. On the shell
-the server answers for every lobby route (`<main id="lobby-spa">`) it starts the app
-(`app/start.ts`): the shared router (`@ronin/shared/router`) over the route list in `app/routes.ts`,
-which is also the allowlist of links it intercepts and URLs it navigates to in place; any other
-destination is a document navigation. On the pages that stay server-rendered (terms, privacy,
-error pages) it mounts only the chrome around their `<main>`.
+The lobby's pages as one single-page app, started by `src/index.ts` on the server's shell and reduced
+to the chrome on the server-rendered pages (terms, privacy, error pages). `app/routes.ts` is the route
+list and the allowlist of links and URLs navigated in place; any other destination is a document
+navigation.
 
-* **Chrome** (`app/chrome.ts`): the one nav and footer of every page, lit-html, drawn from the
-  page's meta tags (CSRF token, version, release link, year, dev mode) and `GET /api/lobby/session`;
-  its signed-in part waits for the session. Logout stays a form POST `/logout` that copies the
-  current meta CSRF token on submit. The Admin section shows only when the session says `is_admin`.
-* **Views** split like `room/` (Conventions) and export `mount<Page>View(host, ...)` returning
+* **Chrome** (`app/chrome.ts`): the one nav and footer of every page, drawn from the page's meta tags
+  (`app/page-meta.ts`) and the session; its signed-in part waits for the session, and logout is the form
+  POST `/logout` carrying the current meta CSRF token.
+* **Views** export `mount<Page>View(host, ...)` returning
   `{unmount, rerender}`: `unmount` closes sockets, listeners and timers and drops any fetch that
   settles after it (no socket, render or redirect after dispose); `rerender` redraws from state for
   a language switch. Each view sets `document.title` in its render.
@@ -22,63 +19,37 @@ error pages) it mounts only the chrome around their `<main>`.
   rows and cards draw without an entrance animation, so a fast answer never flashes the page. The
   tournament page fades in the same way until its socket joins, so a fast load shows only the final
   page (name, owner tabs, folds) and never the fallback name or a lone *Connecting…*.
-* **Data** comes from `api.ts` only, never a raw `fetch`, and is validated before use. A JSON 401
-  sends the user to `/login?next=<path+query>`; a POST carries the meta CSRF token as
-  `X-CSRF-Token` and retries once with the token a 403 `csrf_invalid` hands back.
-* **Settings** (`settings/`) writes the same localStorage keys the game client reads, through the
-  shared settings modules and rows. The server lets only signed-in users (guests included) load
-  `/settings`; an in-app navigation there renders the page at once and, once the awaited session
-  says nobody is signed in, replaces it with `/login?next=/settings`.
-  An account also gets an API token tab beside the game settings (`settings/api-token.ts`, `/api/lobby/api-token`); a guest sees no tabs. The token
-  is shown once, from the POST's answer, and never fetched again.
-* **Retained pages** (`retained/`): an error page carries its status, error code and action link
-  in meta tags, and `error-view.ts` words them from this app's catalog through a closed code→key map.
-  The lobby storybook is a dev-only lazy route (`import.meta.env.DEV`), so production ships none of it.
+* **Data** comes from `api.ts` only, never a raw `fetch`, and is validated before use.
+* **Settings** (`settings/`) writes the same localStorage keys the game client reads, only through the
+  shared settings modules and rows. The API token (`settings/api-token.ts`) is shown once, from the
+  POST's answer, and never fetched again.
+* **Retained pages** (`retained/`): `error-view.ts` words an error page from its meta tags. The lobby
+  storybook is a development-only route; production ships none of it.
 
-The language switch never reloads or navigates. The chrome's buttons call the shared
-`switchLocale` (the `lang` cookie, `<html lang>`, the wind script), re-render the chrome, then
-redraw the page: an SPA view through the router's `rerender()`, an error page through its view, and
-terms or privacy through `legal-swap.ts`, which refetches the page and swaps its `<main>` content and
-title in place (a failed fetch keeps the old ones). The locale itself still comes from the server's
-`<html lang>` at load. Text a view keeps in its state is therefore stored as a code or key and
-translated at render time, except chat lines, which keep the language they arrived in.
+The language switch never reloads or navigates: it redraws the chrome and the page in place (an SPA
+view through its `rerender`, terms and privacy through `retained/legal-swap.ts`). Text a view keeps in
+its state is therefore stored as a code or key and translated at render time, except chat lines,
+which keep the language they arrived in.
 
-`lobby-socket.ts` is the JSON lobby WebSocket. Its close code is the server's cue: `disconnect()`
-closes with 1000, a leave, and a socket `connect()` replaces closes with 4100, so the server holds
-the room seat for the new one (`backend/lobby/app/rooms/AGENTS.md`).
+`lobby-socket.ts`'s close codes (leave, replace) are a contract with the server, which holds the room
+seat for a replacing socket (`backend/lobby/app/rooms/AGENTS.md`); change them only together.
 
-The room page reconnects a seated player (backoff in `room/handlers.ts`) and shows the lost
-connection once it gives up. A reconnect takes the held seat
-back silently; a refused one ends the page like any refused join. Returning to the page after it was
-hidden for a while, or the browser coming back online, reconnects at once, since a socket can die
-without a close event while the page is in the background. Matchmaking does not reconnect.
+The room, the lobby's games feed and the tournament page reconnect with backoff, and also at once
+(`bindToResume` in `page-lifetime.ts`) when the page returns from a long hide or the browser comes back
+online, since a socket can die without a close event while the page is in the background.
+Matchmaking does not reconnect.
 
-The lobby view (`lobby/`) watches the games being played over `/ws/games` (`lobby/games-feed.ts`): each message
-is the whole list, which replaces the shown one, so a reconnect needs no catch-up. It reconnects with the room's
-backoff and resume and binds its socket the same way. `current-games.ts` reads and draws a games list, here and on
-the tournament page; the tournament socket carries no game type, so its games show only how long they have run (the view redraws it on a timer).
+`current-games.ts` reads and draws the games lists of the lobby view (`lobby/games-feed.ts`) and the tournament page.
 
-The tournaments page (`tournaments/`, `/tournaments`) lists the user's own tournaments, then everyone else's, and
-creates new ones; it
-opens for anyone signed in and every signed-in nav links to it, but a guest gets no create form (the list's
-`can_create`). On phones the nav's Tournaments and Admin links move into the account menu, so the bar never
-outgrows the narrowest screen.
+On phones the nav's Tournaments and Admin links sit in the account menu, so the bar never outgrows the narrowest screen.
 
-The tournament page (`tournament/`) keeps the room's reconnect and binds its socket the same way.
-It holds no seat, so a reload only reconnects, and a language switch only redraws. Its Settings tab (rename,
-delete) shows when `/api/lobby/tournaments/{id}` says `is_owner`; switching tabs keeps the socket, so the owner
-stays online, and a delete goes to the tournaments page. The page leads with the games: the current
-ones and the game history from `joined` (every ended game, latest first), which a `game_ended` then
-updates, so a reload or reconnect loses none; only the owner sees the Start game button. Who is online
-and the chat sit folded below them. A finished tournament (the config's `finished_at`) opens no socket: the page
-shows its name, when it finished and the game history from the config, and the owner's Settings keep rename and
-delete. A live page told `tournament_finished` stops reconnecting and reloads its config into that view. The chat shows people's messages only: the chat lines of the
-server's `history`, sent before `joined` on every join, replace its log, so a reconnect loses only the
-page's own local error lines. `chat.ts` holds the chat log and composer both pages render.
+The tournament page (`tournament/`) holds no seat. Switching its tabs keeps the socket, so the owner
+stays online. Every join hands it the whole game history (`joined`) and chat (`history`), so a reload or
+reconnect loses nothing; a finished tournament (`finished_at`) opens no socket. `chat.ts` holds the chat
+log and composer the room and tournament pages render.
 
-A page that holds a lobby socket binds it to `page-lifetime.ts`: it closes the socket and cancels
-any pending rejoin on `beforeunload` and again on `pagehide`, and rejoins from scratch on a `pageshow` that restores it from
-the back-forward cache, unless the page has already ended (refused, taken over). Chromium keeps a
+A page that holds a lobby socket binds it to `page-lifetime.ts`, which releases it on both
+`beforeunload` and `pagehide` and rejoins after a back-forward-cache restore. Chromium keeps a
 cached page's socket open and answers the server's pings for it, so without this a user who
 navigates away keeps their queue entry or seat. Firefox aborts a page's sockets as soon as a
 navigation starts, before `pagehide`, so without `beforeunload` the page would flash its lost
@@ -89,30 +60,23 @@ reason the room and matchmaking views never reload for a language change.
 
 ## Build
 
-Vite builds one entry, `src/index.ts`, with a manifest; the lobby backend serves `dist/` under
-`/lobby-assets/` and maps the entry's script and stylesheet into its templates from the manifest, or
-from this app's Vite dev server under `make run-local-server` (`backend/lobby/AGENTS.md`).
-The stylesheet emits only the forced dark scheme. Storybook and developer-footer styles load
-through a development-only import; the production build check rejects them and unused theme schemes.
+The lobby backend maps `src/index.ts`'s script and stylesheet from the Vite manifest into its templates
+(`backend/lobby/AGENTS.md`), so the build keeps that one entry.
+Development-only styles go through `styles/development.scss`; `scripts/check-build.ts` (run by `lint`) rejects them and any light-theme CSS in the production build.
 Pico's form styles are trimmed to the lobby's inputs and chat composer. Extend this local subset
 when adding a control; do not reintroduce entire upstream form or layout modules for one element.
-Typography uses system sans-serif and monospace fonts, with Japanese fallback stacks selected by
-the nearest `lang` attribute. The lobby makes no external font requests.
+Use the system font stacks in `styles/_theme.scss`; the lobby makes no external font requests.
 
 ## Handoff
 
-When a game starts, the room and matchmaking pages store the game socket URL and ticket for the game
-client and navigate to `game_client_url`/`<game_id>`, both through `session/`; a `game_starting`
+When a game starts, the room, matchmaking and tournament pages hand off only through `session/`
+(`enterGame`), which stores the game socket URL and ticket and navigates to `game_client_url`/`<game_id>`; a `game_starting`
 without a `game_id` ends the page with a way to rejoin instead. The storage key and shape are the
 handoff contract in `docs/architecture.md`; change them only together with the game client.
 
 A join refused as `already_in_game` can instead be answered with `game_starting` for the game the
 user already plays, as the join's first and only message, so each page handles `game_starting`
 the same way whether or not it was ever seated or queued.
-
-A room join refused because a game is being created (`room_transitioning`, `match_starting`)
-reopens the socket after a short delay, a bounded number of times, so the page follows the game once
-it exists; a seated player refused the same way mid-start just waits for `game_starting`.
 
 ## Conventions
 

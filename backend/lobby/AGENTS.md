@@ -7,7 +7,7 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 ## Project
 
 * The uv project is this directory: the package is `app/` (imports read `from app.settings import ...`),
-  with `tests/` and the admin CLIs in `scripts/` beside it. Scripts import the app, never the reverse.
+  with `tests/` and the admin CLIs in `scripts/` beside it.
   Paths in this file are under `app/` unless they start with `tests/` or `scripts/`. The image ships
   only `app/` and `scripts/`.
 * Run checks from here (`cd backend/lobby && uv run pytest ...`); run the servers and `bin/` scripts
@@ -25,8 +25,6 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 
 ## Tooling
 
-* `tests/conftest.py` loads the repo-root `.env.tests` and routes structlog through stdlib logging so
-  `caplog` sees it.
 * `make test` measures line coverage of `app/` and gates none of it. Keep `branch` and `fail_under` out of
   `[tool.coverage]`; branch coverage is advisory (`make coverage-branches`).
 * Besides the built-in `TYPE_CHECKING` and stub exclusions, only a tagged `# pragma: no cover (<tag>)`
@@ -79,144 +77,55 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 
 ## Structure
 
-* `server/` — the composition root (`create_app()` builds the services onto `app.state`), the
-  middleware, the structlog setup and the build info. `settings.py` sits at the `app/` root so every
-  feature may import it.
-* `auth/` — the account and session service, password hashing, the game ticket signing, the
-  session-or-API-key authentication backend, the route policy decorators and CSRF. A socket
-  authenticates once, at its handshake, so the service reports every credential it revokes (a logout,
-  a session a login replaces, a rotated key) and `CredentialSockets` cuts off the lobby sockets that
-  credential admitted, from before their accept until their writer stops: nothing more is read, and
-  unsent messages, a game handoff included, are dropped. Only revocations in the lobby process reach it: a session that expires, or a
-  key a script rotates, leaves its open sockets alone.
-* `dal/` — the persistence contracts and models; `db/` — their SQLite implementations, opened only by
-  the composition root and the scripts.
-* The bottom layers know nothing of a feature: `replay_storage.py` (reading the stored replay files),
-  `queued_websocket.py` (the per-connection queued writer and the pre-accept handshake helpers),
-  `rate_limit.py` (the token buckets) and `tasks.py` (cancelling background tasks).
-* `views/` — page and API handlers by domain (`bot_api_handlers.py` is the bot JSON API, `lobby_api_handlers.py`
-  and `auth_api_handlers.py` the lobby app's), the Jinja2 templates, and the lobby app's Vite manifest / dev-server
+* `server/` — the composition root: `create_app()` builds the services onto `app.state`.
+* `auth/` — accounts, sessions, game tickets, the authentication backend, the route policy decorators and CSRF;
+  `CredentialSockets` (`auth/socket_registry.py`) cuts off the lobby sockets of a credential the service revokes.
+* `dal/` — the persistence contracts and models; `db/` — their SQLite implementations.
+* `views/` — page and API handlers by domain, the Jinja2 templates, and the lobby app's Vite manifest / dev-server
   resolution into template globals. Every lobby page route answers `shell.html` (`spa_handlers.py`) under its own
   policy decorator, and the lobby app (`frontend/lobby/`) draws the page from `/api/lobby/*`; only terms, privacy
   and error pages render server content, through `base.html`, which holds the chrome's mounts around `<main>` and
-  no navigation of its own. `layout.html`, the base of both, prints the meta tags the lobby app reads (CSRF token,
-  version, release link, year, dev mode, and on an error page its status, code and action link). The only HTML
-  form left is the chrome's POST `/logout`.
-  `game_client.py` hosts the game client (`frontend/game_v2/`), a separate app the lobby knows only by
-  its built directory or, in local runs, by its Vite dev server, which it proxies so the game page keeps
-  the lobby's origin and the `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works.
-* `views/error_pages.py` — every error answer, the failed CSRF check included. A browser gets `error.html` with the
-  real status, the failure as a code and the action link (the same-origin referer for a stale form, else the
-  lobby), which the lobby app words; anything else gets Starlette's plain text. The 500 handler runs outside the
-  middleware, so `create_app()` wraps it to add the security headers.
-* Storybook pages and footer links are development-only. Released servers return 404 for both
-  lobby and game storybooks, including direct requests to game storybook paths; the lobby storybook is a dev-only
-  route of the lobby app behind the shell.
-* `i18n/` — the en/ja/ru catalogs, loaded and cross-checked in `create_app()` (the lobby refuses to start on a
-  bad catalog), the locale resolver and the `Translator` (`docs/i18n.md` is the contract). The server resolves
+  no navigation of its own. The chrome's POST `/logout` is the one HTML form; a new one validates CSRF (Security
+  requirements).
+  `game_client.py` hosts the game client (`frontend/game_v2/`); the game page must keep the lobby's origin for the
+  `sessionStorage` handoff (`docs/architecture.md`, Game client contract).
+* `views/error_pages.py` — every error answer, the failed CSRF check included.
+* Storybook pages and footer links are development-only.
+* `i18n/` — the en/ja/ru catalogs, the locale resolver and the `Translator` (`docs/i18n.md` is the contract). The server resolves
   each page's locale into `<html lang>`; its catalog holds only the page titles the layout and the legal pages
   print. Page, nav, footer and error text is the lobby app's: the server sends codes (`AuthErrorCode`, error
   codes, room errors), never English prose; bot JSON, plain-text and protocol answers stay English. The server
   never writes the `lang` cookie: only the clients' language switches do, on an explicit choice.
-* `rooms/` and `matchmaking/` — managers and WebSocket handlers. Matchmaking is a FIFO queue that
-  starts a 4-human game once 4 players wait; its client sends nothing, so it needs no rate limit.
-  The two never import each other: they share `start_game` and `LobbyPlayer`, and each gets the
-  occupancy rule as an injected callable.
-* `game_transition.py` — the one game start for rooms and matchmaking, the game server client calls,
-  the "is this user playing" lookup and the recovery of a lost handoff. `websocket_utils.py` — the
-  socket prologue rooms, matchmaking and tournaments share (auth, `Origin` check, accept, the writer's lifetime);
+* `rooms/` and `matchmaking/` — managers and WebSocket handlers.
+* `game_transition.py` — the one game start for rooms, matchmaking and tournaments, the game server client calls,
+  the "is this user playing" lookup and the recovery of a lost handoff. `websocket_utils.py` — the socket prologue every lobby socket shares (auth, `Origin` check, accept, the writer's lifetime);
   each handler decides what an unexpected error does.
-* The lobby calls the game server through one HTTP client per app, built in `create_app()` and
-  closed in the lifespan. Its idle connections expire well before the game server's keep-alive
-  timeout (the Go server's 5s HTTP idle timeout), since a start sent on a connection the server is closing fails
-  ambiguously. Each call keeps its own deadline rather than the client's default.
-* `monitoring/` — the admin monitoring page's data: the `metrics.db` reader, the reductions, the chart
-  geometry and the one page-data assembly that takes the range and returns every chart, the games summary
-  and the live game-server counts. `report.py` turns it into one JSON document, plot lines and UTC axis labels
-  included, which the monitoring API answers for the lobby app to draw; `scripts/monitoring_report.py` prints the
-  same report for agents without the plot geometry. The lobby never opens `metrics.db` through `app.db`
-  (which would force WAL and create a schema). Reductions run in SQL, so a long range never loads raw
-  samples. A failed metrics read blanks only its own chart; the page still answers 200 with the games
-  section. Traefik exports a series only after its first request and drops them all on a restart, so its charts take their state from the newest
-  scrape of any router, and a quiet series reads a current 0. A range longer than the collected history
-  is charted from the oldest sample, and a counter interval across a gap or reset is skipped, never
-  blanking its whole bucket: a long range's buckets span hours and every deploy restarts the counters.
-* `players.py` — `LobbyPlayer`, one connected user and the only holder of its socket. Every send or
-  close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
+* `monitoring/` — the admin monitoring page's data from the host collector's `metrics.db`, which `report.py` turns
+  into the JSON the lobby app draws; `scripts/monitoring_report.py` prints the same report for agents. The reader
+  never goes through `app.db`, which would force WAL and create a schema on the collector's file, and reductions run
+  in SQL, so a long range never loads raw samples.
 * `occupancy.py` — the one owner of the occupancy rule.
-* Tournaments are durable rows in the shared SQLite database (id, name, owner); any registered account creates one
-  (a guest gets 403 `guest_account`). The tournaments page lists the user's own and everyone else's, and a
-  tournament's page, the shareable link, opens for anyone signed in, guests included. The tournaments list answers
-  `can_create`, false for a guest, so the page hides its create form. `views/tournament_handlers.py` is the lobby
-  app's tournament API
-  (`/api/lobby/tournaments*`); the page's view reads `is_owner` from it to show the Settings tab.
-* `tournaments/` — the tournament page's socket and `TournamentHub`, the in-memory registry of who is online on
-  each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online
-  is no occupancy place. The hub also keeps each tournament's chat history in memory (a day, at most the newest
-  1000 lines, pruned as lines arrive). Every join gets it as `history` before `joined`; `joined` carries the games
-  still being played and the ended ones with their results, read from `tournament_games`, so a reload still lists
-  them. The events socket gets no history.
-  The owner's events socket makes an events subscriber, keyed by connection (an owner may hold several), never a
-  player: it is not online, never replaces the owner's player connection, and what it sends is dropped. Tournament
-  events (`presence`, `game_started`, `game_ended`) are published once to the players and the subscribers; chat goes
-  to the players only. A subscriber gets a `presence` snapshot on connect and misses earlier events; the API's GET is
-  the catch-up.
+* Tournaments and `tournament_games` (the games started for one, players East to North) are rows in the shared
+  SQLite database. `views/tournament_handlers.py` is the lobby app's tournament API; a tournament's page, the
+  shareable link, opens for anyone signed in, guests included. Creation is gated by
+  `TOURNAMENT_CREATION_CLOSED` there; a guest never creates one.
+* `tournaments/` — the tournament page's socket, `TournamentHub` (who is online, the events subscribers and the chat
+  history, in memory only) and the game-end poller. Being online on a tournament page is no occupancy place.
   `chat_messages.py` holds the chat message model and the client frame limits both rooms and tournaments use.
-* The tournament API (`views/tournament_api_handlers.py`) is for an external manager: `api_key_json` accepts only
-  key auth, never a cookie (so its POSTs need no CSRF), and only the tournament's owner, anyone else getting the
-  404 of an unknown tournament. A start request's tables are independent: each starts in request order or fails
-  alone with its own result, and a malformed body starts none. Before each start every player of the table is
-  looked up as playing (the joins' lookup, failing open), with the game server's 409 as the backstop. A started
-  table's players leave the hub at once, so a later table in the same request finds them offline.
-  `tournament_games` is the record of the games started for a tournament, players East to North.
-* The game server never calls the lobby, so a tournament game's end is learned by polling (`tournaments/game_end_poller.py`):
-  a lifespan task reads the `played_games` record of every tracked unfinished game, tracked from `tournament_games` at
-  startup and from each start, so a restart resumes. The `tournament_games` finish update (`WHERE ended_at IS NULL`) is
-  the dedup: only the pass that changes the row publishes `game_ended`. The event's players come from
-  `tournament_games`, never from the standings, whose order is placement for a completed game and seat otherwise. A game
-  with no finish record (nobody joined it before the pending timeout, or a game server crash) stays unfinished and
-  tracked: no ending is ever inferred and there is no age cutoff.
+* The tournament API (`views/tournament_api_handlers.py`) is for an external manager; `docs/tournament-api.md` is its
+  contract.
 * A game's exit route (`/games/{game_id}/exit`, outside `/play/`) decides where leaving a game leads by its game id
   alone: a `tournament_games` row sends the player to that tournament's page, anything else to the lobby. Nothing
   about the return rides in the handoff, which is cleared at the game end, so a reload on the end screen still finds
   it.
-* Only the owner renames or deletes a tournament, from its page; anyone else gets the 404 of an unknown one. A delete
-  removes the tournament with its `tournament_games` rows in one write, then tells every player connection and events
-  subscriber `tournament_deleted`, closes them and stops watching its games. Running games are not stopped: they play
-  on, publish no `game_ended`, and their exit falls back to the lobby. A rename shows on the owner's page at once and
-  on anyone else's at their next load; no event carries it.
-* Only the owner finishes a tournament (`finished_at`, set once). A finished tournament stays listed and its page
-  still opens, but it is a record only: its config answer carries the ended games, every player connection and events
-  subscriber is told `tournament_finished` and closed, new ones are refused the same way, the chat history is dropped
-  and the API refuses game starts with 409. Running games play on and the poller still records their ends.
-* The schema is the files of `db/migrations/NNNN_<name>.sql`, and `Database.open` applies the ones missing from the
-  `schema_migrations` ledger in name order, all in one immediate transaction with their ledger rows, so a migration
-  holds no transaction control and a failure leaves none applied. An applied migration is never edited; a fix is a new
-  one. `0000_initial` uses `IF NOT EXISTS` because the game server creates `played_games` in the same file on its own
-  and may start first, and because databases from before the ledger already hold its tables.
-* `live_games/` — the lobby page's list of the games being played, over the send-only `/ws/games`. "Being played"
-  comes only from the game server's in-memory sessions (its internal `GET /games`, started games only), never from
-  `played_games`, whose `ended_at` stays NULL after a crash. One task polls it, and only while a page watches; each
-  change goes to every watcher as the whole list, and a new watcher gets the last list at once. A failed poll keeps
-  the last list and warns once per outage, never once per poll.
+* A tournament rename reaches no other open page: no event carries it.
+* The schema is the files of `db/migrations/NNNN_<name>.sql`, applied in one transaction (`db/schema.py`), so a
+  migration holds no transaction control. An applied migration is never edited; a fix is a new one. `0000_initial`
+  keeps `IF NOT EXISTS`: the game server creates `played_games` in the same file on its own and may start first.
+* `live_games/` — the lobby page's list of the games being played (`/ws/games`); like "playing" (Occupancy), it comes
+  only from the game server's in-memory sessions.
 * The one game server is two settings never derived from each other: the internal URL the lobby
   calls and the public WebSocket origin it hands clients.
-
-## Game start
-
-* Every attempt creates the game under a fresh game id (a room's id is not its game's id): a failed
-  call may mean the game server created the game anyway, and a retry under the same id would
-  collide with that orphan. A call that got no answer withdraws its id before raising (best
-  effort), so the orphan, created or still in flight, does not hold the players as playing until
-  its pending timeout.
-* A failure before the game server confirms creation raises `GameStartError` with a fixed reason
-  code; the game server's own text goes only to the log. Each caller recovers its own way: a room
-  sends the code, matchmaking `match_failed`. A 409 from the game server is its occupancy backstop
-  (the fresh id rules out a duplicate game), so its code is `player_in_game`. After confirmation
-  delivery only enqueues, so one slow player delays nobody else.
-* A match is resolved once, by the join that completed it, and a failed creation is terminal: the
-  four are told and closed, nothing is retried or requeued. A matched player who disconnected
-  meanwhile keeps the seat; the game server fills a seat nobody joins with AI.
 
 ## Occupancy
 
@@ -236,17 +145,9 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   turns into the game once it exists.
 * Everything keyed by connection (ready, start, leave, chat, cleanup) misses for a taken-over
   connection, so its buffered input and late cleanup change nothing.
-* Room and queue occupancy is checked synchronously inside the step that seats or queues the user,
-  so the two exclude each other atomically on the event loop and the lobby needs no lock.
-* The occupancy rule runs before anything else in that step (a room's existence included), so a
-  join that a start handed to its game during the lookup is always refused as `already_in_game`
-  and handed that game, even once the start has removed the room.
 * "Playing" comes only from the game server's in-memory sessions, never from `played_games`, whose
-  `ended_at` stays NULL after a crash. The handlers ask the game server before the occupancy check,
-  and `Occupancy` rejects a join whose answer a concurrent game start made stale.
-* The lookup fails open (treated as not playing) on a transport failure, a timeout or an unexpected
-  status, so a game server outage never locks users out; the game server refusing a user already
-  playing is the backstop.
+  `ended_at` stays NULL after a crash. That lookup fails open (`game_transition.is_user_playing`), with the game
+  server's own refusal as the backstop.
 * The WebSocket joins are the only gates: room creation does not check.
 
 ## Handoff recovery
@@ -255,9 +156,8 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   when the game server can name it, so a lost handoff is repaired by any lobby join; the game page
   recovers through `GET /api/game-session`. The room page of a room that is gone redirects a
   playing user to their game's page (to the lobby when they play none or the lookup fails). The flow is in `docs/architecture.md`.
-* Recovery returns the participant's own ticket from the game server; the lobby never caches or
-  re-signs tickets. It asks only for the authenticated user's id, and its lookup never fails open:
-  a failure keeps `already_in_game` (or answers 503), distinct from "no game".
+* Recovery returns the participant's own ticket from the game server (`game_transition.find_game_handoff`); the
+  lobby never caches or re-signs tickets, and its lookup never fails open.
 
 ## Auth model
 
@@ -267,11 +167,9 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   lives only in the cookie. Session writes are awaited, never posted, so a logout cannot be lost.
   Login (register and guest login included) replaces the incoming cookie's session, and the
   session-creating writes purge expired rows, so no cleanup task runs.
-* Expiry slides: a session idle for 30 days (an account) or 7 days (a guest) expires, to within a
-  day, because renewal is batched to about once a day. Every session also dies 90 days after its
-  creation. Renewal happens on the session check of an HTTP request or a WebSocket handshake, as a
-  conditional update that never resurrects a deleted or expired row. The cookie is set once, at
-  login, with the 90-day cap as its Max-Age; only the database expiry slides.
+* Session lifetimes are the constants at the top of `auth/service.py`: the expiry slides on use up to an absolute
+  cap, which the cookie carries as its Max-Age; only the database expiry slides. A renewal never revives a
+  deleted or expired row.
 * A guest is a session without an account: a fresh user id, a generated `Nanashi-NNNN` name and no
   `players` row, gone at logout or expiry. Several places still treat the name as identity (the game
   server rejects a table with duplicate names), so the name is unique among live guest sessions,
@@ -291,10 +189,6 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * A registered human gets an API token on the settings page: one per account, shown once, stored
   only as the same SHA-256 hash in the same field as a bot's key; generating again rotates it. A guest
   has no account and so no token. The token grants everything the account can do.
-* The backend tries the session cookie first and falls back to `X-API-Key` of any account, bot or
-  human, so a valid cookie wins over a key. Key auth adds the `api_key` scope, which is how a handler
-  or policy tells it from cookie auth. `bot_only` still gates bot routes by account type, and
-  answers JSON errors, never a login redirect.
 
 ## Security requirements
 
@@ -307,14 +201,10 @@ Mandatory for all lobby code; review must catch violations.
   with the cookie's token, or a new one set as the cookie under `render_page`'s cross-site rule
   (`json_csrf_rejection`); the client retries once with it. Every answer a lobby API handler
   produces is `Cache-Control: no-store`.
-* Every request body is capped by `RequestBodyLimitMiddleware` (`server/middleware.py`), which
-  wraps every middleware that can read a body and sits inside the security headers. It counts
-  streamed bytes, not `Content-Length`, and answers a JSON 413; a client gone mid-upload ends the
-  request without an error. Starlette's own body-limit middleware lacks the last two, so do not
-  swap it in. A handler reads its body before any side effect, so a rejected body changes nothing.
+* Every request body is capped by `RequestBodyLimitMiddleware` (`server/middleware.py`; its docstring says why
+  Starlette's own does not fit). A handler reads its body before any side effect, so a rejected body changes nothing.
   Never raise the cap for one route: it also keeps bot JSON far below the parser's recursion depth.
-* Every HTTP route gets exactly one policy decorator (`protected_html`, `protected_json`, `bot_only`,
-  `api_key_json`, `admin_html`, `admin_json`, `public_route`); startup fails for a `Route` without one. WebSocket routes
+* Every HTTP route gets exactly one policy decorator from `auth/policy.py`; startup fails for a `Route` without one. WebSocket routes
   authenticate inside the handler. `protected_json` and `admin_json` are for JSON a page script fetches: a
   JSON 401, never a login redirect.
 * `admin_html` and `admin_json` read the account's admin flag on every request, never from the session, so a
@@ -323,8 +213,8 @@ Mandatory for all lobby code; review must catch violations.
   the chrome's Admin nav section links an admin route, and it shows only when `/api/lobby/session` says
   `is_admin`; the lobby bundle's monitoring chunk is discoverable, but its data is not.
 * Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.
-* Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the test
-  environment turns Secure off. The `lang` cookie is the one exception to HttpOnly: it carries no
+* Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the tests and local HTTP
+  development (`.env.tests`, `.env.local`) turn Secure off. The `lang` cookie is the one exception to HttpOnly: it carries no
   credential and the game client reads it at page load; every reader validates it against
   the supported locales.
 * A redirect to a client-supplied target (the login `next`) follows only a same-site path: no
@@ -333,12 +223,11 @@ Mandatory for all lobby code; review must catch violations.
   response carrying a credential (a game ticket) is `Cache-Control: no-store`.
 * The internal API secret is sent only to the game server, as a bearer header; no page or browser
   response ever holds it.
-* Room, matchmaking and tournament WebSockets refuse an unauthenticated socket with 4001, then a
+* Every lobby WebSocket (`websocket_utils.py`) refuses an unauthenticated socket with 4001, then a
   cookie-authenticated one with 4003 when its `Origin` is not exactly the configured one, a setting every
   deployment must supply. A key-authenticated handshake on any lobby socket is exempt from the `Origin` check: it
   defends the cookie a browser attaches to a cross-site socket, and no browser sends an `X-API-Key` on its own.
-* Two CSP tiers: lobby pages (same-origin connect) and game pages (`/play/*`, `/game-assets/`,
-  external WebSockets allowed). A new route fits a tier or gets an explicit policy.
+* A new route fits one of the two CSP tiers (`server/middleware.py`) or gets an explicit policy.
 * Replay serving reads files only through `replay_storage.read_replay`, which keeps the id checks,
   path traversal protection and size limit.
 * Passwords, API keys, session ids and game tickets are never logged at INFO or above.

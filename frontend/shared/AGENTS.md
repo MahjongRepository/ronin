@@ -1,24 +1,17 @@
 # Shared frontend source (TypeScript)
 
-Source both apps import as `@ronin/shared/<module>`: no package.json, lockfile, `.npmrc` or
-`node_modules`, never installed and never built on its own. Each app's Vite bundles the modules it
-imports, and each app's `tsc` checks them.
+Not a package: it gets no `package.json`, lockfile, `.npmrc` or `node_modules`, and is never installed
+or built on its own.
 
-* `src/` is flat: modules import each other as `./<module>`, never `@/` (each app binds `@/` to its
-  own `src/`), and never import an app.
-* Dependencies resolve from the importing app's `node_modules`; both apps pin the same versions, and
-  both dedupe `lit-html`, so a bundle holds one copy. Add an import only of a package both apps
-  depend on at the same version.
-* The lobby's scripts check this directory: `lint` (this `.oxlintrc.json`), `typecheck` (this
-  `tsconfig.json`, resolving packages from `../lobby/node_modules`), `test`
-  (`frontend/lobby/vitest.shared.config.ts`) and `fmt`/`fmt:check` (the lobby's `.oxfmtrc.json`).
+* Import only a package both apps depend on at the same version: each app resolves these modules from its own
+  `node_modules`.
+* The lobby's `package.json` scripts lint, typecheck, test and format this directory.
   Run one file's tests with `cd frontend/lobby && npx vitest run --config vitest.shared.config.ts
   <path>`.
 * The Docker builder stages copy only `src/`, so a module imports nothing outside it.
-* Text follows the apps' i18n rules (`docs/i18n.md`), with catalogs of its own: shared UI looks its
-  keys up through `t` from `shared-i18n.ts`, built by the same `createTranslator` (`i18n.ts`) each app
-  builds its own `t` with over its own catalog, never an app's. `bin/check_i18n.py` checks them as
-  the `shared` app, scanning only this `src/`.
+* Text follows `docs/i18n.md` with catalogs of its own (`src/locales/`): shared UI translates through
+  `t` from `shared-i18n.ts`, never an app's `t` or catalog. `bin/check_i18n.py` checks them as the
+  `shared` app.
 * Storage keys and the game handoff key (`session-storage.ts`, *Game client contract* in
   `docs/architecture.md`) are contracts between the apps and with stored browser data; change them
   only with every reader.

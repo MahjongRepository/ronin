@@ -1,22 +1,8 @@
 # Game server (Go)
 
-The game server. It is one Go module, outside the uv project: it imports no Python and
-the Python tooling does not see it. It holds the engine's base vocabulary, the seam
-types, its seeded randomness, the wall, shanten, the hand reading (agari, divider, waits), the hand scoring, the
-option helpers (a seat's discards, calls, kans, riichi, furiten and win payments), the round state machine (`engine/internal/round`),
-the game played round to round (`engine/internal/game`), the seat record each seat's events keep up
-and the seat view it equals (`engine/internal/record`), the facade over them (`engine/`) with its
-seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), the shaping of the
-engine's output into messages and of client messages into actions (`internal/messaging`), the live
-games with their sessions (`internal/session`), the rows it persists beside the lobby
-(`internal/store`) and its replay files (`internal/replayfile`), its credentials (`internal/auth`) with
-the Python-style JSON quoting the lobby's files use (`internal/pyjson`), the transport serving the lobby's
-routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
-replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), the Tenhou export
-(`internal/tenhou`), the check of the hand scoring against real Tenhou wins (`internal/tenhou/tenhoulog`),
-the generator of the game client's seat transcripts and replay fixtures
-(`cmd/fixtures`), the wall measurement (`cmd/measurewall`), and the one-off migration of the Python
-server's data (`internal/migrate`, `cmd/migrate`).
+The game server: the engine under `engine/`, the server side and its tools under `internal/` and `cmd/`. The
+sections below say which package owns which concern; `engine/internal/record` is the seat record and view,
+`internal/pyjson` the Python-style JSON the lobby's files use.
 
 ## The seam
 
@@ -24,28 +10,18 @@ The module is two sides, a server and an engine, and the engine is reachable onl
 
 * `engine/` is the engine's only public API. The rules live under `engine/internal/`, which the Go
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
-  The facade holds no rule of its own: it wraps `game`, the seat record's event step (`Follow`), the seed functions of `rng`, the round a
-  seed's wall deals, the lowest shanten the tools' play policies rank by and the settlement of a win
-  the Tenhou check compares (`offer`'s, which the round settles with too), and re-exports as type
-  aliases the seed, scoring and error types a caller builds or matches. No slice it returns shares a backing
-  array with the game, so a caller may write into anything it gets; the facade copies what the layer
-  below shares, and a seam test writes into every returned slice to hold that.
+  The facade holds no rule of its own. Every slice it returns is the caller's own: a new method
+  copies what the layer below shares, and `TestGame_WhenACallerWritesIntoEverySliceItReturns_ShouldStayAsItsTwin`
+  (`seam/engine_test.go`) must cover it.
 * The compiler does not stop the opposite direction, so lint rules in `.golangci.yml`, run by
   `make lint-go`, hold it: see Engine purity.
 * `engine/tile` is the public vocabulary under the facade: tile kinds, hand tiles, tile ids, winds,
   seats, dice and mpsz notation. It imports nothing of the module, so every engine package can
   build on it. Its exported tables are functions returning arrays, never package `var`s, since any
   importer could write to a public `var`.
-* `engine/play` holds every type that crosses the facade: actions, decisions, what the game awaits,
-  events with their visibility, refusals, round results, standings, win values and yaku, and the
-  seat view. It imports only `engine/tile`, so the server side reads the engine's output without
-  reaching under the facade, and every engine package can produce it. gochecksumtype does not see
-  through a type alias, so the sum types live here and the facade does not re-export them.
-  An absent value is a `play.Option` (a value and an ok flag), never a pointer, so state stays a
-  plain value; an absent sum type is nil.
-* The server side and `seam/` import `engine`, `engine/play` and `engine/tile`, nothing else of the
-  engine; the compiler seals `engine/internal`. depguard holds the vocabulary itself:
-  `engine/tile` imports nothing of the module and `engine/play` only `engine/tile`.
+* `engine/play` holds every type that crosses the facade (its package doc). gochecksumtype does not
+  see through a type alias, so the sum types live here and the facade does not re-export them. An
+  absent value is a `play.Option`, never a pointer, so state stays a plain value.
 * `seam/` is a sibling directory of `engine/` holding tests only. A test package inside `engine/`
   may legally import `engine/internal/...`; a sibling may not, so a test in `seam/` proves a
   behaviour is observable through the facade alone.
@@ -61,48 +37,30 @@ cmd -> internal/server -> session -> messaging -> wire -> engine -> engine/inter
 Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/play` and each other,
 never `engine`.
 
-`internal/store`, `internal/replayfile` and `internal/pyjson` are leaves beside that line, and
-`internal/auth` sits over `pyjson` alone: the session and the server use `store` and `replayfile`,
-the replay check `replayfile` alone, so it links no database driver, and the server and the fixture
-generator `auth`. `internal/replay` sits beside `messaging` over the wire: it reads replays for the
-tools, so the live path never imports it. `internal/tenhou` sits there too, under the server, which
-answers the export route with it. `internal/migrate` sits beside them for `cmd/migrate` alone: it
-reads old replays through the wire, checks each rewrite with the Tenhou export and writes through
-the store and `replayfile`, and nothing on the live path imports it. `internal/tenhou/tenhoulog` is
-a leaf for its own tests: it settles Tenhou's rounds through the facade and reads the Tenhou ids
-from `tenhou`, so the engine holds no Tenhou format of its own.
+`internal/store`, `internal/replayfile` and `internal/pyjson` are leaves beside that line;
+`internal/replay`, `internal/tenhou` and `internal/migrate` sit beside `messaging` over the wire,
+and the live path never imports `replay` or `migrate`. No lint rule covers `cmd/`: keep
+`cmd/verify` off `store` so it links no database driver. `internal/tenhou/tenhoulog` settles
+Tenhou's rounds through the facade, so the engine holds no Tenhou format of its own.
 
-Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports
-only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
-`messaging`, `store` and `replayfile` (never the replay runner), `server` the session, messaging,
-wire, store, replayfile, auth and tenhou but of the engine only `engine/play` and `engine/tile`,
-`store`, `replayfile` and `pyjson` nothing, `auth` only `pyjson`, `replay` only the wire and the
-engine's public packages, `tenhou` only the wire and the seam types, `migrate` the wire, tenhou,
-store, replayfile and the seam types, `tenhoulog` the engine's public packages and tenhou, and each
-layer added later gets its own. Each
+Each server package's imports of the module are a depguard rule in `.golangci.yml`, whose `desc` gives the
+reason; a new layer gets its own rule. Each
 `cmd/*` is its own composition root: its `main` is the only place that reads that binary's flags,
 environment and signals and wires the parts it uses, so a tool beside the server builds what it
 needs without going through `cmd/gameserver`.
-`cmd/gameserver` reads the settings environment the lobby shares (`bin/local-settings.sh` locally), wires the store, the session and the
-server, and runs the graceful stop (Server).
+`cmd/gameserver` reads the settings environment the lobby shares (`bin/local-settings.sh` locally).
 
 ## The wire
 
 `internal/wire` is the format the server, the replay tools and the clients read, so its bytes are
 a contract.
 
-* A message or replay record is a `wire.Map`, an ordered list of keyed values, never a Go map: its
-  keys encode in the order it lists them. An integer takes the fewest bytes, a float is always a
-  float64 (so `Int(20)` and `Float(20)` differ on the wire), strings use str8 from 32 bytes, and
-  within messages and records binary data appears only as a replay's seed, and score maps and the
-  replay's rules envelope are the only string-keyed maps. The one exception is the observe route's
-  envelope, a string-keyed map around the observed records, which it carries as binary data.
+* A message or replay record is a `wire.Map`, never a Go map, so its keys encode in the order it
+  lists them. Decoders outside this module read these bytes (`frontend/game_v2/src/shared/protocol/wire-codec.ts`,
+  the bots), so the forms `encode.go` writes and what `validate.go` admits change only together with them.
 * Keys, event codes and result codes are only ever added: a retired one leaves its gap, never a
-  reused number. The live and replay key sets and the replay schema (the fields each record and
-  result type requires, and each field's type) live beside the codec, which checks them on encode
-  and decode alike; the size, length and map limits bound decoding only.
-* A change to the replay format bumps `wire.ReplayVersion`; a replay names the rules profile it was
-  played under, this server's or the one every rewritten `0.4-dev` game keeps.
+  reused number. The key sets and the replay schema are `key.go` and `replay_schema.go`.
+* A change to the replay format bumps `wire.ReplayVersion`.
 * `internal/wire/testdata/` holds the goldens a Go test owns (`go test ./internal/wire -update`
   rewrites their bytes and key names from their payloads; review the diff), the `0.4-dev` replays
   that are the one home of the old-format inputs (`legacy/`), and the expected output of rewriting
@@ -127,10 +85,8 @@ a contract.
   a float (timer settings, the pending game timeout, elapsed times) is a `float64`.
 * A round end's scores are those before its payments; its score changes take them to the scores
   after it.
-* A hand shown at a round's end (a win, a tenpai hand, an abort's hands) goes out sorted by id, the
-  engine's own order being the deal with every draw appended, which would tell the table what its
-  seat drew and kept. A decision's opening follows every event of its call, a seat's furiten change
-  included.
+* A hand shown at a round's end goes out sorted by id (the hand order rule under Session). A decision's
+  opening follows every event of its call, a seat's furiten change included.
 * `ReplayLog` is the one collector of a game's replay records, kept by the session and used alike by
   the fixture generator and the replay and Tenhou tests, so what they record is what the server
   saves.
@@ -155,10 +111,7 @@ a contract.
   `Clock` (`Config`), virtual in tests through `testing/synctest`.
 * The engine stops after a deal, awaiting `play.AwaitingDealt`, and `Begin` makes the dealer's
   first draw. At the game's start the session calls `Begin` only once every seat confirmed the start
-  or its timeout confirmed for them, so the start screen shows over the dealt table; the absent
-  seats' seat control records go between the deal and the draw, and a reconnect snapshot meanwhile
-  is the engine's view of the dealt table, with no decision. A later round's deal and its draw go
-  out as one update. Every bank resets on a call that deals.
+  or its timeout confirmed for them, so the start screen shows over the dealt table.
 * A reconnect either takes a seat back from its AI player (seat_control to the others; a turn the
   AI player had not played yet becomes the participant's new decision, keeping the deadline and
   bank of a decision the seat left running, else timed from the reconnect)
@@ -169,9 +122,7 @@ a contract.
   goroutine then runs the finalizer (replay save, finish row, closes), each step its own panic
   boundary, so a fault in one still lets every connection close. The start row claims the game id:
   it is written once on the goroutine after the engine game is built and before anything of the
-  game is published, and a conflict or a failed write fails the game before play. The finish row is
-  written up to three times, 1 s then 2 s apart on the `Clock`, and a cut store context stops the
-  waits. Both rows use the store context `New` takes, never a game's.
+  game is published, and a conflict or a failed write fails the game before play.
 * `Manager.Settle` waits until every posted step, every agent call and every claimed end's
   finalizer ran. Only a caller that is the session's one source of work may use it: a harness
   driving the session on a Clock whose timers it fires itself, which settles before it reads what
@@ -242,7 +193,7 @@ a contract.
   furiten change at once whichever call answer brings it, and so does a call's prompt with its
   timer, but the next draw, a call's outcome, a riichi deposit and the round's end wait until the
   hold and the call window have both ended. An accepted call response from a connected client
-  (including an automatic pass) shortens the hold to 150 ms from the original discard or kan.
+  (including an automatic pass) shortens the hold to its floor (`discardHoldFloor`) from the original discard or kan.
   A server AI decision, timeout, stale action or resync leaves the sampled deadline in place.
   A leave or a reconnect while the game end is held hands no seat over and records no seat control
   (the returning seat's own snapshot alone shows it played by itself):
@@ -252,9 +203,8 @@ a contract.
   an AI player is not asked, and a snapshot is the last update shown plus the events shown since
   (`engine.Follow`), with no decision. The next wait opens, and its timers start, only when the
   held events are shown, and no seat's bank pays for the hold. The hold's randomness is the
-  process's, never the game seed's. `cmd/gameserver` holds discards, with one human at the table
-  too, except under `GAME_ENVIRONMENT=local`, which `make run-games` sets for its bots; the
-  fixtures and the benchmarks hold none.
+  process's, never the game seed's. `cmd/gameserver` holds discards even with one human at the table; local mode (Security requirements),
+  the fixtures and the benchmarks hold none.
 * What a seat sends must not show the table its hand order, which is the sorted deal with every
   draw appended. The session shows a call's furiten changes ahead of its other consequences, held
   or not, so their order never tells a seat whether its pass was the last answer. With
@@ -277,8 +227,7 @@ a contract.
   records, which nothing writes to, except the game start, stored as a copy without the seed, so
   nothing an observer reads can hold the seed. Each value has one lock owner: the timeline's mutex
   guards its records and its seal, the Manager's guards the registry of timelines and their
-  expiry, and neither is taken under the other. The end claim seals it for every reason, the
-  release sets its expiry (the end plus the observe delay plus a minute), and a read serves only
+  expiry, and neither is taken under the other. The end claim seals it for every reason, the release sets its expiry, and a read serves only
   the records older than the delay, off the game's goroutine.
 * Each step logs as its own subject: every line of a game carries `game_id`, and a line about a
   seated participant its `seat`. The messages the log gates match are named constants with fixed
@@ -305,16 +254,12 @@ a contract.
 * `/status` is a contract: Telegraf's `fieldinclude` allow-list and its metrics schema store its
   keys, the lobby reads its game counts, and counter-reset detection keys on `started_at`, the
   process start in whole epoch seconds, so counters stay cumulative. A test holds the keys against
-  `deploy/config/telegraf.conf`. `loop_lag_max_ms` is the per-game queue delay the session measures:
-  the longest a routed message waited for its game to take it in the last minute, null without one.
+  `deploy/config/telegraf.conf`.
 * `/status` carries no per-user data. The list of games playing (`GET /games`) names players, East
   to North from the first dealer as the lobby shows them, so it answers only the internal secret;
   so does the observe route, which names them too.
-* A graceful stop runs in this order inside compose's 15 s grace period, on one deadline: the
-  HTTP server stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits
-  until each ran its disconnect, then shuts the session down, which drains the finalizers and the
-  store writes, and the database closes last. Past the deadline the sockets still open are dropped
-  and the store's context is cancelled.
+* A graceful stop runs on one deadline (`shutdownTimeout`, `cmd/gameserver/main.go`), which must fit
+  compose's 15 s `stop_grace_period` (`deploy/docker-compose.yml`); `docs/architecture.md` gives its order.
 
 ## Replay
 
@@ -345,7 +290,7 @@ It owns the Tenhou ids: each yaku's, the dora counts' and the limit codes.
 
 * It reads the records alone and never runs the engine, so a replay of either rules profile converts,
   a rewritten `0.4-dev` one included: the rewritten robbed-kan replay converts to the log recorded in `testdata` from the
-  original, and a test holds that. The INIT dice are a Tenhou log's, stored less one (0 to 5).
+  original, and a test holds that.
 * Every seat moves to Tenhou's as it is read: Tenhou seats its first dealer at 0, so its seat order is
   the dealer order and each INIT's round counter counts the dealer rotations.
 * A ron writes one AGARI per win, each from the scores the win before it left, as Tenhou does: the
@@ -358,29 +303,19 @@ It owns the Tenhou ids: each yaku's, the dora counts' and the limit codes.
 `cmd/fixtures` plays the seat scenarios through the real session and `Router` on virtual time and
 writes what each named seat's client met, the game client's end-to-end pin of the session.
 
-* Time moves only between steps: every timer due by a step's moment fires at its own moment in the
-  order it was armed, and the harness settles the session after each firing and each step. A step
-  falls on a multiple of 250 ms and never on the moment a timer fires, so every time, bank and
-  elapsed value is exact and two runs write the same bytes.
 * A scenario stages its first rounds' walls; a fixed wall source ends the game once its walls are
   dealt, so every later round is the seed's own wall for its round number and dealer, laid out as a
   fixed wall. A later round's dealer is known only once it is dealt, so a scenario runs again with
   the dealers it saw until they match. Fixed walls throw (1, 1), so a later round's dice are not the
   seed's.
-* A transcript is JSON, one event per line, keys sorted, in Python's number and string forms.
 
 ## Replay fixtures
 
 `cmd/fixtures` also writes the replay files the game client's replay tests and storybook read. One
 run writes or checks both sets: `make generate-fixtures` and the `make fixtures-check` gate.
 
-* A replay scenario plays the engine directly, one engine call at a time, and records each call
-  through `messaging.ReplayLog` as the session would: absent seats' seat control records between
-  the deal and the dealer's draw, an AI player's seat answered from its decision's default at once
-  in the awaited order, and a leave or a return as its own record. A staged game stages its first
-  round and deals every later one from the seed as the seat scenarios do; the other games are dealt
-  from their seed and played to their end by a fixed policy, the default action or the eager one
-  that wins whenever offered and otherwise discards towards ready by `engine.Shanten`.
+* A replay scenario plays the engine directly (`cmd/fixtures/replays.go`, `replay_scenarios.go`) and
+  records each call through `messaging.ReplayLog` as the session would.
 * Each replay must end in the outcome its scenario names and reproduce its game through
   `internal/replay` from the same setup before it is written; a cut falls between engine calls, as
   the server saves only between steps, and must still load and run.
@@ -391,48 +326,25 @@ run writes or checks both sets: `make generate-fixtures` and the `make fixtures-
 
 * Its engine seeds and control shuffle come from a port of Python's `random.Random` seeded with fixed
   strings, so the same arguments measure the same walls and print the same report. `testdata/python_report.txt`
-  is the report of the Python measurement that preceded it, and a test holds the Go one to it.
-* `make profile` runs three full-game benchmarks over the client's full game fixture:
-  `BenchmarkRun_FullGame` (`internal/replay`), the engine alone; `BenchmarkRouter_FullGame`
-  (`internal/server`), four scripted clients playing it through the `Router`, the session, the store
-  and the wire in process, on a clock whose timers never fire; and `BenchmarkSocket_FullGame`, the
-  whole game from start to finish over real sockets: the lobby's `POST /games`, four websocket
-  clients on loopback joining and playing it, and the server closing them at its end, with real
-  timers and the rate limit raised past what a game sends. The socket clients replay a schedule the
-  in-process run records (each message waits until every client received the frames it had there),
-  so they never decode and the game is the same every run; besides wall time per game it reports
-  the process's CPU per game (`cpu-ns/op`, clients included), the number a socket change moves.
-  Each driver's pin test requires the session to save the fixture's exact replay, so the benchmarks
-  cannot drift into a different game. The fixture is played by the default policy (discards and
-  passes, no calls); one table at a time, so contention between games shows only in
-  `make profile-games` (`cmd/gameserver -profiledir`).
+  holds the reference report, and a test holds the Go one to it.
+* `make profile`'s benchmarks are `BenchmarkRun_FullGame` (`internal/replay`) and
+  `BenchmarkRouter_FullGame` and `BenchmarkSocket_FullGame` (`internal/server`). Each driver's pin
+  test requires the session to save the fixture's exact replay, so they cannot drift into another
+  game. `cpu-ns/op` (process CPU per game, clients included) is the number a socket change moves.
+  They play one table at a time, so contention between games shows only in `make profile-games`.
 * The layer table charges each CPU sample to the deepest frame of this module's packages, so library
   and runtime work counts toward its caller, except GC work (background marking, assists, sweeping,
   scavenging), which gets its own row.
-* `cmd/gameserver/default.pgo` is the PGO profile every build of the server picks up, Docker's
-  included. `make update-pgo` merges fresh CPU profiles of every benchmark, built without PGO, plus any
-  `PGO_PROFILES` given, such as a `make profile-games` run's `cpu.prof`; regenerate it after a large
-  change to the hot path. Test binaries ignore it unless built with `-pgo`, so the profile scripts
-  pass it to measure what ships.
+* Regenerate `cmd/gameserver/default.pgo` (`make update-pgo`) after a large change to the hot path. Test
+  binaries ignore it unless built with `-pgo`, which is why the profile scripts pass it.
 
 ## Migration
 
 `cmd/migrate` is run once, by hand, with both servers stopped: it rewrites every stored `0.4-dev`
 replay into the current version and converts every `played_games` row's final scores to tenths.
 
-* A rewritten replay is the game as it was played and scored: it keeps rules profile 1 and every record
-  the new format did not reshape keeps its bytes. What the rewrite adds is derived from the old records
-  and checked against them: a robbed kan's meld goes right after the declarer's last record, ahead of
-  any seat control line, and pao is assigned by the call rule both servers apply, which must agree with
-  every win's pao seat.
-* Lossless or untouched: a record or field `0.4-dev` never held, records that contradict what the
-  rewrite derives, a rewrite the codec refuses, or one of an ended game that converts to no Tenhou log
-  leaves the file as it was and fails the run. A replay cut inside a record is the one partial rewrite:
-  its records before the cut, counted apart.
-* Idempotent by construction: a replay at the current version is skipped, and a row is converted only
-  while it lacks the tenths marker, which every row Go writes carries, so no row is multiplied twice
-  whatever order the runs and the server take. The rows convert in one transaction, and a dry run rolls
-  it back and writes no replay.
+* A rewrite is lossless or leaves the file untouched and fails the run, and a rerun converts nothing
+  twice (`internal/migrate`); a change to it keeps both properties.
 
 ## Security requirements
 
@@ -459,12 +371,12 @@ Mandatory for all server-side code; review must catch violations.
 * A REST body is read through a hard size cutoff (`http.MaxBytesReader`), never whole and unbounded.
 * Every goroutine has an owner and an error boundary: one serving a game fails that game, any other
   logs and closes. The server owns each socket's writer goroutine, so the session holds no socket
-  state: 256 queued messages, a 10 s send deadline, the socket terminated on overflow, the close
+  state: a bounded queue and send deadline, the socket terminated on overflow, the close
   frame the last item. Sends and closes never block or fail on a dead or slow socket; a dead socket
   surfaces only at receive, where the disconnect seats an AI player.
 * No panic from handling a message leaves its handler: one that reaches a game fails that game,
   any other closes the socket as an internal error (1011).
-* Liveness is the server's own WebSocket ping (20 s interval, 20 s timeout). A client's PING is only
+* Liveness is the server's own WebSocket ping (`DefaultSocketConfig`). A client's PING is only
   a latency probe: it is answered with a pong once it passes the rate limit, before routing,
   authenticated or not, and touches no session.
 * Every socket's read limit is the decoder's buffer limit (`wire.MaxMessageBytes`), set before the
@@ -479,17 +391,14 @@ The lobby reads what the game server writes, and signs what it verifies, so `sto
 `auth` keep the formats the lobby reads and signs.
 
 * The SQLite file is shared. The game server creates only `played_games` and its index, in the
-  lobby's DDL; the lobby creates its own tables when it opens the file. Opening sets the file and
-  its WAL and SHM siblings to 0600. A row's time columns are Python's `isoformat()` (`+00:00`,
-  microseconds only when nonzero), the same instants in `data` end in `Z`, and `data` is the JSON
-  the lobby's `PlayedGame` validates: seat order at the start, placement order at a completed end.
+  lobby's DDL; the lobby creates its own tables when it opens the file. A row is the JSON the lobby's `PlayedGame` validates.
   `testdata/python_rows.json` holds rows Python wrote, and Go must write them byte for byte but for
   `final_score_unit`: every row Go writes ends with that key (`store.FinalScoreUnit`), its final scores
   in tenths. A row without it holds the Python server's whole points until the migration converts it.
 * A game's row is its id's durable claim: the start insert keeps an existing row and returns
   `store.ErrGameRecorded`, so once a game's start row is written its id is never played again. A
   game that wrote none (abandoned or withdrawn while pending, refused by the engine, or whose start
-  write failed) leaves no claim in the store; a withdrawn id is still refused in memory for 24 h.
+  write failed) leaves no claim in the store.
 * At startup, once its listener is bound, the server closes every row with no end as `error`, as
   `RecordFailed` would: no game survives a restart, so such a row is a game a crash or a shutdown
   left unfinished. This holds only while exactly one game server writes a database
@@ -510,13 +419,11 @@ engine keeps no registry and no mutable package-level state. `make lint-go` hold
 code under `engine/`:
 
 * Imports are an allow-list (`engine-purity`, depguard in strict mode): the engine's own packages and
-  a short set of pure standard-library packages. Anything else, the module's `internal/` packages,
-  `net`, `os`, `sync`, `math/rand`, the websocket library, fails the lint. When the port needs
+  a short set of pure standard-library packages. When the engine needs
   another pure package, add it to the list; an allow entry is a prefix, so end it with `$` to keep
   `math` from admitting `math/rand`.
-* `time` is allowed for its types: time crosses the facade as `time.Time` and `time.Duration` values
-  the caller passes in. Reading the clock or starting a timer (`time.Now`, `time.Since`,
-  `time.Sleep`, `time.After`, tickers) is forbidden by forbidigo, and so is printing.
+* `time` is allowed for its types only: time crosses the facade as values the caller passes in
+  (forbidigo holds the rest).
 * Package-level variables and `init` functions are rejected (gochecknoglobals, gochecknoinits),
   except read-only tables. Go has no constant arrays, so a small lookup table is a package-level
   `var` array in a file named `lookup_*.go`, the only engine files gochecknoglobals skips; the
@@ -529,11 +436,9 @@ code under `engine/`:
   consumes it, when one needs it. The only interfaces the engine declares are sealed sum types,
   since Go has no enum with payloads: an unexported marker method, one struct per variant, and
   `//sumtype:decl` in the interface's doc comment, the only place that directive works.
-* A type switch over a sum type and a switch over an enum list every variant, anywhere in the
-  module: gochecksumtype and exhaustive both run with `default-signifies-exhaustive: false`, so a
-  `default:` branch does not cover the missing ones, and a new variant fails the lint at every switch
-  that misses it instead of falling into `default:`. gochecksumtype does not see through a type
-  alias, so a package that switches over a sum type imports the package that declares it.
+* A switch over a sum type or an enum lists every variant; a `default:` does not cover a missing one. A
+  package that switches over a sum type imports the package that declares it, since gochecksumtype does not
+  see through a type alias.
 * `Refusal` is a domain outcome, deliberately not an `error`: a player's refused action is an
   expected result. `error` stays for failures that are not one. A state the rules say cannot
   happen, such as the scorer rejecting an offered hand for anything but no yaku, a settled win for
@@ -553,8 +458,6 @@ code under `engine/`:
 * `seam/testdata/traces.jsonl.gz` is a fixed set of recorded games (`seam/testdata/README.md`) whose
   actions the replay tests play through the engine. A wanted rule change that stops one of them
   playing through raises a question about that data; it is never a reason to leave the change undone.
-* The scorer rejecting an offered hand for anything but no yaku, a settled win for any reason, or a
-  payment that does not fit its win, panics with `play.EngineFaultError`.
 * A game's scenario tests play it through `engine/internal/testkit`, which stages walls and scripts
   actions. testkit is engine code: it never imports `testing` and never
   asserts, returning values or errors, and it has its own tests. It imports `game`, so only external
@@ -564,8 +467,7 @@ code under `engine/`:
   kept stays as it was. A branch test plays two actions from one state and checks the state and
   both branches against fresh replays; one is written for each kind of change that touches a slice.
 * Test names follow `Test<Subject>_When<Condition>_Should<Expected>`; drop `When<Condition>` only for
-  unconditional behaviour (`TestNewGame_ShouldYieldStartedEventWithFullWall`). One scenario per
-  test. The root `AGENTS.md` project rules on what earns a test apply here too.
+  unconditional behaviour (`TestNewGame_ShouldYieldStartedEventWithFullWall`).
 * A check too slow for every run sits in a `_test.go` file behind a build tag (`exhaustive`), outside
   `make test-go`, and so does one over data kept only on a developer's machine (`tenhou`, the Tenhou
   corpus); its package doc gives the command that runs it. `make lint-go` builds with every tag
@@ -588,18 +490,10 @@ A comment explains business logic, and only where the code really cannot say it.
 * Go and golangci-lint are pinned in the repo-root `mise.toml`, and `go.mod`'s `go` line matches the
   pinned Go. The Makefile puts both on `PATH` for its own targets only, so a `go` command typed
   outside `make` goes through `mise exec --`.
-* `make format-go` rewrites files (gofumpt, goimports, gci import groups); `make lint-go` fails on an
-  untidy `go.mod` (`go mod tidy -diff`), then runs golangci-lint, which also reports formatting diffs
-  and, with the compiler, stands in for a typecheck target; `make test-go` runs the server side
-  (`cmd/`, `internal/`) under the race detector, then every test in shuffled order without the race
-  detector, each pass with a two-minute timeout. The race pass
-  leaves out the engine and `seam/`, which start no goroutine and are its slowest packages under
-  `-race`; it keeps Go's test cache, while the shuffled pass always runs, so a test reading a file
-  outside the module (`telegraf.conf`), which the cache does not track, still
-  runs every time.
-* Fix a lint finding rather than silence it. A suppression is `//nolint:<linter> // reason` on the
-  narrowest line; nolintlint rejects one without a named linter or a reason. Never loosen
-  `.golangci.yml` to get green.
+* `make format-go` rewrites files. There is no Go typecheck target: `make lint-go` stands in.
+  `make test-go`'s race pass leaves out the engine and `seam/`, which start no goroutine and are
+  slowest under `-race`; its shuffled pass is never cached, so a test that reads a file outside the
+  module (`telegraf.conf`) still runs every time.
 * Go has no release-age setting like the 7-day cooldown uv and npm apply here, so it is a convention.
   Add or upgrade a dependency only at an explicit version published at least 7 days ago:
   `mise exec -- go list -m -json <module>@vX.Y.Z` prints its `Time`, then
@@ -608,21 +502,10 @@ A comment explains business logic, and only where the code really cannot say it.
   one exception, and the commit body says so.
 * `make vuln-go` runs govulncheck over the module. It needs the network, so it is not part of
   `make run-all-checks`: run it after adding or upgrading a dependency.
-* While iterating, run one package:
-  `cd backend/game_v2 && mise exec -- go test ./<pkg> -run <name>`. An engine change runs
-  `cd backend/game_v2 && mise exec -- go test -race ./engine/... ./seam/...`: the facade's tests live
-  in `seam/`, so `./engine/...` alone skips them.
-* The server listens on `127.0.0.1:8712` by default (`-addr`).
-* Production runs this server from the one release image `deploy/Dockerfile` builds (`deploy/AGENTS.md`),
-  which carries `/app/gameserver` and `/app/migrate` beside the lobby. That Dockerfile's `game` target
-  is the server alone: `make run-game-v2-docker` builds it and starts it as the local `game-v2`
-  service; `make stop-game-v2-docker` stops it. The build context is the repo root under the root
-  `.dockerignore`, which keeps the module's tests, `testdata` and `seam/` out; the build refuses a Go
-  other than `mise.toml`'s, and bakes in the version and commit, since a Docker build has no VCS
-  stamp. The local compose runs it as the host user, because the dev database and the replays are
-  owner-only and the host's lobby reads both, and mounts the whole `var/` directory, not the
-  database file, so SQLite's WAL and SHM siblings are the files the host's lobby uses. The container
-  holds `:8712`, the port `make run-local-server` and `make run-games` start their own Go
-  server on, and neither can kill the root-owned port holder: their `DOCKER=1` modes run this
-  container in its place (`GAME_V2_LOG_LEVEL` overrides the log level `.env.local` sets), and
-  otherwise it must be stopped first.
+* Production runs this server from the release image `deploy/Dockerfile` builds (`deploy/AGENTS.md`);
+  its `game` target is the server alone, which `make run-game-v2-docker` starts as the local
+  `game-v2` service (`docker-compose.local.yml`). That compose runs it as the host user, because the
+  dev database and the replays are owner-only and the host's lobby reads both, and mounts the whole
+  `var/` directory, not the database file, so SQLite's WAL and SHM siblings are the ones the host's
+  lobby uses. The container holds `:8712`, and `make run-local-server` and `make run-games` cannot
+  kill it: stop it first (`make stop-game-v2-docker`) unless they run in their `DOCKER=1` mode.

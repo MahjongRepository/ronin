@@ -6,12 +6,10 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   sequence of events.
 - The table holds what its source showed, never a second model per source: a live seat knows only its own tiles, so
   other hands are counts; a replay shows every hand. Another seat's draw moves the table when its notice arrives,
-  never inferred from a later discard. A draw of a tile the hand already holds is a reconnect's re-send: it takes
-  nothing from the wall.
+  never inferred from a later discard.
 - A kan is the server's meld event, which comes before anyone may rob it (chankan); the client never builds a kan
-  from a prompt or a result. A ron robbed a kan when its won tile lies in a kan of the loser's: the table tells it
-  from its own melds, since no round end names it.
-- **Out of order is a desync.** `PHASES_TAKING` checks every event's phase before any handler runs. A handler that
+  from a prompt or a result.
+- **Out of order is a desync** (`PHASES_TAKING`). A handler that
   meets an impossible state throws `DesyncError`, never returns the state unchanged: the live client recovers from
   that error alone.
 - **Scores come from the server.** A round end's wire `scores` are pre-payment and post-deposit; settle each player at
@@ -28,7 +26,7 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   is a desync.
 - The live wall starts at the round-start or reconnect snapshot's authoritative count. Each genuine private draw or
   public draw notice subtracts one, including kan replacements and AI draws; a re-sent private tile already in the
-  hand subtracts nothing. An empty wall on a new draw is a desync. Replays retain each draw's recorded count.
+  hand subtracts nothing.
 - A riichi's deposit (the declarer's score and the table's sticks), the sticks a round end leaves, a round's number
   within its wind (`roundInWind`) and a chankan prompt's kan type are the server's, never counted or inferred. A pao
   assigned changes nothing the table shows; the result names the liable seat.
@@ -48,35 +46,19 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   hand changes. A delayed slot motion is never a WAAPI `delay`: it waits paused at its start and a cancellable timer
   releases it, one timer per distinct delay of a played plan, so a hand's slots start together. The release sets its
   start time to the timeline's current time and never uses `play()`: WebKit keeps the creation start on `play()` while
-  another animation runs, so the slide would finish at once. Board-motion release
-  timing is presentation only and runs on the `performance.now` timeline, never `browserClock`.
-- The seating panel is the game's start and its end: the seats in wind order with the round on the table (live, the
-  client's opening screen over the dealt table, `tableSeatingPanel`; a replay's start), then in placement order with
-  their scores and uma/oka results once the game ends. `tablePanel` itself shows nothing before the first deal.
+  another animation runs, so the slide would finish at once. Its release timing runs on the `performance.now` timeline, never `browserClock`.
 - The board's geometry is the slice's: `lib/board-geometry.ts`'s `boardGeometry`, a pure function from the board's
-  box and the slots its page fills to a frozen result, its facts
-  once in `lib/board-constants.ts` (the river's rows in the tile slice's `river-shape.ts`), and
-  `ui/board-geometry-directive.ts`'s `sizeBoard` on GameBoard's root, the one place that measures the board and writes
-  the result. A desktop whose width binds its river tile lays out in a table shorter than its box (`table-h`, at
-  `table-top`, centred), only as tall as its stack (or its side lines under the counters) needs plus a little air under the
-  top hand, so its spare height never opens between the hands and the core; the slots and tracks are that table's.
-  Such a desktop drops its bars where the table holds their controls over it (`DesktopArrangement`: the left lane's
-  foot, `corner`, or the pocket over the left river, `pocket`), its own tile then from the whole width; barless plans
-  come last at each river tile, the corner's before the pocket's, so a board the bars fit never loses them. The
-  shortened table's re-lay keeps the arrangement its full height chose and that arrangement's fit. Off a phone the own row stands between the side strips' lanes, the table as
-  wide as it and them: no opponent's tile, an added kan's stack included, ever stands over the own hand. `lib/strip-layout.ts`'s `stripLayout` lays out a strip's melds in those rooms from what it holds, which
-  `sizeBoard` takes beside the slots and never hands `boardGeometry`. Every seat's melds stay in one line toward their owner's
-  right, oldest at the far end. The geometry reserves enough length for four kans (a phone's as much of that line as its box
-  holds; `stripLayout` closes a denser seat's gaps at the face floor to hold it, else shrinks its melds under the floor to end on the line, never past it) and supplies reserved footprints;
-  the content layout scales ordered melds together without moving the hand or controls. GameBoard never binds `style` on its root, which
-  would clear what `sizeBoard` wrote.
-- The board has no camera: every piece is shown where the flat geometry lays it, moved only to the table's top, and
-  depth is the tiles' own (lying bodies foreshortened along the screen's y axis, their edge toward the screen's bottom,
-  one shadow per group). `lib/table-view.ts`'s `tableView` is that view of the geometry, and its seam
+  box and the slots its page fills to a frozen result, its facts once in `lib/board-constants.ts` (the river's rows in
+  the tile slice's `river-shape.ts`), and `ui/board-geometry-directive.ts`'s `sizeBoard` on GameBoard's root, the one
+  place that measures the board and writes the result. What it lays out is the spec's (`docs/game-client-look.md`,
+  Composition and Proportions). `lib/strip-layout.ts`'s `stripLayout` lays out a strip's melds from what it holds;
+  `sizeBoard` takes it beside the slots and never hands it to `boardGeometry`, so contents never move a place.
+  GameBoard never binds `style` on its root, which would clear what `sizeBoard` wrote.
+- The board has no camera (`docs/game-client-look.md`, Principles). `lib/table-view.ts`'s `tableView` is that view of the geometry, and its seam
   (`boardViewValues`, `surfaceViewValues`: the pieces' `--geo-camera-*` transforms, the `--geo-shown-*` anchors of the
   calls and the felt's fields) is a deferred no-op kept for a later camera. Nameplates use the shell geometry directly
   so their anchors track the hand areas on resize and stay fixed throughout play.
-- `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
-  never skipping it into a recording that looks whole.
-- Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors the Go server's (`backend/game_v2/internal/wire`); the shared golden pins both registries.  A damaged record stops playback at its preceding readable prefix and names its record position.
-- The table keeps the recorded aka-dora flag; all board and result tile mappers use it. A live game always shows red fives (its game start sets `hasAkadora`).
+- Replay records decode only through the lazy replay route (`model/replay-codec.ts`; the format is
+  `docs/architecture.md`, Persistence). The numeric metadata registry mirrors the Go server's
+  (`backend/game_v2/internal/wire`); the shared golden pins both registries.
+- The table keeps the recorded aka-dora flag; all board and result tile mappers use it.

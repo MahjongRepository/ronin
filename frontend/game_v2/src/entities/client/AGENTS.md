@@ -1,10 +1,7 @@
 # Client entity
 
 The dispatcher, its state, what the seat owes, desync recovery, play switches, timelines, seat scenarios and the live
-board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
-
-Live and replay dispatch live in separate modules so the live entry never imports replay parsing. Both use the same
-table transition and call model; replay dispatch loads with the replay route.
+board.
 
 ## What the seat owes
 
@@ -22,8 +19,7 @@ table transition and call model; replay dispatch loads with the replay route.
   their elapsed time) and never answers, confirms or arms a timer on expiry. An expired decision still takes one
   answer; the server decides by wait id whether it counts. Turns and calls use the same base-plus-bank
   countdown, reading the bank from each opening message rather than carrying a client-side reserve.
-- An answer is sent once and marked submitted. `DECISION_AFTER` says, for every message type, whether it closes or
-  keeps the decision; a new message type must be added. A refusal reopens only when it names the decision's wait id
+- An answer is sent once and marked submitted. A refusal reopens only when it names the decision's wait id
   (`refusalOf`).
 - A round confirm closes only on the next deal. Its deadline is the timeout the round end names, never a count of
   result pages. A double ron confirms only from its last page. The live compass keeps the hand's pre-payment
@@ -45,12 +41,8 @@ table transition and call model; replay dispatch loads with the replay route.
   hand keeps its normal appearance; only kuikae and picking the declaration discard grey out restricted tiles.
 - **Play switches** answer a message's decision only on a wait id above `highestOpenedWaitId`, so one re-sent after
   reconnect or one a refusal reopened is the player's. Turning a switch on (or Auto win through the keep setting)
-  answers the decision open at that moment, only when `switchAnswer` names that switch. The mark is never lowered,
-  never taken from a snapshot's `wi`, and forgotten only on another game's table. `switchAnswer` is the policy. A
-  deal, or a snapshot that left the hand (`snapshotLeftHand`), turns all switches off, except Auto win while the
-  settings menu keeps it between rounds (`LiveClient.keepAutoWin`, the driver storing it in this browser; turning it
-  on turns Auto win on, turning it off leaves Auto win as it is); a snapshot of the same hand, its result pending
-  included, keeps them.
+  answers the decision open at that moment, only when `switchAnswer` names that switch. The mark is never taken from a snapshot's `wi`.
+  `switchAnswer` is the policy; `withSwitches` (`model/dispatch.ts`) decides which deal or snapshot turns the switches off.
 
 ## Desync
 
@@ -59,19 +51,13 @@ table transition and call model; replay dispatch loads with the replay route.
   Never add a silent fallback that guesses.
 - Out of step the client owes and answers nothing, never resends, and lets only the snapshot, the game's end and the
   game's last round end reach the table. Only a snapshot puts it back in step.
-- The resync request's state is one field (`ResyncRequest`), one variant per state. Requests are counted per page,
-  never reset; past `MAX_RESYNC_REQUESTS`, or on a snapshot it cannot take, the page ends as failed. The server
-  refuses a resync only while the pending game waits for its players, so a request refused as the game not started,
-  or a JOIN_GAME socket's, waits for the next game message and then asks at once, identifying or not; a long wait for
-  the players spends no requests.
+- Resync requests are counted per page, never reset; past `MAX_RESYNC_REQUESTS`, or on a snapshot it cannot take,
+  the page ends as failed. When to ask again is `ResyncRequest`'s (`model/types.ts`); a long wait for the players
+  spends no requests.
 - A snapshot or re-sent opening naming the wait of a submitted decision leaves it submitted: a wait is never answered
   twice.
-- **Silence watchdog:** `GameSocket` reports a server silent past `serverSilenceLimitMs` as a close, measured on the
-  page's steady clock. The limit derives from the game's own timer settings; it copies none of the backend's pacing.
-- **Round trip:** `GameSocket` also pings the server, one ping in flight, and keeps the pongs from the dispatcher and
-  the silence watchdog, since the endpoint answers them without the game;
-  the median it reports is page IO in `PlayUi`, forgotten as a new socket opens, never client state. The mapper
-  decides the cog's mark (`round-trip.ts`): a slow round trip marks it like a status word, below any word the status has.
+- **Silence and round trip** are `GameSocket`'s (`shared/websocket`). The silence limit is `serverSilenceLimitMs`,
+  which copies none of the backend's pacing; the round trip is page IO in `PlayUi`, never client state.
 
 ## The opening screen
 
@@ -98,21 +84,17 @@ table transition and call model; replay dispatch loads with the replay route.
   settings menu is the exception: it holds nothing back. A pointer's click or right-click outside it closes it and acts
   as it would with the menu closed (a tile discards or lifts, a decision control answers, right-click passes or
   discards), and digits and tile arrows work while it is open; only Escape closes it first.
-  Digit keys 1-9 press the decision controls the mapper numbers (`DecisionAction.digit`, shown as keycaps): all
-  but Pass and Back, in the mapper's order, never a layout's. They read the physical key (`event.code`), the numpad only while it
-  types digits, never under any panel or the open menu, and the same digit within `DIGIT_SETTLE_MS` of acting is dropped
-  once the controls it presses changed, so a double tap never takes an unseen choice.
+  Digit keys press the decision controls in the mapper's order (`DecisionAction.digit`), never a layout's; a double
+  tap never takes an unseen choice (`DIGIT_SETTLE_MS`).
   Enter or Space outside a focused control presses the opening screen's OK (`confirm`), its only key; the board's own
-  keys (Escape's and right-click's back, pass or drawn-tile discard, tile arrows) still reach a decision under it (`leavesBoardKeys`). `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. An Escape or a right-click within `SHORTCUT_SETTLE_MS` of the last of its kind that had a shortcut is dropped, so a double press never closes a panel and then discards, or answers a decision and then the one its answer opened. Repeated
+  keys (Escape's and right-click's back, pass or drawn-tile discard, tile arrows) still reach a decision under it (`leavesBoardKeys`). `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. A double Escape or right-click never acts twice (`SHORTCUT_SETTLE_MS`). Repeated
   activation keys never answer again; arrow navigation (the arrows, or A and D by position) only moves focus among playable tiles, or every hand tile while none plays, wrapping round the
   hand. The right-click
   preference is independent of replay controls and lives in browser storage through the live driver's dependencies;
   turned off, a right-click does nothing, yet still never opens the browser's menu where it would have acted.
 - Each meld kind has one call button. A single legal offer sends immediately. Multiple offers open a tile picker scoped to the wait, with Back beside the timer. The layout reserves the larger of the main prompt and its pickers so opening one keeps the same button size. Digits select from the visible step. Back and Escape restore focus to the call.
-- Submission closes the controls. The server’s meld, riichi discard or round result starts the matching callouts.
-  A kan announces on its meld, before its chankan window. Multi-ron shows every confirmed caller together with
-  one voice. A head bump shows the winner, and kyuushu shows the declaring seat with no recorded voice.
-  A new deal or a snapshot that left the hand clears the callouts. A reconnect restores the board silently.
+- Submission closes the controls and starts no callout: only the server's resolving event does (`eventCalls`,
+  `entities/table/lib/callouts.ts`). A reconnect restores the board silently.
 - `playDisplay` maps the whole client state for the live board. `PlayBoard` only renders it; its view state is `PlayUi`, whose
   per-decision parts are keyed by wait id so a newer decision never inherits them. `PlayUi` moves only through
   `stepPlayUi`, which every driver calls after each step (a command, an intent once stepped, the client stepping on
@@ -123,11 +105,8 @@ table transition and call model; replay dispatch loads with the replay route.
 - The panel over the board is `PlayDisplay.overlay`, chosen by the mapper in one precedence (`PlayPanel`) with whether it blocks the board; the
   replay's `replayDisplay` maps its own. Components only render the panel they are given; where it stands is
   GameBoard's (the free box `boardGeometry` reserves), never a page's.
-- The settings menu's own transitions (the cog's toggle, a close, the sound and animations switches) are `stepSettingsMenu`, which live's
-  `stepPlayUi` and the replay's `stepReplayPage` share; each closes the menu on its own other input.
 - Sounds are never `ClientEffect`s: `soundCues(before, after)` reads them off two consecutive states, so scenarios and timelines stay silent
-  and a snapshot plays nothing. The bank-entry cue only plays across the same open wait's base-to-bank transition,
-  never on a reconnect already in the bank, and coinciding countdown cues play once. Only the live driver plays them,
+  and a snapshot plays nothing. Only the live driver plays them,
   while `PlayUi.soundOn`. A move's part (`moveSoundCues`) is the replay's too.
 - The board's script measurements are the table slice's: its geometry directive (`sizeBoard`) and the notices' clamp
   (`entities/table/ui/notice-clamp.ts`), which writes attributes only, plus its presentation-only motion snapshots.

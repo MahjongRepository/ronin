@@ -18,10 +18,8 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   `decisionOf`, `roundConfirmOf`, `desyncOf`.
 * **Timelines, not history.** Stepping back selects an earlier state from `buildClientTimeline`, never an inverse
   event, and a timeline executes no effect, so revisiting a prompt sends nothing.
-* **One clock.** Every time the page reads is `browserClock`'s (`shared/clock`): wall time that never runs back,
-  absorbing a wall clock set back and counting a forward jump as time that passed (a sleep pauses
-  `performance.now` on several platforms, so a forward step cannot be told from one; the server's deadlines really
-  passed). Views take it as `deps.clock`; a test gives them `steadyClockOn` a `ManualClock`.
+* **One clock.** Every time the page reads is `browserClock`'s (`shared/clock`; `createSteadyClock` says how it takes
+  a stepped wall and a sleep). Views take it as `deps.clock`; a test gives them `steadyClockOn` a `ManualClock`.
 * **Views are controller instances, one per mount.** `index.ts` and the lazy `replay-entry.ts` wire the browser's sources (socket factory,
   loader, clock, storage). A view keeps no module state, looks up no element by id, takes input only through its own
   root, and its dispose cancels every timer, socket, fetch and listener it owns; a callback after dispose is dropped.
@@ -44,10 +42,9 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   uses protocol codes and ids, never displayed text.
 * The language lives only in the `lang` cookie, with no storage key. A switch from the settings menu applies through
   the view's `deps.setLanguage` (cookie, `<html lang>`, title) and redraws; it never goes through a command, a
-  reducer or state. The wind letters' script rides on the language the same way: `<html data-winds>`, set through
-  `deps.setWinds` and kept in this browser with the language it was picked in, so it counts only in that language and
-  a language switch drops it for the new language's default. The tile indices and dora placement use `deps.setBoardAppearance`.
-  Both persist across languages and are read from page attributes when the tiles and board render.
+  reducer or state. The wind letters' script (`deps.setWinds`) and the board appearance (`deps.setBoardAppearance`: tile
+  indices, dora placement) are page attributes set the same way, never client state; `frontend/shared/src/winds.ts`
+  and `board-appearance.ts` say how each persists.
 
 ## Structure
 
@@ -79,10 +76,9 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
   media query's choice alone; the session runs on under it. The board cannot lay out without `:has()`, container
   queries, `dvh` and `@property`: `supportsBoardCss` checks them, and a browser lacking one gets a notice instead of
   any page (the lobby shows a banner). A new CSS feature the layout depends on joins that check.
-* `npm run sprite` rebuilds the committed tile sprite after a tile SVG changes; never hand-edit it. It weighs each
-  face's ink in Chromium and shifts its symbol's viewBox so the ink's weight is centred across: a glyph reads centred
-  by its heavy strokes, not its outermost tips, and the runtime then centres art by its box alone
-  (`FACE_ART_SUIT_SCALE` sets only a suit's scale and height). The active tile set is
+* `npm run sprite` rebuilds the committed tile sprite after a tile SVG changes; never hand-edit it. It centres each face across by ink weight
+  (`scripts/tile-ink-centre.ts`), so runtime code adds no horizontal centring of its own; `FACE_ART_SUIT_SCALE` sets
+  only a suit's scale and vertical ink centre. The active tile set is
   `entities/tile/lib/tile-config.ts`'s alone. `npm run bodies` rebuilds the tile bodies' sprite (`bodies.svg`)
   from `entities/tile/lib/tile-body.ts`, whose shares the geometry reads too. `index.ts` bundles it raw and injects it
   before the first render as a rendered zero-size `<svg>`: gradients, masks and clips inside `display: none` paint
@@ -95,20 +91,17 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
 * Build protocol events with the factories in `tests/fixtures/`, never repeated literals. Session and dispatcher tests
   are sequences of client events with the effects each returns, never through the DOM; view tests inject fakes, never
   mock modules.
-* `src/fixtures/seat-scenarios/` and `src/fixtures/replays/` are generated, never edited by hand:
-  `make generate-fixtures` from the Go server's `backend/game_v2/cmd/fixtures`; `make fixtures-check` fails on
-  drift. A new interaction or replay case is a new scenario there. Seat-scenario tests assert named checkpoints (decision, table, result), not effects alone. What
+* `src/fixtures/seat-scenarios/` and `src/fixtures/replays/` are generated (`make generate-fixtures`), never edited
+  by hand. A new interaction or replay case is a new scenario in `backend/game_v2/cmd/fixtures`. Seat-scenario tests assert named checkpoints (decision, table, result), not effects alone. What
   the server cannot produce (client intents, ticks, switch sends, races) is a hand-written branch in
   `tests/fixtures/seat-transcripts.ts`.
 
 ## Visual check
 
 A targeted check, not a gate: no `make` target, not in `make run-all-checks`. It shoots and checks only the pages and
-viewports a run names (WebKit for phones, Chromium otherwise), with no backend:
-`npm run visual-check -- --page <name> --viewport <name> --shots <dir>` (repeatable, substring match). Name the
-changed area and its one worst case, never a sweep. A phone change's worst case is a browser-boxed phone
-(`phone-11-safari`, `phone-a25-chrome`), not a full display: the displays passed while the game shipped unplayable in
-Safari and Chrome.
+viewports a run names (each viewport names its engine: WebKit for iPhones, Chromium otherwise), with no backend:
+`npm run visual-check -- --page <name> --viewport <name> --shots <dir>` (repeatable, substring match). A phone change's worst case is a browser-boxed phone
+(`phone-11-safari`, `phone-a25-chrome`), not a full display, which lacks the browser's bars that shorten the board.
 
 * Playwright's `page.screenshot()` in WebKit on Linux paints in software and flattens 3D transforms (Playwright #21620,
   WebKit bug 68276); WebKit's compositor and iOS Safari draw them right. The check's WebKit shots and contrast reads are compositor frames (`compositor.ts`, JPEG); checks of DOM
@@ -117,9 +110,7 @@ Safari and Chrome.
 * The `browser-bars` pages are the only check that a phone's swipe can still collapse the browser's bars, on the
   live and replay routes themselves: run them after a change to either page's shell (`_pages.scss`, the views' root
   markup, the entries' page rest). The unit tests cover the notice alone.
-* Overlap checks follow the spec's tiers: a plate counts against only the other plates and the centre
-  (`isFurnitureOverlap`); no check keeps furniture in view. One clearance holds anyway: a plate's pill keeps 4px off
-  every table tile, its riichi stick 10px on a desktop and 6 on a phone (`checkPlatesClear`).
+* Overlap checks follow the spec's tiers (`isFurnitureOverlap`, `checkPlatesClear`); no check keeps furniture in view.
 * The check holds a few of the spec's proportions (`DERIVED` in `surfaces/board.ts`); change the spec's table and
   the check together.
 * A board state worth checking at phone size is a story (`/play/storybook/decisions?state=<story>`), not a

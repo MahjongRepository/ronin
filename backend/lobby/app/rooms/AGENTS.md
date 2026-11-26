@@ -16,30 +16,25 @@ A room is a pre-game table of 4 fixed seats: `models.py` holds the room and its 
   starts automatically. When the owner leaves, ownership passes to the earliest remaining joiner.
   The seats are the room's one record of its members; the owner is derived from arrival order, never
   from seat index, since a refilled low seat holds a later joiner. A user rejoining their own seat
-  takes it over (`lobby/AGENTS.md`, Occupancy), and the room gets a state resync, not
+  takes it over (`backend/lobby/AGENTS.md`, Occupancy), and the room gets a state resync, not
   `player_joined`/`player_left`.
 * Every room step after a join's playing lookup is synchronous because a send is an enqueue, so
   nothing interleaves inside a step and rooms take no lock.
 * The owner's start marks the room transitioning, so joins and ready toggles arriving during the
   game server call are refused as transitioning; the start itself is the shared `start_game`
-  (`lobby/AGENTS.md`). A failed start reopens the room with every ready flag reset and the reason
+  (`app/game_transition.py`). A failed start reopens the room with every ready flag reset and the reason
   broadcast; a successful one removes it, never retried. A player who leaves a transitioning room
   keeps the seat, because the ticket is already issued and the game server seats AI for a no-show;
   nothing is announced to the room.
-* Each connection has its own rate limit, charged for every frame before it is decoded, invalid ones
-  included; a frame over it is answered rate-limited and dropped, and the connection stays. It
-  keeps one client's chat from overflowing a slow honest peer's send queue. A binary frame gets an
-  error and the connection stays. Chat echoes to its sender: the browser shows only the echo.
+* Each connection has its own rate limit (`websocket.py`, `_read_message`), so one client's chat cannot overflow
+  a slow honest peer's send queue; a frame over it is dropped and the connection stays. Chat echoes to its
+  sender: the browser shows only the echo.
 * The last leave removes a room. A room nobody joined expires `unclaimed_room_ttl_seconds` after
   creation, a joined one `room_ttl_seconds` after it: the reaper removes it, sends its players the
   `room_expired` error and closes their sockets with 4002, so the page ends with that notice instead
   of reconnecting. A transitioning room never expires.
-* A socket the client closes with 1000 or 1001 (the page's own close, the browser leaving the page)
-  is a leave, like the leave message, and so is a socket cut off by a revoked credential (4001). Any other end (a lost transport, a ping timeout, a socket the
-  writer dropped, the page replacing its socket to reconnect) holds the seat as it was, ownership
-  and ready flag included, for `seat_grace_seconds`, and the room is told nothing: the user's
-  reconnect takes it over like any rejoin. A transitioning room holds nothing; its leave rule
-  already keeps the seat. A held seat gives way to its user's join anywhere else, room or queue:
-  the occupancy rule does not count it, and the handler releases it like a leave once that join
-  has seated or queued the user, in the same step, so a refused join keeps it. A page that lost its
-  socket could not say it left.
+* A socket the client closes with 1000 or 1001, or one a revoked credential cut off (4001), is a leave. Any other
+  end holds the seat as it was for `seat_grace_seconds` without telling the room, because a page that lost its
+  socket could not say it left; the user's reconnect takes it over like any rejoin. A held seat gives way to its
+  user's join anywhere else, room or queue, released in the same step once that join has seated or queued the
+  user, so a refused join keeps it.

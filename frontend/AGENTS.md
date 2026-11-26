@@ -1,40 +1,26 @@
 # Frontend
 
-Two apps, each its own npm package with its own dependencies, lockfile, language, lint, format and
-test config, its own styles and its own build:
-
-* `lobby/` — the lobby's single-page app and the chrome of its few server-rendered pages
-  (TypeScript / lit-html). See `lobby/AGENTS.md`.
-* `game_v2/` — the game client (TypeScript / lit-html). See `game_v2/AGENTS.md`.
-* `shared/` — TypeScript source both apps import through `@ronin/shared/*`; not a package. See
-  `shared/AGENTS.md`.
-
 No app imports from another; a module both need lives in `shared/`, and each app bundles its own
 copy of what it imports. At runtime they still meet only at the contract in `docs/architecture.md`
 (*Game client contract*), so the game client can be replaced by any app that honours it. Pico copies
 and styles stay per app.
 
 Both apps draw corners with the same two radii, each from its own `_theme.scss`: `--ronin-corner-label`
-(3px) for a small label, badge, chip or key hint, `--ronin-corner-panel` (6px) for a panel, card, menu or control,
-Pico's `--pico-border-radius` included. Only round shapes (dots, seats, the riichi stick), the tiles and the
-result's seal draw their own; nothing else picks a radius.
+for a small label, badge, chip or key hint, `--ronin-corner-panel` for a panel, card, menu or control.
+Only round shapes (dots, seats, the riichi stick), the tiles and the result's seal draw their own;
+nothing else picks a radius.
 
 ## Tooling
 
-Run a package's scripts from its directory (`cd frontend/game_v2 && npx vitest run <path>`). The root
-`make install-frontend` and the frontend check targets run both apps.
-
 Node is pinned to one exact version in two places, kept in step: the repo's `mise.toml` for
-development (`mise trust && mise install` once; the `Makefile` puts that Node first on `PATH`) and
+development (`mise trust && mise install` once) and
 `NODE_VERSION` in `deploy/Dockerfile` for the image.
 
-Each app's `.npmrc` holds the dependency policy: `save-exact` pins every version `npm install` adds,
-and `min-release-age=7` makes npm resolve only versions published at least seven days ago, a
-cooldown against a compromised release. Add or upgrade a package with `npm install <pkg>@latest`,
-which takes the newest version past the cooldown; `make install-frontend` runs `npm ci` from the
-lockfile. A package's install script runs only once `allowScripts` in `package.json` approves it
-(`npm install-scripts ls`); every app denies `@parcel/watcher`'s, a node-gyp fallback build its
-prebuilt binaries make unnecessary.
+Each app's `.npmrc` holds the dependency policy (exact pins, a seven-day release cooldown). Add or
+upgrade a package with `npm install <pkg>@latest`, which takes the newest version past the cooldown.
+A package's install script runs only once `allowScripts` in `package.json` approves it
+(`npm install-scripts ls`); `@parcel/watcher`'s stays denied because its prebuilt binaries make the
+node-gyp fallback build unnecessary.
 
 Each app's `.oxfmtrc.json` keeps `embeddedLanguageFormatting` off: with it on, oxfmt reflows the
 HTML inside lit-html `html` templates, splitting tags as `</a\n>` to keep their whitespace exact.
@@ -44,17 +30,13 @@ included (`fatalDeprecations` in `vite.config.ts`; `lint` runs the same build in
 `scripts/check-build.ts`). A Sass upgrade can therefore fail lint, the build and the dev server on a
 newly deprecated construct; migrate the construct rather than silencing the deprecation.
 
-Each app owns its selected Pico 2.1.1 Sass modules and their dependencies in `src/assets/vendor/pico/`;
-there is no Pico npm dependency. Edit these copies directly; they are maintained locally without
-upstream syncing. Keep them independent, like the apps themselves. Sass entry points import them
-through `@/assets/vendor/pico/`, using the app's existing `@/` alias for `src/`.
-All local Sass `@use` and `@forward` paths and asset URLs use `@/`, including inside Pico;
-Sass built-ins keep their `sass:` URLs.
+Each app's Pico 2.1.1 subset lives in `src/assets/vendor/pico/` (provenance and maintenance in its
+README): edit it directly and never sync it from upstream. All local Sass `@use` and `@forward` paths
+and asset URLs use `@/`, inside Pico too; Sass built-ins keep their `sass:` URLs.
 
-Leave the vendored sources' formatting as it is (stylelint and the formatter ignore them). Keep each
-copy's MIT `LICENSE.md` and its full notice in `legal/THIRD_PARTY_NOTICES.txt` in sync: `legal/` is
-Vite's public directory, so that file is the notice the built app ships. See each copy's README for
-provenance and maintenance.
+Leave the vendored sources' formatting as it is. Keep each copy's MIT `LICENSE.md` and its full notice
+in `legal/THIRD_PARTY_NOTICES.txt` in sync: `legal/` is Vite's public directory, so that file is the
+notice the built app ships.
 
 Under `make run-local-server` the lobby templates load the lobby's scripts from its Vite server
 directly, while the game client's is proxied under `/game-assets/v2/` so the game page stays on the
@@ -65,14 +47,10 @@ lobby's origin.
 Vitest does not show what a page looks like, so a change to the UI is checked in the browser
 (`.claude/skills/app-browser/SKILL.md` has the recipes):
 
-* Capture every touched state, desktop through `agent-browser` and an iPhone in WebKit, both
-  before (base commit) and after (working tree). "Touched" includes every state that shares the
-  changed component or layout container (a lobby card restyle touches the room cards and the history
-  cards; a board change touches the live game, the replay and the board storybook), not only the
-  one the change targets.
-* The v2 client is the exception: its before and after are only the changed area plus its one worst
-  case, shot by its targeted visual check (the skill's *Targeted v2 screenshots*;
-  `frontend/game_v2/AGENTS.md`, Visual check).
+* Shoot only the changed area plus its single worst case (the densest state that holds the changed
+  element, the smallest phone), desktop through `agent-browser` and an iPhone in WebKit, both before
+  (base commit) and after (working tree). The v2 client shoots them with its targeted visual check
+  (the skill's *Targeted v2 screenshots*; `frontend/game_v2/AGENTS.md`, Visual check).
 * Take the before shots ahead of the first UI edit. Once the change exists, serve the base from a
   scratchpad `git worktree` with its own ports (`GAME_PORT`, `LOBBY_PORT`, `VITE_PORT`,
   `GAME_V2_VITE_PORT` on `bin/run-local-server.sh`, after `make install-frontend` there). Its

@@ -8,10 +8,9 @@ protocol change lands here and in the backend in the same change.
   used by replay storage never change when live fields are added. The shared Go/TypeScript
   golden pins the live contract.
 - `encodeWireMessage` and `decodeWireMessage` own the live boundary. Parsed domain models,
-  handlers and UI keep readable field names. The codecs validate numeric metadata keys as they arrive; score-map
-  seats remain string data keys. Unknown, duplicate and incorrectly typed keys fail decoding before
+  handlers and UI keep readable field names. Unknown, duplicate and incorrectly typed keys fail decoding before
   a message reaches its consumer. Replay-only fields are not live metadata.
-- `parseServerMessage` is the single inbound entry and returns an `[error, message]` tuple; the per-message parsers
+- `parseServerMessage` is the single inbound entry; the per-message parsers
   under it throw. `parseReplayLine` is the replay file's entry.
 - A schema requires what its consumer needs rather than defaulting it, so an incomplete message fails to parse. This
   includes the reconnect snapshot, which parses only whole.

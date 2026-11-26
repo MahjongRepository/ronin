@@ -1,10 +1,10 @@
 # Ronin
 
-Language rules (code, Python, JavaScript/TypeScript) come from the shared user rules. This file and
+Language rules (code, Python, Go, JavaScript/TypeScript) come from the shared user rules. This file and
 the nested `AGENTS.md` files add only what is specific to ronin, and win where they conflict. Each
 nested `AGENTS.md` holds the architecture and rules of its directory, down to subsystems; before
 planning work, read every `AGENTS.md` on the path to the code it touches
-(`find . -name AGENTS.md -not -path '*/node_modules/*'`).
+(`git ls-files '*AGENTS.md'`).
 
 ## Repository layout
 
@@ -12,12 +12,12 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 * `backend/` — the two servers, each its own project with its own toolchain. See `backend/AGENTS.md`.
   * `backend/lobby/` — the lobby server (Python 3.14 / Starlette: auth, rooms, matchmaking,
-    server-rendered pages) and its admin scripts, a uv project. See `backend/lobby/AGENTS.md`.
+    tournaments, the API the lobby pages draw from) and its admin scripts, a uv project. See `backend/lobby/AGENTS.md`.
   * `backend/game_v2/` — the game server (WebSocket, MessagePack; Go): its own Go module. See
     `backend/game_v2/AGENTS.md`.
 * `frontend/` — Vite / npm on Node: two apps, each its own package built separately, sharing source from
   `frontend/shared/`. See `frontend/AGENTS.md`.
-  * `frontend/lobby/` — the scripts and styles of the lobby pages (TypeScript / lit-html). See
+  * `frontend/lobby/` — the lobby's single-page app (TypeScript / lit-html). See
     `frontend/lobby/AGENTS.md`.
   * `frontend/game_v2/` — the game client (TypeScript / lit-html). See `frontend/game_v2/AGENTS.md`.
   * `frontend/shared/` — TypeScript source both apps import (`@ronin/shared/*`), checked by the lobby's
@@ -27,6 +27,7 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `docs/architecture.md` — the map of how the lobby, matchmaking and the game server fit together.
 * `docs/tournament-api.md` — the tournament API for external managers: starting games, the snapshot and the
   events socket.
+* `docs/replay-format.md` — the stored replay file format; read before changing how replays are encoded or served.
 * `docs/game-rules.md` — the Riichi ruleset the engine implements, read before rule work.
 * `docs/rng.md` — how the seed becomes the walls, the first dealer and the seating, and what
   `make measure-wall` reports for it; update it with any change to the Go engine's
@@ -34,7 +35,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `docs/i18n.md` — the language contract and the ja/en/ru glossary; `make lint` runs
   `bin/check_i18n.py` over the lobby's catalogs.
 * `docs/game-client-look.md` — the v2 game client's look (composition, elements, proportions, review
-  checklist), approved; read before any v2 board work.
+  checklist); read before any v2 board work, and change it where it contradicts common sense or the mobile
+  references.
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
 * `var/` — the local runtime data of both servers (the dev database, replays, logs, profiles); gitignored,
   created by the scripts that write it.
@@ -49,43 +51,30 @@ The `Makefile` lists the targets; the non-obvious ones:
   (`make run-game-v2-docker`), with the lobby reading that container's replays, and stops it on exit.
   To see the app in a browser, drive it with the `agent-browser` skill plus this project's
   `app-browser` skill (`.claude/skills/app-browser/`).
-* `make test` — backend pytest with line coverage, which gates nothing (`backend/AGENTS.md`, Tooling).
-* `make profile [BENCH=engine|router|socket]` — benchmark and profile the Go game server over the
-  client's full game fixture, through the engine alone, through the session in process, and from
-  start to finish over real sockets, and print `benchstat` and the
-  `pprof` CPU, layer and allocation report (`bin/profile-full-game.sh`; the `optimize-engine` skill uses
-  it). `make profile-compare BASE=<checkout> [BENCH=…]` runs the same benchmarks against a baseline
-  checkout in alternating rounds and prints the `benchstat` A/B; both build with the shipped
+* `make test` — the lobby's pytest with line coverage, which gates nothing (`backend/lobby/AGENTS.md`, Tooling).
+* `make profile [BENCH=engine|router|socket]` — benchmark and profile the Go game server's full game and print
+  `benchstat` and the `pprof` report (`bin/profile-full-game.sh`; the `optimize-engine` skill drives it).
+  `make profile-compare BASE=<checkout> [BENCH=…]` is the `benchstat` A/B against a baseline checkout; both build with the shipped
   `cmd/gameserver/default.pgo`, which `make update-pgo [PGO_PROFILES=<cpu.prof>…]` regenerates.
 * `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad] [DOCKER=1]` — play bot games (the Rust `mahjong-bot` repo at `BOT_ROOT`,
-  default `~/work/mahjong-bot`, built with its `make release-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m` (their `--mode`,
-  only when set; `chaos` misbehaves on purpose, the bot's `ronin/chaos.rs`, and its log gate passes only the game
-  server lines that causes). `NET=bad`, meant for `MODE=chaos`, puts a faulty proxy chain between the bots and the
-  servers (`bin/bad-network.sh`). The Go game server runs on `:8712`, its slog lines and Go panics are the
-  game log gate and its `cmd/verify` is the replay check; `DOCKER=1` starts the game server as a fresh container instead,
-  gates its `docker logs` and its exit code, and removes it at the end. It stops at the first batch with a game that is not completed, whose replay does not reproduce it
-  (`bin/verify_games.py`), or after which any log (server stderr and bot console included) holds a warning or an
-  abnormal event such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
-  gates cannot be configured away. It plays against the dev database (`AUTH_DATABASE_PATH`), so its games show on
-  the dev lobby's history; it reuses four bot accounts per table by name, issuing each a fresh API key, and
-  verifies only the game ids its bots logged. It **wipes** `var/logs` and the bot repo's `var/logs` first and
-  kills whatever holds `:8710` and the game server's port. Run it only when asked: tests and `make run-all-checks` are the
-  verification.
-* `make profile-games` — the same run at production's INFO logging, the Go game server
-  writing its CPU, allocation and mutex profiles and runtime totals (`cmd/gameserver -profiledir`), then
-  the same report with per-game totals: where real games spend the server's CPU. `make profile`
-  measures changes.
+  default `~/work/mahjong-bot`, built with its `make release-bot`) on fresh servers, `t` tables at a time, the bots in
+  play mode `m` (their `--mode`; `chaos` misbehaves on purpose). `NET=bad`, meant for `MODE=chaos`, puts a faulty
+  proxy chain between the bots and the servers; `DOCKER=1` runs the game server as a fresh container. It stops at the
+  first batch with a game that is not completed, whose replay does not reproduce it, or after which any log holds a
+  warning or an abnormal event such as a timeout auto-action or a bot replaced by AI. It plays against the dev
+  database, so its games show on the dev lobby's history and its four bot accounts per table get fresh API keys. It
+  **wipes** `var/logs/{game,lobby,net}` and the bot repo's logs first and kills whatever holds `:8710` and the game
+  server's port. Run it only when asked: tests and `make run-all-checks` are the verification.
+* `make profile-games` — the `make run-games` run, with its side effects, at production's INFO logging with the
+  game server's profiles: where real games spend the server's CPU. `make profile` measures changes.
 * `make run-tournament` — eight bots on a new tournament's page, fresh servers and the dev database, managed by
   `bin/tournament_manager.py` through the tournament API (two shuffled tables, both followed to their end); every
   API response and event goes to `var/logs/tournament/manager.log`. It wipes only `var/logs/tournament`
   and kills whatever holds `:8710`/`:8712`. Run it only when asked.
-* `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
-  report their statistics against exact references and a stdlib-shuffle control (`backend/game_v2/cmd/measurewall`).
+* `make measure-wall [MEASURE_ARGS=...]` — the statistics of the engine's seeds, dealers and walls (`docs/rng.md`).
   A structural failure exits 1; a statistical warning is printed, never a gate.
 * `make generate-fixtures` — regenerate the v2 game client's replay fixtures and seat transcripts from
-  the Go server's `cmd/fixtures` (`backend/game_v2/AGENTS.md`, Seat transcripts and Replay fixtures):
-  the replay scenarios played through the engine, the seat scenarios through the real session and
-  router on virtual time. `make fixtures-check` (a `run-all-checks` gate) fails when a committed file
+  the Go server's `cmd/fixtures` (`backend/game_v2/AGENTS.md`, Seat transcripts and Replay fixtures). `make fixtures-check` (a `run-all-checks` gate) fails when a committed file
   no longer matches what the Go server records or sends a seat.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
   (it runs every formatter) and **always exits 0**, so success is only the final
@@ -104,6 +93,9 @@ The `Makefile` lists the targets; the non-obvious ones:
 * To check a visual change, screenshot only the changed area plus its single worst case (the
   smallest phone, the densest state); there is no full screenshot sweep (`frontend/game_v2/AGENTS.md`,
   Visual check).
+* When a step needs no input from the user, keep going; stop and ask only when you cannot continue without
+  them, or before a step these rules reserve for them (a `make -C deploy` target beyond the read-only ones,
+  `make run-games`, `make run-tournament`) or anything destructive outside the disposable local stack.
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.
 * The local stack is disposable: restart `make run-local-server` and free its ports without asking.
@@ -111,8 +103,8 @@ The `Makefile` lists the targets; the non-obvious ones:
   that server): run one only when the user asks, except the read-only `spot-status`,
   `spot-check-logs-errors`, `spot-metrics`, `spot-metrics-sql` and `spot-backup-list`.
   `spot-deploy` refuses to run while the game server holds a started or pending game
-  (`deploy/AGENTS.md`), so a deploy that went through interrupted no game; never report one as
-  dropping games.
+  (`deploy/AGENTS.md`), so it interrupts no game running when it starts; only one created during the deploy can
+  fall to the recreate, so report a game as interrupted only with evidence from that deploy.
 * After a structural change, update the nearest `AGENTS.md` it invalidates; after a rule change,
   update `docs/game-rules.md`. Keep `AGENTS.md` to architecture, invariants and rules the code
   cannot show: no route or message tables, enum value lists, env var lists or exhaustive file
@@ -130,16 +122,15 @@ The `Makefile` lists the targets; the non-obvious ones:
   back, `isinstance` checks, a dump of model defaults, or a constant's value.
 * Test behaviour and outcomes, not internal mechanics, and don't duplicate a scenario another test
   already covers.
-* Backend test names follow `test_<subject>__when_<condition>__should_<expected>`: `<condition>` is
+* Python test names follow `test_<subject>__when_<condition>__should_<expected>`: `<condition>` is
   the scenario or input state, `<expected>` the observable outcome. Drop the `when_` clause only for
-  unconditional behaviour (`test_wall__should_hold_136_tiles`). `backend/AGENTS.md` defines
-  `<subject>`; frontend test titles follow each app's `AGENTS.md`.
+  unconditional behaviour (`test_static_css_route__should_serve_stylesheet`). `backend/lobby/AGENTS.md`
+  (Tests) defines `<subject>`; Go and frontend test names follow their own `AGENTS.md`.
 * Keep committed suites lean: essential flows and fixed bugs, not every nuance. To probe a nuance,
   write a throwaway test or script in the scratchpad and delete it once answered; never commit it.
 * One scenario per test: several assertions about one call or one short flow are fine. Before adding
   a test, extend the scenario's existing test with an assertion.
 * Never wait out a real timer or delay in a test; shorten it via settings or `monkeypatch`, and
-  cover the deadline itself once. Exclude code from coverage only with a tag `backend/AGENTS.md`
-  allows; otherwise reach the line with a test or restructure it away.
+  cover the deadline itself once.
 * `except ValueError, KeyError:` (no parentheses) is valid Python 3.14 syntax (PEP 758), not a
   Python 2 leftover; don't "fix" it.

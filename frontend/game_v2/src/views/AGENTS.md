@@ -1,7 +1,6 @@
 # Views
 
-The route views: the live game's driver, the replay page and the storybook, each a controller instance per mount
-(`frontend/game_v2/AGENTS.md`).
+The route views: the live game's driver, the replay page and the storybook.
 
 ## The live game (`game.ts`)
 
@@ -18,16 +17,12 @@ The route views: the live game's driver, the replay page and the storybook, each
   drawing, and keeps one timer armed to `replayPageDeadline`. The board is the slice's `ReplayBoard`; the view adds only the page around it.
 - It finds the slices' parts (round list, its toggle, the board's panel and notices, step buttons) only by the
   selectors and attributes those slices export, never by their classes.
-- The address names position and viewpoint, never reading preferences. It is written with `history.replaceState` at
-  most once per 500 ms (Safari's history limit), keeping the page's other parameters (such as `debug`); a pending write is
-  flushed on page hide and dropped on dispose.
+- The address names position and viewpoint, never reading preferences. Its writes are throttled (`REPLAY_URL_WRITE_INTERVAL_MS`) and keep the page's other parameters (such as `debug`).
 - A step button's press acts on pointer down or the key, so the click that follows is dropped; never let a step fire
   twice. Fields, input-method composition, modifiers and nested controls' own keys are never the page's.
 - The load retries a 404 a few times: the game end reaches players before the server saves the replay.
-- The observe page's requests are the screen's `fetch_observe` effects, due under the same one timer, one in flight;
-  each answer, or the failure, comes back as a load event. They share the load's abort, so dispose and a retry drop an
-  answer still on its way. A body that is no observe answer goes to the console; it, a network failure and a request
-  left unanswered past `OBSERVE_REQUEST_TIMEOUT_MS` are asked again at the next poll.
+- The observe page's requests are the screen's `fetch_observe` effects, one in flight under the view's one timer,
+  sharing the load's abort so dispose and a retry drop an answer still on its way.
 - Only a `DesyncError` while reading counts as a damaged recording; any other throw is a bug and shows the
   cannot-be-shown screen.
 - A render that removes or disables the focused control returns focus to the root.

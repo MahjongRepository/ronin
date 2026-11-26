@@ -3,17 +3,13 @@
 The production deploy layer: a [spot](https://github.com/umputun/spot) playbook (`spot.yml`) and a
 production `docker-compose.yml` (Traefik + lobby + game) under `/opt/ronin/` on the server, run from
 a workstation through `make -C deploy <target> TARGET=<env>`. `TARGET` picks the gitignored
-`spot-env.<env>.yml` (copied from `spot-env.example.yml`), passed as both spot's inventory (its `<env>`
-group: host and SSH user) and env file (`DOMAIN`), so the repository holds no host, user or domain. `README.md` is the
+`spot-env.<env>.yml` (copied from `spot-env.example.yml`), which holds the host, SSH user and domain, so the repository holds none of them. `README.md` is the
 runbook for a new server and lists the targets.
 
 ## Architecture
 
 * `.github/workflows/release.yml` is the **only** path that builds the image (`Dockerfile`) and
-  pushes it to GHCR as a public package. One image serves both services: the lobby's Python and
-  frontends, and the Go game server's binaries (`/app/gameserver`, plus `/app/migrate` for the one-off
-  data migration), each compose service picking its command. The Go version comes from `mise.toml`,
-  which the workflow passes as `GO_VERSION` and the build checks. The deploy Makefiles have no build or push target, and the
+  pushes it to GHCR as a public package. One image serves both services, each compose service picking its command. The deploy Makefiles have no build or push target, and the
   deploy has no `docker login`.
 * `.github/workflows/create-release.yml` cuts a release of the version `main` is already at (the
   release skill sets it; the workflow never commits) and then calls `release.yml` for the image:
@@ -29,17 +25,12 @@ runbook for a new server and lists the targets.
 * **Setup once, deploy many.** Bootstrap creates `/opt/ronin/.env` (app secrets) and `.env.system`
   (backup secret) from the `.env*.example` files; deploy never touches them. A key added to an example
   reaches only a fresh server — add it to the server file by hand.
-* **Templates, not generated configs.** The deploy uploads `docker-compose.yml` and
-  `config/traefik-dynamic.yml` and substitutes `%%DOMAIN%%`, failing if a placeholder survives.
-  Bind-mounted configs are rendered with `sed ... >` rather than `sed -i`, which would replace the
-  inode under the running container's mount.
 * **Deploy never goes through `down`.** `docker compose up -d --remove-orphans` recreates only the
   changed services; a change to service names or port bindings needs a manual `down` first. The
   deploy gates on both services' `/health` and a running Traefik.
 * **Deploy refuses live games.** Recreating the game container drops every game on it, so the deploy's first
-  command stops it, before anything on the server changes, when the game server's `/status` counts a started or
-  pending game. A refused connection means no server and no games, so a fresh box still deploys; any other status
-  failure refuses. A game created after the check still falls to the recreate.
+  command refuses while the game server's `/status` counts a started or pending game (`spot.yml`); a box with no
+  game server still deploys. A game created after the check still falls to the recreate.
 * **Bounded shutdown.** The lobby's uvicorn command passes a graceful-shutdown timeout (uvicorn
   otherwise waits forever for a client whose transport is stalled), and `stop_grace_period` leaves
   room after it for the lifespan shutdown and the database drain before docker's SIGKILL. The game
@@ -65,7 +56,7 @@ runbook for a new server and lists the targets.
   and game client, whose filenames contain content hashes. Entry HTML, manifests and public files
   outside those directories must not receive that policy.
 * Per-service settings live in compose `environment:`, secrets only in `.env`. A deployment-specific
-  setting has no default (`backend/AGENTS.md`), so a new one must be added here or the service fails
+  setting has no default (`backend/lobby/AGENTS.md`, Configuration; `backend/game_v2/cmd/gameserver/config.go`), so a new one must be added here or the service fails
   to start and the deploy's health gate stops. A release that adds, renames or removes a required
   setting needs the new image and the new compose together: ship it with `spot-deploy`, which uploads
   compose and pulls in one task, never `spot-update` or the box's `make update`, which pull the new
@@ -87,10 +78,7 @@ runbook for a new server and lists the targets.
 * **Agents read metrics through two read-only tasks.** `metrics-report` runs
   `backend/lobby/scripts/monitoring_report.py` in the lobby container, the page's own assembly, so its JSON
   is the monitoring page's report without the plot geometry; `metrics-sql` runs `sqlite3 -readonly` on the host, so it works when
-  the lobby is down. Both are block scripts, so spot echoes `/bin/sh -c <file>`, which the make
-  targets drop with spot's `[host] > ` prefix to print bare JSON; their recipes run under bash
-  `pipefail`, so a spot failure fails the target. A value passed with `-e` is expanded by the local
-  shell and lands in a double-quoted remote `export`, so `spot-metrics-sql` refuses SQL holding a
+  the lobby is down. A value passed with `-e` lands in a double-quoted remote `export`, so `spot-metrics-sql` refuses SQL holding a
   backtick, `$` or `"`, or starting with `.`, since `metrics-sql` runs as root and sqlite3 (in
   `-safe` mode as well) would run it as a dot-command.
 * `metrics.db` lives in `/opt/ronin/data/metrics/`, is written only by the collector, and is not
@@ -136,7 +124,7 @@ runbook for a new server and lists the targets.
   * The journal-mode open before Telegraf (`PRAGMA journal_mode=DELETE`): rollback mode is what the
     lobby's read-only mount can read (WAL needs a writable `-shm`), and opening the database first
     recovers a half-written transaction.
-  * The script, not Telegraf, owns indexes and retention (90 days, `traefik` 30), and runs them
+  * The script, not Telegraf, owns indexes and retention (`scripts/collect-metrics.sh`), and runs them
     even when collection fails.
 
 ## Logs and backups
