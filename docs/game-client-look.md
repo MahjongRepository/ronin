@@ -619,7 +619,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   play switches are not settings: they last one hand and stay on the board.
 - **Callouts.** Decision: a call, a riichi, a kan, a kyuushu kyuuhai declaration and a win show as
   one word on a borderless chip over the caller's own river, upright, three river rows' worth of type,
-  a win's word in its own colour. It shows for about a second, so it may cover anything on the board for its
+  a win's word in the accent amber. It shows for about a second, so it may cover anything on the board for its
   moment, the decision controls, the timer and an action source included (decision: size over a clear source), but
   no face of the own hand, which takes the taps. A riichi announces on the declaration discard. A kan announces on its meld, before another seat can rob it.
   A win announces on the round result. A double or triple ron shows all confirmed ron seats together and plays the
