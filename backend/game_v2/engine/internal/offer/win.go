@@ -3,6 +3,7 @@ package offer
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/hand"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/meld"
@@ -135,12 +136,48 @@ func tsumoShares(payment play.Payment, winnerIsDealer bool) (dealerShare, nonDea
 	panic(play.EngineFaultError{Err: MisfitPaymentError{Payment: payment}})
 }
 
-func RonTableShare(position, honba, riichiSticks int) (tableHonba, tableSticks int) {
-	if position != 0 {
-		return 0, 0
+// StickShare is the honba counters and riichi sticks one ron winner takes from the table.
+type StickShare struct {
+	Honba        int
+	RiichiSticks int
+}
+
+// RonStickShares splits the table's honba and riichiSticks among the winners of one discard,
+// nearest the discarder first; inRiichi holds whether each winner declared riichi this hand.
+func RonStickShares(inRiichi []bool, honba, riichiSticks int, ruleset play.Ruleset) []StickShare {
+	shares := make([]StickShare, len(inRiichi))
+	if len(shares) == 0 {
+		return shares
 	}
 
-	return honba, riichiSticks
+	if rules.Of(ruleset).MultiRonSticksToNearest {
+		shares[0] = StickShare{Honba: honba, RiichiSticks: riichiSticks}
+		return shares
+	}
+
+	left := riichiSticks
+	for i, declared := range inRiichi {
+		shares[i].Honba = honba
+		if i > 0 && declared {
+			shares[i].RiichiSticks = 1
+			left--
+		}
+	}
+
+	shares[0].RiichiSticks = left
+	return shares
+}
+
+// TooFewRiichiSticksError reports a table holding fewer riichi sticks than the winners in riichi
+// put on it.
+type TooFewRiichiSticksError struct {
+	RiichiSticks  int
+	RiichiWinners int
+}
+
+func (e TooFewRiichiSticksError) Error() string {
+	return "the table holds " + strconv.Itoa(e.RiichiSticks) + " riichi sticks for " + strconv.Itoa(e.RiichiWinners) +
+		" winners in riichi"
 }
 
 // MisfitWinError reports a win settled as the other kind: a ron, chankan or houtei settled as a
@@ -170,11 +207,16 @@ func RonScoreChanges(
 	handPoints, honbaPoints := ron.Discarder, score.HonbaBonus(score.WinRon, honba, settings.HonbaValue)
 
 	var changes [tile.SeatCount]int
-	if pao.OK && pao.Value != discarder {
+	switch {
+	case pao.OK && pao.Value != discarder && settings.PaoHonbaFromDiscarder:
+		liableHalf := handPoints / 2
+		changes[discarder.Index()] = -(handPoints - liableHalf + honbaPoints)
+		changes[pao.Value.Index()] = -liableHalf
+	case pao.OK && pao.Value != discarder:
 		liableHalf := handPoints / 2
 		changes[discarder.Index()] = -(handPoints - liableHalf)
 		changes[pao.Value.Index()] = -(liableHalf + honbaPoints)
-	} else {
+	default:
 		changes[discarder.Index()] = -(handPoints + honbaPoints)
 	}
 

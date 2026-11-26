@@ -154,15 +154,10 @@ export interface GameEndResult {
     readonly winnerSeat: number;
     /** The rule that ended the game, as the server's engine decided it. */
     readonly endCause: GameEndCause;
-    /** The riichi sticks left on the table at the end, paid to the winner: its standing's score holds them. */
-    readonly leftoverRiichiBonus: number;
-    /**
-     * How many riichi sticks the server held as the game ended, awarded or not (the game end's `lr`, never the
-     * table's own count, which may be out of step): a game whose rules award them to nobody pays no bonus for them.
-     */
-    readonly leftoverSticks: number;
     readonly standings: readonly {
         readonly seat: number;
+        /** The place from 1, which tied seats share where the rules split ties; a replay without it ranks by order. */
+        readonly place: number;
         readonly score: number;
         /** The uma/oka-adjusted result in thousands of points, unrounded to its tenth: 52.3. */
         readonly finalScore: number;

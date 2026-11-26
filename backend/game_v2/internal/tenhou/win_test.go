@@ -104,3 +104,33 @@ func TestConvert_WhenAnAddedKanCallerWinsOnTheRinshanTile_ShouldListOnlyTheKanAm
 		t.Errorf("AGARI = %q, want %q", got, agari)
 	}
 }
+
+func TestConvert_WhenARiichiPlayerIsTheSecondRonWinnerUnderRRC_ShouldGiveEachWinTheSticksItTook(t *testing.T) {
+	riichiDiscard, ronTile := copyOf(t, 0, "2z"), copyOf(t, 2, "5p")
+	wall := stagedWall{
+		hands: [tile.SeatCount][]tile.TileID{
+			copies(t, 0, "234m567m234p678s5p"),
+			copies(t, 1, "234m567m678p345s5p"),
+			copies(t, 2, "2468m2468p2468s9m"),
+			copies(t, 3, "1357m1357p1357s9m"),
+		},
+		draws: join(copies(t, 0, "1z"), []tile.TileID{riichiDiscard}, copies(t, 0, "3z"), []tile.TileID{ronTile}),
+	}
+	actions := []replay.SeatAction{
+		act(t, dealer, play.DiscardAction(copyOf(t, 0, "1z"))),
+		act(t, 1, play.RiichiAction(riichiDiscard)),
+		act(t, 2, play.DiscardAction(copyOf(t, 0, "3z"))),
+		act(t, 3, play.DiscardAction(ronTile)),
+		act(t, dealer, play.RonAction()),
+		act(t, 1, play.RonAction()),
+	}
+	setup := stagedSetup(t, wall, play.Some(play.StartPosition{
+		Scores: [tile.SeatCount]int{30000, 30000, 30000, 29000}, Honba: 1, RiichiSticks: 1,
+	}))
+	setup.Ruleset = play.RulesetRRC
+
+	got := tags(converted(t, playedReplay(t, setup, actions)), agariBa)
+	if want := []string{`<AGARI ba="1,1"`, `<AGARI ba="1,1"`}; !slices.Equal(got, want) {
+		t.Errorf("AGARI ba = %q, want %q", got, want)
+	}
+}

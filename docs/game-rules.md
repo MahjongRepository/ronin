@@ -39,10 +39,12 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 - Minimum points for declaration: 1,000
 - Riichi bet on interrupted declaration: Not paid (void if the discard is ronned, draws a triple ron, or ends the hand in four winds)
 - Riichi discard claimed for a meld: Riichi stands. Ippatsu is lost.
-- Riichi at exactly 1,000 points: Allowed (player goes to 0 points; game continues unless another player wins and triggers tobi)
+- Riichi at exactly 1,000 points: Allowed (player goes to 0 points; game continues unless another player wins and triggers tobi). Whether riichi needs at least the stick's value is a preset setting (Shakkin riichi, below).
 - Minimum wall tiles for declaration: 4
+- Shakkin riichi: Disabled; a riichi needs at least the riichi stick's value in points. When enabled, riichi is allowed at any score, which may then go negative.
+- Riichi kan readings: Disabled; a concealed quad in riichi need only keep the waits.
 - After riichi is established, every discard must be the tile just drawn. The player may instead declare a legal win or a permitted concealed kan. The declaration discard itself may be any tile that keeps the hand tenpai.
-- Concealed quad during riichi (ankan): allowed only when the tile just drawn is the kan tile (no okurikan: a quad held before the draw cannot be declared) and the kan leaves the set of waiting tiles unchanged. A kan that narrows the waits, breaks tenpai, or quads a tile that is itself a wait is refused. A kan that changes only how the hand splits into sets, or its yaku, is allowed: 111222333m456p5s waiting on 5s may quad a drawn 1m although the hand loses its ippeikou reading. Applies to concealed kan only — shouminkan is blocked during riichi. The waits before and after the kan are compared under our karaten rule (Keishiki tenpai, below): a tile whose 4 copies are all in the player's own hand and melds is not a wait.
+- Concealed quad during riichi (ankan): allowed only when the tile just drawn is the kan tile (no okurikan: a quad held before the draw cannot be declared) and the kan leaves the set of waiting tiles unchanged. A kan that narrows the waits, breaks tenpai, or quads a tile that is itself a wait is refused. A kan that changes only how the hand splits into sets, or its yaku, is allowed: 111222333m456p5s waiting on 5s may quad a drawn 1m although the hand loses its ippeikou reading. Applies to concealed kan only — shouminkan is blocked during riichi. The waits before and after the kan are compared under our karaten rule (Keishiki tenpai, below): a tile whose 4 copies are all in the player's own hand and melds is not a wait. A ruleset may also require every reading of the hand to keep the quad's triplet (Riichi kan readings, below): 333444555m11p23s cannot then quad a drawn 3m, since 345m can be read three times.
 - Riichi sticks on exhaustive/abortive draw: Remain on the table for the next hand. What happens to them at game end is a preset setting (Leftover riichi sticks, below).
 
 ### Furiten
@@ -106,8 +108,8 @@ When the caller declares another quad on the replacement tile instead of discard
 - Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Tiles in the player's own melds count toward the 4 copies, whether concealed or called. Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
 - Best reading: A hand that reads several ways scores the reading that pays the most; a tie goes to a real yakuman over a counted one, then to the double forms, then to the reading on the given winning tile, then to the higher han, fu and unrounded fu.
 - Final points: each player's difference from the target score, in thousands, plus uma, kept to a tenth of a point (for 42,300, 28,100, 18,600 and 11,000: +52.3, +8.1, −21.4, −39.0). First place adds the oka. Whether they are rounded is a preset setting (Final points rounding, below).
-- Tie-breaking: When players have equal final scores, the player closer counter-clockwise to the starting dealer ranks higher. The starting dealer is chosen by dice from the game seed, so it is not always seat 0.
-- Double ron riichi sticks and honba bonus: only the winner closest counter-clockwise to the discarder receives them. For chankan the kan caller takes the discarder's role.
+- Tie-breaking: When players have equal final scores, the player closer counter-clockwise to the starting dealer ranks higher. The starting dealer is chosen by dice from the game seed, so it is not always seat 0. A preset may split ties instead (Tied places, below).
+- Double ron riichi sticks and honba bonus: split as the preset's Multiple ron sticks setting says (below). For chankan the kan caller takes the discarder's role.
 
 ### Liability (Pao)
 
@@ -116,7 +118,7 @@ When the caller declares another quad on the replacement tile instead of discard
 - The liability is announced to the table at the call that sets it.
 - Liability covers the whole hand, including any other yakuman stacked on the liable one (e.g. All Honors).
 - Tsumo: Liable player pays the whole hand and the whole honba bonus; the other two pay nothing. Example: dealer Big Three Dragons + All Honors (96,000) — liable player pays 96,000.
-- Ron off a player other than the liable one: Liable player pays half the hand and the whole honba bonus; the discarder pays the other half. Example: the same dealer hand by ron — liable player pays 48,000, discarder 48,000.
+- Ron off a player other than the liable one: Liable player pays half the hand and the whole honba bonus; the discarder pays the other half. A ruleset may have the discarder pay the honba bonus instead (Pao honba, below). Example: the same dealer hand by ron — liable player pays 48,000, discarder 48,000.
 - Ron off the liable player: They pay the full hand value and honba bonus, as an ordinary ron
 - Riichi sticks go to the winner as usual. In a double ron each winner is settled separately: liability applies only to the winner it is for, and the liable player pays that winner's honba bonus, if the winner is the one who receives it (unless they are the discarder).
 
@@ -149,8 +151,8 @@ Applies when the game type and winning score threshold settings allow the game t
 
 ## Preset Settings
 
-Rules a ruleset sets. A game is set up with a ruleset; Tenhou is the default and so far the only one,
-and its values are shown. The settings a ruleset can change are the fields of
+Rules a ruleset sets. A game is set up with a ruleset: Tenhou, the default, whose values are shown,
+or RRC, whose differences are listed at the end of this section. The settings a ruleset can change are the fields of
 `engine/internal/rules.Ruleset`; the rest below is fixed until a ruleset needs it changed.
 
 ### Game Structure
@@ -165,7 +167,9 @@ and its values are shown. The settings a ruleset can change are the fields of
 - Tobi (negative score): Game ends immediately. Tobi threshold: Below 0 points (0 points does not end the game)
 - Agariyame (dealer stops in all-last while leading): Enabled and automatic. From South-4 on, a dealer who wins and places first with at least the winning score threshold ends the game. Ties for first follow the final standings.
 - Tenpaiyame (dealer stops in all-last if leading and tenpai at exhaustive draw): Enabled under the same conditions, nagashi mangan with a tenpai dealer included. An abortive draw never stops the game.
+- West round: Enabled. A hanchan with no player at the winning score threshold after South 4 plays on into West in sudden death, up to West 4. When disabled, the game ends after South 4.
 - Leftover riichi sticks: Awarded to 1st place at game end. When disabled, they are lost: no player collects them, and the final scores sum to less than the table's total.
+- Tied places: Disabled; equal final scores rank by seat (Tie-breaking, above). When enabled, players with equal scores before the leftover sticks share the higher place (1, 1, 3, 4) and split evenly the uma and oka of the places they cover and, when tied for first, the leftover riichi sticks. An indivisible remainder goes one unit at a time (a tenth of a point, or 100 points of sticks) to the tied players closest counter-clockwise to the starting dealer: three leaders splitting 1,000 points get 400, 300 and 300.
 - Final points rounding: Disabled; the points sum to zero without adjustment. When enabled, 2nd to 4th place are rounded to a whole point, halves away from zero (+10.5 to +11, −20.5 to −21), and 1st place takes what keeps the total unchanged.
 
 ### Yaku Toggles
@@ -173,7 +177,7 @@ and its values are shown. The settings a ruleset can change are the fields of
 - Open Tanyao (Kuitan): Allowed
 - Ippatsu: Enabled
 - Atozuke (gaining yaku upon winning tile claim): Allowed
-- Renhou (Blessing of Man): Disabled. A ron before the first draw scores only the yaku the hand holds.
+- Renhou (Blessing of Man): Disabled. A ron before the first draw scores only the yaku the hand holds. When set to mangan, a non-dealer's ron before their first draw, with no call or kan made, may win with no other yaku and is worth a mangan that adds no other yaku or dora; a hand worth more than a mangan without it scores its own value instead.
 
 ### Call Rules
 
@@ -182,7 +186,9 @@ and its values are shown. The settings a ruleset can change are the fields of
   - Suji restriction: For the discard immediately after chii, also forbid the tile that would complete a sequence with the two tiles contributed from hand: calling 1m with 23m forbids discarding 4m; calling 4m with 23m forbids 1m. Calling the middle tile (2m with 13m) adds no suji restriction.
   - Red and ordinary fives share a tile type for kuikae.
   - A chii is legal only if at least one legal discard remains after the meld is formed; a chii shape that would leave only kuikae-forbidden tiles is not offered and is rejected. A pon can never leave such a hand.
-- Multiple Ron (Double Ron): Allowed (2 players win simultaneously); every riichi stick on the table, including one the farther winner deposited this hand, and the honba bonus (+300 per counter) go only to the winner closest counter-clockwise to the discarder; the other winner receives the hand value alone. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks. For chankan the kan caller takes the discarder's role in both rules.
+- Multiple Ron (Double Ron): Allowed (2 players win simultaneously; a third ron is a triple ron, an abortive draw unless the preset turns that off, and then all three win). When Atamahane (head bump) is enabled, only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks.
+- Multiple ron sticks: every riichi stick on the table, including one the farther winner deposited this hand, and the honba bonus (+300 per counter) go only to the winner closest counter-clockwise to the discarder; the other winner receives the hand value alone. When disabled, every winner receives the honba bonus, each winner who declared riichi this hand takes their own stick back, and the closest winner takes the other sticks.
+- Pao honba: the liable player pays the honba bonus on a ron off another player. When set to the discarder, the discarder pays it. For chankan the kan caller takes the discarder's role in both rules.
 
 ### Dora
 
@@ -217,3 +223,18 @@ and its values are shown. The settings a ruleset can change are the fields of
 - Pinfu tsumo: 0 fu (no additional fu for pinfu tsumo)
 - Open pinfu: 2 fu (fu added for open pinfu hands)
 - Kiriage Mangan (rounded mangan): Disabled. 4-han/30-fu and 3-han/60-fu hands score their exact values (7,700/11,600), not mangan (8,000/12,000).
+
+### RRC
+
+The Russian riichi community's rules (Регламент RRC, version 2.0 of 4 July 2026) with no tournament
+variation. They differ from Tenhou's values above in these settings:
+
+- Starting and target score 30,000, so no oka; uma +30/+10/−10/−30
+- No tobi, no agariyame or tenpaiyame, and no West round
+- Riichi at any score; a concealed quad in riichi must keep every reading of the triplet
+- Kan dora turned at once for every kan, open ones included
+- Every ron on a discard wins, three included; each winner receives the honba bonus and their own riichi stick, the closest the other sticks
+- On a pao ron the discarder pays the honba bonus
+- Tied places split. RRC only says the leftover sticks are split equally, and its own scoring software rounds each share down to a whole point (1,000 among three: 333 each, 1 point lost); ronin keeps scores in hundreds and gives the remainder to the tied player closest to the starting dealer instead (400, 300, 300)
+- Renhou is a mangan
+- No nagashi mangan and no abortive draws

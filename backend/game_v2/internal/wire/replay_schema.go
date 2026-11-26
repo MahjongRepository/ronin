@@ -27,7 +27,7 @@ const (
 const (
 	dealerRolls = 2
 	diceInRoll  = 2
-	maxRonWins  = 2
+	maxRonWins  = 3
 )
 
 var fieldKinds = func() [keyCount]fieldKind {
@@ -176,7 +176,7 @@ func validateRoundEnd(record Map) error {
 
 	winners, _ := record.Get(KeyWinners)
 	if wins := len(winners.(Array)); wins == 0 || wins > maxRonWins {
-		return fmt.Errorf("a ron holds one win or %d", maxRonWins)
+		return fmt.Errorf("a ron holds one to %d wins", maxRonWins)
 	}
 
 	return nil

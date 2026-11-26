@@ -52,29 +52,26 @@ describe("gameEndDisplay", () => {
             "−16,5",
             "−50,5",
         ]);
-        expect(display.leftover).toBe(
-            `1 leftover riichi stick: +1,000 to ${display.seats[0].name}`,
-        );
     });
 
-    test("says the leftover sticks went to nobody when the game end pays no bonus for them", () => {
+    test("names a place two seats share once for each, as the server ranked them", () => {
         const table = endTable("leftover_riichi");
-        const unpaid = { ...table, gameEndResult: { ...endOf(table), leftoverRiichiBonus: 0 } };
+        const end = endOf(table);
+        const tied = {
+            ...table,
+            gameEndResult: {
+                ...end,
+                standings: end.standings.map((standing, index) =>
+                    index === 1 ? { ...standing, place: 1 } : standing,
+                ),
+            },
+        };
 
-        expect(shownEnd(unpaid).leftover).toBe("1 leftover riichi stick, awarded to nobody");
-        document.documentElement.lang = "ru";
-        expect(
-            [1, 2, 5].map(
-                (leftoverSticks) =>
-                    shownEnd({
-                        ...unpaid,
-                        gameEndResult: { ...unpaid.gameEndResult, leftoverSticks },
-                    }).leftover,
-            ),
-        ).toEqual([
-            "1 оставшаяся ставка риичи никому не достаётся",
-            "2 оставшиеся ставки риичи никому не достаются",
-            "5 оставшихся ставок риичи никому не достаются",
+        expect(shownEnd(tied).seats.map((seat) => seat.placement)).toEqual([
+            "1st",
+            "1st",
+            "3rd",
+            "4th",
         ]);
     });
 

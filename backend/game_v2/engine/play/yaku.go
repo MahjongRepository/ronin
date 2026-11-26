@@ -13,6 +13,7 @@ const (
 	YakuHaitei              YakuID = 6
 	YakuHoutei              YakuID = 7
 	YakuDaburuRiichi        YakuID = 8
+	YakuRenhou              YakuID = 11
 	YakuPinfu               YakuID = 12
 	YakuTanyao              YakuID = 13
 	YakuIipeikou            YakuID = 14
@@ -58,7 +59,7 @@ const (
 	YakuChiihou             YakuID = 116
 )
 
-const YakuCount = 51
+const YakuCount = 52
 
 type yakuData struct {
 	name      string

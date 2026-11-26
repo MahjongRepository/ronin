@@ -59,6 +59,7 @@ export const WIRE_KEY = {
     PAO_SHARE: 55,
     PAYS_HONBA: 20,
     PENDING_GAME_TIMEOUT: 37,
+    PLACE: 111,
     PLAYERS: 34,
     PLAYER_STATES: 97,
     POINTS: 37,
@@ -129,6 +130,9 @@ export const LIVE_WIRE_KEYS: ReadonlySet<number> = new Set(
 
 export const REPLAY_WIRE_KEYS: ReadonlySet<number> = new Set(
     Object.values(WIRE_KEY).filter(
-        (id) => id <= WIRE_KEY.YAKU_YAKUMAN_COUNT || id === WIRE_KEY.SHOWN_HANDS,
+        (id) =>
+            id <= WIRE_KEY.YAKU_YAKUMAN_COUNT ||
+            id === WIRE_KEY.SHOWN_HANDS ||
+            id === WIRE_KEY.PLACE,
     ),
 );

@@ -10,7 +10,7 @@ func TestKeyString_ShouldNameTheKeyAndAnAliasAsTheKeyItSharesANumberWith(t *test
 		{KeyEventType, "EVENT_TYPE"},
 		{KeyShownHands, "SHOWN_HANDS"},
 		{KeyPaysHonba, "HONBA_BONUS"},
-		{Key(keyCount), "Key(111)"},
+		{Key(keyCount), "Key(112)"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.want, func(t *testing.T) {

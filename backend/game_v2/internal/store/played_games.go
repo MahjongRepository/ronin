@@ -24,9 +24,11 @@ type Player struct {
 	UserID string
 }
 
-// Placement is one seat's place at a completed game's end; FinalScore is in tenths of a point.
+// Placement is one seat's place at a completed game's end; Place counts from 1, shared by tied
+// seats where the ruleset splits ties, and FinalScore is in tenths of a point.
 type Placement struct {
 	Seat       int
+	Place      int
 	Score      int
 	FinalScore int
 }
@@ -80,6 +82,7 @@ type standingJSON struct {
 	UserID     string `json:"user_id"`
 	Score      *int   `json:"score"`
 	FinalScore *int   `json:"final_score"`
+	Place      *int   `json:"place,omitempty"`
 }
 
 type finish struct {
@@ -120,6 +123,7 @@ func (db *DB) RecordCompleted(ctx context.Context, start GameStart, endedAt time
 			Name:       player.Name,
 			Seat:       p.Seat,
 			UserID:     player.UserID,
+			Place:      new(p.Place),
 			Score:      new(p.Score),
 			FinalScore: new(p.FinalScore),
 		})

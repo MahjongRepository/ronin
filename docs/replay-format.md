@@ -18,7 +18,7 @@ read from the start (`from=0`); an empty answer and every answer to a later curs
 answers' records joined in order read as a replay without its seed.
 
 `backend/game_v2/internal/wire` declares the named key IDs shared with the live protocol, the replay key
-set (every key through `YAKU_YAKUMAN_COUNT`, plus `SHOWN_HANDS`) and the replay schema: the fields each
+set (every key through `YAKU_YAKUMAN_COUNT`, plus `SHOWN_HANDS` and `PLACE`) and the replay schema: the fields each
 record and result type requires and each field's type, checked on encode and decode alike. The TypeScript
 decoder uses the same assignments, pinned together by
 `backend/game_v2/internal/wire/testdata/replay-format-golden.json`. IDs, event codes and result codes are
@@ -29,7 +29,7 @@ exactly 96 seed bytes; the browser's read boundary restores its hexadecimal stri
 
 Against `0.4-dev`, the records differ in these shapes:
 
-* a ron is result type 1 holding one or two wins under `WINNERS`, each with its hand, payments and pao;
+* a ron is result type 1 holding one to three wins under `WINNERS`, each with its hand, payments and pao;
   type 2 (double ron) is retired;
 * a nagashi mangan is an exhaustive draw naming `QUALIFYING_SEATS` and `QUALIFYING_RIVERS`; type 5 is
   retired;
@@ -38,7 +38,9 @@ Against `0.4-dev`, the records differ in these shapes:
 * a kan's meld event comes before the chankan decision, so a robbed kan is the meld event ahead of the
   ron that robs it, and no round end names `ROBBED_KAN`;
 * `PAO_ASSIGNED` (event 14) follows the call that makes a seat liable;
-* a standing's `FINAL_SCORE` is the uma/oka-adjusted result in whole tenths of a point, unrounded.
+* a standing's `FINAL_SCORE` is the uma/oka-adjusted result in whole tenths of a point, unrounded;
+* a standing may carry its `PLACE` from 1, which tied seats share under a ruleset that splits ties; a
+  replay written before it existed has none, and its standings rank by their order.
 
 `backend/game_v2/cmd/migrate` rewrites every stored `0.4-dev` replay into this version once, keeping
 profile 1 and the game as it was scored: the old whole-point `FINAL_SCORE` times ten, no `SHOWN_HANDS` on
@@ -48,8 +50,8 @@ seat's third dragon or fourth wind from another seat's discard, checked against 
 replay it cannot carry over whole is left as it was and reported.
 
 `gs` contains an integer profile `id` and an empty `overrides` map. Each engine ruleset has its own
-profile ID, and the Go server records the game's: `{"id": 2, "overrides": {}}` for Tenhou, the only
-ruleset so far. A replay rewritten from `0.4-dev` keeps profile 1, the rules it was played under, so the
+profile ID, and the Go server records the game's: `{"id": 2, "overrides": {}}` for Tenhou and
+`{"id": 3, "overrides": {}}` for RRC. A replay rewritten from `0.4-dev` keeps profile 1, the rules it was played under, so the
 two are told apart. The Go reader accepts a ruleset's ID and profile 1 only, and no overrides; the
 browser keeps the envelope opaque and has no registry.
 

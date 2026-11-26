@@ -82,6 +82,9 @@ type StartPointsOffTotalError = game.StartPointsOffTotalError
 // StartInNorthError reports a start in North, which a hanchan never reaches, or past it.
 type StartInNorthError = game.StartInNorthError
 
+// StartInWestError reports a start in West under a ruleset that plays no West round.
+type StartInWestError = game.StartInWestError
+
 // Act applies one answer of seat and returns the game after it and the events it caused. A
 // refusal returns the receiver unchanged and no events.
 func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, play.Option[play.Refusal]) {
@@ -183,7 +186,7 @@ type FinalScoresError = game.FinalScoresError
 // FinalPointsError reports final points that do not sum to 0.
 type FinalPointsError = game.FinalPointsError
 
-// PlacementsError reports final places, by seat, that are not 1 to 4.
+// PlacementsError reports final places, by seat, that do not rank the seats 1 to 4.
 type PlacementsError = game.PlacementsError
 
 func detachFreshEvents(freshEvents []play.Emitted) []play.Emitted {

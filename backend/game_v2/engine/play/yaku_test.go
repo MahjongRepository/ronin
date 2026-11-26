@@ -26,6 +26,7 @@ func TestAllYaku_ShouldMatchTheYakuTable(t *testing.T) {
 		{yaku: play.YakuHaitei, id: 6, name: "Haitei Raoyue", hanOpen: 1, hanClosed: 1, isYakuman: false},
 		{yaku: play.YakuHoutei, id: 7, name: "Houtei Raoyui", hanOpen: 1, hanClosed: 1, isYakuman: false},
 		{yaku: play.YakuDaburuRiichi, id: 8, name: "Double Riichi", hanOpen: 0, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuRenhou, id: 11, name: "Renhou", hanOpen: 0, hanClosed: 5, isYakuman: false},
 		{yaku: play.YakuPinfu, id: 12, name: "Pinfu", hanOpen: 0, hanClosed: 1, isYakuman: false},
 		{yaku: play.YakuTanyao, id: 13, name: "Tanyao", hanOpen: 1, hanClosed: 1, isYakuman: false},
 		{yaku: play.YakuIipeikou, id: 14, name: "Iipeiko", hanOpen: 0, hanClosed: 1, isYakuman: false},

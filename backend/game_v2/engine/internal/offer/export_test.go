@@ -9,7 +9,7 @@ func CheckedKanOffers(
 	hand []tile.TileID, melds []play.MeldView, drawn tile.TileID, inRiichi bool,
 	kans [tile.SeatCount]int, liveTiles int,
 ) ([]play.Action, error) {
-	return checkedKanOffers(hand, melds, drawn, inRiichi, kans, liveTiles)
+	return checkedKanOffers(hand, melds, drawn, inRiichi, kans, liveTiles, play.RulesetTenhou)
 }
 
 func CheckedMeldOffers(

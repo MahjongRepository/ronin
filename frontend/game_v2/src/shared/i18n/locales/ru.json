@@ -267,18 +267,6 @@
     "game.status.word.removed": "Доступ закрыт",
     "game.status.word.replaced": "Другое подключение",
     "game.status.word.slow": "Медленная связь",
-    "game.summary.leftover_paid": {
-        "one": "{count} оставшаяся ставка риичи: {points} игроку {name}",
-        "few": "{count} оставшиеся ставки риичи: {points} игроку {name}",
-        "many": "{count} оставшихся ставок риичи: {points} игроку {name}",
-        "other": "{count} оставшейся ставки риичи: {points} игроку {name}"
-    },
-    "game.summary.leftover_unpaid": {
-        "one": "{count} оставшаяся ставка риичи никому не достаётся",
-        "few": "{count} оставшиеся ставки риичи никому не достаются",
-        "many": "{count} оставшихся ставок риичи никому не достаются",
-        "other": "{count} оставшейся ставки риичи никому не достаются"
-    },
     "game.summary.rank_1": "1-е место",
     "game.summary.rank_2": "2-е место",
     "game.summary.rank_3": "3-е место",

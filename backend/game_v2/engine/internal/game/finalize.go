@@ -79,9 +79,7 @@ func gameEndCause(
 	firstDealer tile.Seat,
 	ruleset rules.Ruleset,
 ) (play.GameEndCause, bool) {
-	if ruleset.Tobi && slices.ContainsFunc(scores[:], func(score int) bool {
-		return score < ruleset.TobiThreshold
-	}) {
+	if slices.ContainsFunc(scores[:], ruleset.Tobi.Busts) {
 		return play.EndTobi, true
 	}
 
@@ -105,7 +103,7 @@ func gameEndCause(
 	hasWinner := slices.ContainsFunc(scores[:], func(score int) bool {
 		return score >= ruleset.WinningScoreThreshold
 	})
-	if next.uniqueDealers > hanchanDealers && hasWinner {
+	if next.uniqueDealers > hanchanDealers && (hasWinner || !ruleset.WestRound) {
 		return targetCause, true
 	}
 
@@ -124,21 +122,22 @@ func finalStandings(
 	ruleset rules.Ruleset,
 ) play.Standings {
 	order := placementOrder(scores, firstDealer)
+	var scoresByOrder [tile.SeatCount]int
+	for i, seat := range order {
+		scoresByOrder[i] = scores[seat.Index()]
+	}
+
+	places := placesOf(scoresByOrder, ruleset.SplitTiedPlaces)
 	if ruleset.LeftoverRiichiSticksToFirst {
-		scores[order[0].Index()] += riichiSticks * ruleset.RiichiStickValue
+		scoresByOrder = withLeftoverSticks(scoresByOrder, places, riichiSticks*ruleset.RiichiStickValue)
 	}
 
-	var scoresByPlace [tile.SeatCount]int
-	for place, seat := range order {
-		scoresByPlace[place] = scores[seat.Index()]
-	}
-
-	pointsByPlace := finalPoints(scoresByPlace, ruleset)
-
-	standings := play.Standings{Cause: cause, Scores: scores}
-	for place, seat := range order {
-		standings.Placements[seat.Index()] = place + 1
-		standings.Points[seat.Index()] = pointsByPlace[place]
+	pointsByOrder := finalPoints(scoresByOrder, places, ruleset)
+	standings := play.Standings{Cause: cause}
+	for i, seat := range order {
+		standings.Scores[seat.Index()] = scoresByOrder[i]
+		standings.Placements[seat.Index()] = places[i] + 1
+		standings.Points[seat.Index()] = pointsByOrder[i]
 	}
 
 	return standings
@@ -155,14 +154,73 @@ func placementOrder(scores [tile.SeatCount]int, firstDealer tile.Seat) [tile.Sea
 	return order
 }
 
-func finalPoints(scoresByPlace [tile.SeatCount]int, ruleset rules.Ruleset) [tile.SeatCount]int {
-	oka := (ruleset.TargetScore - ruleset.StartingScore) * tile.SeatCount / scorePerTenth
-	var points [tile.SeatCount]int
-	for place, score := range scoresByPlace {
-		points[place] = (score-ruleset.TargetScore)/scorePerTenth + ruleset.Uma[place]*tenthsPerPoint
+func placesOf(scoresByOrder [tile.SeatCount]int, splitTies bool) [tile.SeatCount]int {
+	var places [tile.SeatCount]int
+	for i := range places {
+		places[i] = i
+		if splitTies && i > 0 && scoresByOrder[i] == scoresByOrder[i-1] {
+			places[i] = places[i-1]
+		}
 	}
 
-	points[0] += oka
+	return places
+}
+
+func withLeftoverSticks(scoresByOrder, places [tile.SeatCount]int, leftover int) [tile.SeatCount]int {
+	leaders := 0
+	for _, place := range places {
+		if place == 0 {
+			leaders++
+		}
+	}
+
+	shares := evenShares(leftover/scorePerTenth, leaders)
+	for i, share := range shares {
+		scoresByOrder[i] += share * scorePerTenth
+	}
+
+	return scoresByOrder
+}
+
+func evenShares(total, count int) []int {
+	share, remainder := total/count, total%count
+	if remainder < 0 {
+		share, remainder = share-1, remainder+count
+	}
+
+	shares := make([]int, count)
+	for i := range shares {
+		shares[i] = share
+		if i < remainder {
+			shares[i]++
+		}
+	}
+
+	return shares
+}
+
+func finalPoints(scoresByOrder, places [tile.SeatCount]int, ruleset rules.Ruleset) [tile.SeatCount]int {
+	var bonuses [tile.SeatCount]int
+	for i, uma := range ruleset.Uma {
+		bonuses[i] = uma * tenthsPerPoint
+	}
+
+	bonuses[0] += (ruleset.TargetScore - ruleset.StartingScore) * tile.SeatCount / scorePerTenth
+	var points [tile.SeatCount]int
+	for first := 0; first < tile.SeatCount; {
+		next := first + 1
+		for next < tile.SeatCount && places[next] == places[first] {
+			next++
+		}
+
+		shares := evenShares(sum(bonuses[first:next]), next-first)
+		for i, share := range shares {
+			points[first+i] = (scoresByOrder[first+i]-ruleset.TargetScore)/scorePerTenth + share
+		}
+
+		first = next
+	}
+
 	if ruleset.RoundFinalPoints {
 		return roundedPoints(points)
 	}
@@ -170,12 +228,17 @@ func finalPoints(scoresByPlace [tile.SeatCount]int, ruleset rules.Ruleset) [tile
 	return points
 }
 
-func roundedPoints(points [tile.SeatCount]int) [tile.SeatCount]int {
+func sum(values []int) int {
 	total := 0
-	for _, p := range points {
-		total += p
+	for _, v := range values {
+		total += v
 	}
 
+	return total
+}
+
+func roundedPoints(points [tile.SeatCount]int) [tile.SeatCount]int {
+	total := sum(points[:])
 	rounded := points
 	for place := 1; place < tile.SeatCount; place++ {
 		rounded[place] = roundedToWholePoint(points[place])

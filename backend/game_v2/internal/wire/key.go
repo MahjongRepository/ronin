@@ -117,6 +117,7 @@ const (
 	KeySessionType         Key = 108
 	KeyWaitID              Key = 109
 	KeyShownHands          Key = 110
+	KeyPlace               Key = 111
 )
 
 const (
@@ -125,7 +126,7 @@ const (
 	KeyPaysHonba          = KeyHonbaBonus
 )
 
-const keyCount = int(KeyShownHands) + 1
+const keyCount = int(KeyPlace) + 1
 
 var keyNames = [keyCount]string{
 	KeyReplayVersion:       "REPLAY_VERSION",
@@ -239,6 +240,7 @@ var keyNames = [keyCount]string{
 	KeySessionType:         "SESSION_TYPE",
 	KeyWaitID:              "WAIT_ID",
 	KeyShownHands:          "SHOWN_HANDS",
+	KeyPlace:               "PLACE",
 }
 
 func (k Key) String() string {

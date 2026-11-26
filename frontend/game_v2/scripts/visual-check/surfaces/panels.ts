@@ -182,7 +182,7 @@ const PAGES: readonly PageCase[] = [
     },
     resultCase("yakuman", "", [".round-end-result__seal", ".round-end-result__yakuman-kanji"]),
     resultCase("triple_ron", "", [".round-end-result__from"]),
-    boardCase("board-game-end-stick-lost", "?overlay=game_end&leftover=lost", [".seating__note"]),
+    boardCase("board-game-end-tied", "?overlay=game_end&end=tied", [".seating__placement"]),
     {
         ...resultCase("double_ron", "&page=1", [".round-end-result__prev"]),
         at: [FLOOR, MID_DESKTOP],
@@ -254,7 +254,6 @@ const PAGES: readonly PageCase[] = [
     {
         ...boardCase("board-game-end", "?overlay=game_end", [
             ".seating__ending--length",
-            ".seating__note",
             ".seating__result--positive",
             ".seating__seat--viewer",
         ]),

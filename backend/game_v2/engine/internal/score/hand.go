@@ -99,7 +99,16 @@ func EstimateHandValue(h Hand, situation Situation, dora Dora, rules Rules) (Han
 		}
 	}
 
+	if isRenhou(situation, rules) {
+		best.offerRenhou(winning(h.WinTile.Kind()))
+	}
+
 	return best.value()
+}
+
+func isRenhou(situation Situation, rules Rules) bool {
+	return rules.scoresRenhouMangan() && situation.FirstTurn && situation.Win == WinRon &&
+		!situation.IsDealer()
 }
 
 func isTenhou(situation Situation) bool {
@@ -354,6 +363,25 @@ func (b *bestHand) offer(c calculatedHand) {
 	rank := c.rank()
 	if !b.offered || compareRanks(rank, b.rank) > 0 {
 		*b = bestHand{rank: rank, hand: c, offered: true}
+	}
+}
+
+func (b *bestHand) offerRenhou(w winningHand) {
+	if !b.offered {
+		return
+	}
+
+	renhou := calculatedHand{
+		hasYaku:        true,
+		isGivenWinTile: true,
+		yaku:           yakuList{{ID: play.YakuRenhou, Han: play.YakuRenhou.HanClosed()}},
+		han:            manganHan,
+		fu:             b.hand.fu,
+		fuDetails:      b.hand.fuDetails,
+	}
+	renhou.scored = w.scoreValue(play.Han{Han: manganHan, Fu: b.hand.fu}, play.DoraCount{})
+	if !b.hand.hasYaku || b.hand.scored.total <= renhou.scored.total {
+		b.hand = renhou
 	}
 }
 

@@ -32,19 +32,16 @@ func (c *converter) roundEnded(event wire.Map) {
 	switch wire.ResultType(c.r.int(event, wire.KeyResultType)) {
 	case wire.ResultTsumo:
 		table := winTable{
-			from: c.readSeat(event, wire.KeyWinnerSeat), tile: c.r.tileID(event, wire.KeyWinningTile),
-			sticks: c.sticks(), dora: dora,
+			from: c.readSeat(event, wire.KeyWinnerSeat), tile: c.r.tileID(event, wire.KeyWinningTile), dora: dora,
 		}
 		c.win(event, table, scores)
 	case wire.ResultRon:
 		table := winTable{
-			from: c.readSeat(event, wire.KeyLoserSeat), tile: c.r.tileID(event, wire.KeyWinningTile), sticks: c.sticks(),
-			dora: dora,
+			from: c.readSeat(event, wire.KeyLoserSeat), tile: c.r.tileID(event, wire.KeyWinningTile), dora: dora,
 		}
 		before := scores
 		for _, win := range c.r.objects(event, wire.KeyWinners) {
 			before = c.win(win, table, before)
-			table.sticks = 0
 		}
 	case wire.ResultExhaustiveDraw:
 		c.exhaustiveDraw(event, scores, changes)
@@ -54,10 +51,9 @@ func (c *converter) roundEnded(event wire.Map) {
 }
 
 type winTable struct {
-	from   int
-	tile   int
-	sticks int
-	dora   []int
+	from int
+	tile int
+	dora []int
 }
 
 func (c *converter) win(win wire.Map, table winTable, before [tile.SeatCount]int) [tile.SeatCount]int {
@@ -69,7 +65,8 @@ func (c *converter) win(win wire.Map, table winTable, before [tile.SeatCount]int
 	slices.Sort(held)
 
 	var tag strings.Builder
-	tag.WriteString(`<AGARI ba="` + strconv.Itoa(c.honba) + "," + strconv.Itoa(table.sticks) + `" hai="` +
+	sticks := c.r.int(win, wire.KeyRiichiCollected)
+	tag.WriteString(`<AGARI ba="` + strconv.Itoa(c.honba) + "," + strconv.Itoa(sticks) + `" hai="` +
 		joinInts(held) + `"`)
 	if melds := c.meldCodes(win); len(melds) > 0 {
 		tag.WriteString(` m="` + joinInts(melds) + `"`)

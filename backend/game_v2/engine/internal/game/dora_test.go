@@ -221,6 +221,20 @@ func TestKanDora_WhenAnOpenKanIsDeclared_ShouldDeferItsIndicatorToTheReplacement
 	assertEqual(t, "kan dora", testkit.DoraReveals(discard), copies(t, 0, "7p"))
 }
 
+func TestKanDora_WhenTheRulesetTurnsOpenKanDoraAtOnce_ShouldRevealItAtTheKan(t *testing.T) {
+	w := kanDoraWall(t)
+	w.Hands = [tile.SeatCount][]tile.TileID{
+		slices.Concat(copies(t, 0, "111m"), copies(t, 1, "123456789p2s")), filler(t, 1), filler(t, 2), filler(t, 3),
+	}
+	w.Draws = firstGoAroundToSeatThree(t, tileOf(t, 3, "1m"))
+	g, _ := discardDrawn(t, begunUnder(t, play.RulesetRRC, w, noStart()), tile.SeatCount)
+
+	g, kan := script(t, g, act(seat(t, 0), play.KanAction(play.KanOpen, tileOf(t, 3, "1m"))))
+	assertEqual(t, "kan kinds", testkit.EventKinds(kan), []string{"called", "dora_revealed", "drew", "drew", "drew", "drew"})
+	assertEqual(t, "kan dora", testkit.DoraReveals(kan), copies(t, 0, "7p"))
+	assertEqual(t, "dora on discard", testkit.DoraReveals(discardRinshan(t, g)), []tile.TileID(nil))
+}
+
 func TestKanDora_WhenAnAddedKanIsDeclared_ShouldDeferItsIndicatorToTheReplacementDiscard(t *testing.T) {
 	dealer := slices.Concat(copies(t, 0, "11m"), copies(t, 1, "123456789p2s"), copies(t, 0, "6z"))
 	draws := slices.Concat(firstGoAroundToSeatThree(t, tileOf(t, 2, "1m")),

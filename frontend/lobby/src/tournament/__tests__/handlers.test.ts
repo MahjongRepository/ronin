@@ -57,7 +57,11 @@ function completedGame(gameId: string): PlayedGame {
         endedAt: new Date(),
         gameId,
         players: PLAYERS,
-        ranked: PLAYERS.map((name, index) => ({ finalScore: 5.1 - index * 3, name })),
+        ranked: PLAYERS.map((name, index) => ({
+            finalScore: 5.1 - index * 3,
+            name,
+            place: index + 1,
+        })),
     };
 }
 
@@ -103,10 +107,10 @@ describe("buildMessageHandlers", () => {
             game_id: "g2",
             players,
             result: [
-                { final_score: 51, name: "Bob", score: 41_000, seat: 2 },
-                { final_score: 8, name: "Dave", score: 28_000, seat: 0 },
-                { final_score: -21, name: "Alice", score: 19_000, seat: 3 },
-                { final_score: -38, name: "Carol", score: 12_000, seat: 1 },
+                { final_score: 200, name: "Bob", place: 1, score: 40_000, seat: 2 },
+                { final_score: 200, name: "Dave", place: 1, score: 40_000, seat: 0 },
+                { final_score: -110, name: "Alice", place: 3, score: 24_000, seat: 3 },
+                { final_score: -290, name: "Carol", place: 4, score: 16_000, seat: 1 },
             ],
             type: "game_ended",
         };
@@ -119,10 +123,10 @@ describe("buildMessageHandlers", () => {
             [
                 "g2",
                 [
-                    { finalScore: 5.1, name: "Bob" },
-                    { finalScore: 0.8, name: "Dave" },
-                    { finalScore: -2.1, name: "Alice" },
-                    { finalScore: -3.8, name: "Carol" },
+                    { finalScore: 20, name: "Bob", place: 1 },
+                    { finalScore: 20, name: "Dave", place: 1 },
+                    { finalScore: -11, name: "Alice", place: 3 },
+                    { finalScore: -29, name: "Carol", place: 4 },
                 ],
             ],
         ]);

@@ -247,14 +247,6 @@
     "game.status.word.removed": "Removed",
     "game.status.word.replaced": "Replaced",
     "game.status.word.slow": "Slow connection",
-    "game.summary.leftover_paid": {
-        "one": "{count} leftover riichi stick: {points} to {name}",
-        "other": "{count} leftover riichi sticks: {points} to {name}"
-    },
-    "game.summary.leftover_unpaid": {
-        "one": "{count} leftover riichi stick, awarded to nobody",
-        "other": "{count} leftover riichi sticks, awarded to nobody"
-    },
     "game.summary.rank_1": "1st",
     "game.summary.rank_2": "2nd",
     "game.summary.rank_3": "3rd",

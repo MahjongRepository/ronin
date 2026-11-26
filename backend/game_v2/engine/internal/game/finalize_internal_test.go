@@ -211,6 +211,22 @@ func TestGameEndCause_WhenSouthEndsWithASeatAtTheThreshold_ShouldEndByLength(t *
 	}
 }
 
+func TestGameEndCause_WhenSouthEndsWithNoSeatAtTheThreshold_ShouldPlayWestOnlyWhereTheRulesetHasIt(t *testing.T) {
+	ended := at(t, 8, tile.South, 3, 0)
+	result := draw(t, nil)
+	scores := [tile.SeatCount]int{29900, 29900, 29900, 29900}
+
+	westCause, westEnds := gameEndCause(ended, ended.after(result), result, scores, seat(t, 0), rules.Tenhou())
+	if got := (ending{cause: westCause, ends: westEnds}); got != playsOn() {
+		t.Errorf("end with a West round = %+v, want play on", got)
+	}
+
+	cause, ends := gameEndCause(ended, ended.after(result), result, scores, seat(t, 0), rules.RRC())
+	if got := (ending{cause: cause, ends: ends}); got != endsBy(play.EndLength) {
+		t.Errorf("end without a West round = %+v, want by length", got)
+	}
+}
+
 func TestGameEndCause_WhenAScoreFallsBelowZero_ShouldEndByTobi(t *testing.T) {
 	got := causeAfter(t, eastOne(t, 0), tsumo(t, 1), [tile.SeatCount]int{33367, 33367, 33366, -100})
 	if got != endsBy(play.EndTobi) {
@@ -386,37 +402,41 @@ func TestGameEndCause_WhenTheWestFourDealerWinsAtTheThreshold_ShouldEndByTarget(
 	}
 }
 
+func rankedPlaces() [tile.SeatCount]int {
+	return [tile.SeatCount]int{0, 1, 2, 3}
+}
+
 func TestFinalPoints_WhenScoresAreDistinct_ShouldAddUmaAndOkaSummingToZero(t *testing.T) {
 	want := [tile.SeatCount]int{523, 81, -214, -390}
-	if got := finalPoints([tile.SeatCount]int{42300, 28100, 18600, 11000}, rules.Tenhou()); got != want {
+	if got := finalPoints([tile.SeatCount]int{42300, 28100, 18600, 11000}, rankedPlaces(), rules.Tenhou()); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
 
 func TestFinalPoints_WhenScoresAreEqual_ShouldGiveEachPlaceItsUma(t *testing.T) {
 	want := [tile.SeatCount]int{350, 50, -150, -250}
-	if got := finalPoints([tile.SeatCount]int{25000, 25000, 25000, 25000}, rules.Tenhou()); got != want {
+	if got := finalPoints([tile.SeatCount]int{25000, 25000, 25000, 25000}, rankedPlaces(), rules.Tenhou()); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
 
 func TestFinalPoints_WhenScoresTie_ShouldGiveTheOkaToFirstPlaceOnly(t *testing.T) {
 	want := [tile.SeatCount]int{400, 100, -200, -300}
-	if got := finalPoints([tile.SeatCount]int{30000, 30000, 20000, 20000}, rules.Tenhou()); got != want {
+	if got := finalPoints([tile.SeatCount]int{30000, 30000, 20000, 20000}, rankedPlaces(), rules.Tenhou()); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
 
 func TestFinalPoints_WhenARawScoreIsNegative_ShouldStillSumToZero(t *testing.T) {
 	want := [tile.SeatCount]int{650, 50, -150, -550}
-	if got := finalPoints([tile.SeatCount]int{55000, 25000, 25000, -5000}, rules.Tenhou()); got != want {
+	if got := finalPoints([tile.SeatCount]int{55000, 25000, 25000, -5000}, rankedPlaces(), rules.Tenhou()); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
 
 func TestFinalPoints_WhenScoresHaveHundreds_ShouldKeepThemUnrounded(t *testing.T) {
 	want := [tile.SeatCount]int{406, 105, -205, -306}
-	if got := finalPoints([tile.SeatCount]int{30600, 30500, 19500, 19400}, rules.Tenhou()); got != want {
+	if got := finalPoints([tile.SeatCount]int{30600, 30500, 19500, 19400}, rankedPlaces(), rules.Tenhou()); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
@@ -426,8 +446,43 @@ func TestFinalPoints_WhenTheRulesetRoundsThem_ShouldRoundHalvesAwayFromZeroAndLe
 	rounding.RoundFinalPoints = true
 
 	want := [tile.SeatCount]int{410, 110, -210, -310}
-	if got := finalPoints([tile.SeatCount]int{30600, 30500, 19500, 19400}, rounding); got != want {
+	if got := finalPoints([tile.SeatCount]int{30600, 30500, 19500, 19400}, rankedPlaces(), rounding); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
+	}
+}
+
+func TestFinalPoints_WhenATieSplitsABonusThatDoesNotDivide_ShouldGiveTheRemainderToTheFirstOfThem(t *testing.T) {
+	want := [tile.SeatCount]int{500, -166, -167, -167}
+	if got := finalPoints([tile.SeatCount]int{40000, 20000, 20000, 20000}, [tile.SeatCount]int{0, 1, 1, 1}, rules.Tenhou()); got != want {
+		t.Errorf("finalPoints = %v, want %v", got, want)
+	}
+}
+
+func TestFinalStandings_WhenTheRulesetSplitsTies_ShouldShareThePlaceItsUmaAndTheLeftoverSticks(t *testing.T) {
+	standings := finalStandings([tile.SeatCount]int{35000, 25000, 24000, 35000}, 1, seat(t, 0), play.EndLength, rules.RRC())
+
+	want := play.Standings{
+		Cause:      play.EndLength,
+		Scores:     [tile.SeatCount]int{35500, 25000, 24000, 35500},
+		Placements: [tile.SeatCount]int{1, 3, 4, 1},
+		Points:     [tile.SeatCount]int{255, -150, -360, 255},
+	}
+	if standings != want {
+		t.Errorf("standings = %+v, want %+v", standings, want)
+	}
+}
+
+func TestFinalStandings_WhenThreeTiedLeadersSplitOneStick_ShouldGiveTheSpareHundredToTheSeatNearestTheFirstDealer(t *testing.T) {
+	standings := finalStandings([tile.SeatCount]int{29000, 30000, 30000, 30000}, 1, seat(t, 2), play.EndLength, rules.RRC())
+
+	want := play.Standings{
+		Cause:      play.EndLength,
+		Scores:     [tile.SeatCount]int{29000, 30300, 30400, 30300},
+		Placements: [tile.SeatCount]int{4, 1, 1, 1},
+		Points:     [tile.SeatCount]int{-310, 103, 104, 103},
+	}
+	if standings != want {
+		t.Errorf("standings = %+v, want %+v", standings, want)
 	}
 }
 

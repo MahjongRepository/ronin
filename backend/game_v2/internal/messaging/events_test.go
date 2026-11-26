@@ -216,7 +216,6 @@ func TestEventPayload_WhenTheGameEndsWithSticksUnawarded_ShouldNameTheirCountBon
 	record := play.SeatRecord{
 		Header:           play.RoundHeader{RoundNumber: 7},
 		RiichiStickValue: 1000,
-		HonbaValue:       300,
 		History: []play.FinishedRound{{
 			Header:      play.RoundHeader{RoundNumber: 7, RiichiSticks: 1},
 			Result:      play.ExhaustiveDraw{},
@@ -226,9 +225,10 @@ func TestEventPayload_WhenTheGameEndsWithSticksUnawarded_ShouldNameTheirCountBon
 
 	m := payload(t, ended, record)
 
-	standing := func(s, score, final int) wire.Map {
+	standing := func(s, place, score, final int) wire.Map {
 		return wire.Map{
 			{Key: wire.KeySeat, Value: wire.Int(s)},
+			{Key: wire.KeyPlace, Value: wire.Int(place)},
 			{Key: wire.KeyScore, Value: wire.Int(score)},
 			{Key: wire.KeyFinalScore, Value: wire.Int(final)},
 		}
@@ -238,13 +238,40 @@ func TestEventPayload_WhenTheGameEndsWithSticksUnawarded_ShouldNameTheirCountBon
 		{Key: wire.KeyEventType, Value: wire.Int(10)},
 		{Key: wire.KeyWinnerSeat, Value: wire.Int(1)},
 		{Key: wire.KeyStandings, Value: wire.Array{
-			standing(1, 310, 510), standing(2, 240, 40), standing(0, 230, -170), standing(3, 220, -380),
+			standing(1, 1, 310, 510), standing(2, 2, 240, 40), standing(0, 3, 230, -170), standing(3, 4, 220, -380),
 		}},
 		{Key: wire.KeyLeftoverBonus, Value: wire.Int(20)},
 		{Key: wire.KeyLeftoverRiichi, Value: wire.Int(2)},
 		{Key: wire.KeyRoundCount, Value: wire.Int(8)},
 		{Key: wire.KeyEndCause, Value: wire.Str("extension_limit")},
 	})
+}
+
+func TestEventPayload_WhenTwoSeatsShareFirstPlace_ShouldListBothFromTheFirstDealerOnWithTheSharedPlace(t *testing.T) {
+	ended := play.GameEnded{Standings: play.Standings{
+		Cause:      play.EndLength,
+		Scores:     [tile.SeatCount]int{35500, 25000, 35500, 24000},
+		Placements: [tile.SeatCount]int{1, 3, 1, 4},
+		Points:     [tile.SeatCount]int{255, -150, 255, -360},
+	}}
+	record := play.SeatRecord{FirstDealer: seat(t, 2), RiichiStickValue: 1000}
+
+	m := payload(t, ended, record)
+
+	winner, _ := m.Get(wire.KeyWinnerSeat)
+	standings, _ := m.Get(wire.KeyStandings)
+	var seats, places []wire.Value
+	for _, standing := range standings.(wire.Array) {
+		s, _ := standing.(wire.Map).Get(wire.KeySeat)
+		place, _ := standing.(wire.Map).Get(wire.KeyPlace)
+		seats, places = append(seats, s), append(places, place)
+	}
+	if winner != wire.Int(2) || !slices.Equal(seats, []wire.Value{wire.Int(2), wire.Int(0), wire.Int(1), wire.Int(3)}) {
+		t.Errorf("winner = %v, standings seats = %v, want 2 and [2 0 1 3]", winner, seats)
+	}
+	if !slices.Equal(places, []wire.Value{wire.Int(1), wire.Int(1), wire.Int(3), wire.Int(4)}) {
+		t.Errorf("standings places = %v, want [1 1 3 4]", places)
+	}
 }
 
 func TestReplaySeatControlPayload_WhenASeatChangesHands_ShouldWriteARecordTheReplayAccepts(t *testing.T) {

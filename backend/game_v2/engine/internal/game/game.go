@@ -2,6 +2,7 @@ package game
 
 import (
 	"math"
+	"math/bits"
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/offer"
@@ -113,7 +114,7 @@ func New(
 	g.deal(p, w)
 	events := []play.Emitted{toAll(play.GameStarted{
 		FirstDealer: g.firstDealer, Dice: g.firstDealerDice, Ruleset: ruleset, AkaDora: settings.AkaDora,
-		RiichiStickValue: settings.RiichiStickValue, HonbaValue: settings.HonbaValue,
+		RiichiStickValue: settings.RiichiStickValue,
 	})}
 	return g, append(events, g.roundStartedEvents()...), nil
 }
@@ -123,8 +124,11 @@ func (g *Game) settings() rules.Ruleset {
 }
 
 func checkStart(start play.StartPosition, ruleset rules.Ruleset) error {
-	if start.Wind >= tile.North {
+	switch {
+	case start.Wind >= tile.North:
 		return StartInNorthError{}
+	case start.Wind == tile.West && !ruleset.WestRound:
+		return StartInWestError{}
 	}
 
 	for _, seat := range tile.Seats() {
@@ -133,7 +137,7 @@ func checkStart(start play.StartPosition, ruleset rules.Ruleset) error {
 			return StartScoreOffHundredsError{Seat: seat}
 		}
 
-		if ruleset.Tobi && score < ruleset.TobiThreshold {
+		if ruleset.Tobi.Busts(score) {
 			return StartScoreBelowTobiError{Seat: seat}
 		}
 	}
@@ -142,32 +146,37 @@ func checkStart(start play.StartPosition, ruleset rules.Ruleset) error {
 		return NegativeStartCountError{}
 	}
 
-	found := saturatingMul(start.RiichiSticks, ruleset.RiichiStickValue)
+	var found wideSum
+	found.hi, found.lo = bits.Mul64(uint64(start.RiichiSticks), uint64(ruleset.RiichiStickValue))
 	for _, score := range start.Scores {
-		found = saturatingAdd(found, score)
+		found = found.plus(score)
 	}
 
-	if expected := tablePoints(ruleset); found != expected {
-		return StartPointsOffTotalError{Found: found, Expected: expected}
+	if expected := tablePoints(ruleset); found != (wideSum{}).plus(expected) {
+		return StartPointsOffTotalError{Found: found.saturated(), Expected: expected}
 	}
 
 	return nil
 }
 
-func saturatingAdd(a, b int) int {
-	if b > math.MaxInt-a {
-		return math.MaxInt
-	}
+// wideSum is a two's-complement 128-bit total, exact whatever order its int terms come in.
+type wideSum struct{ hi, lo uint64 }
 
-	return a + b
+func (s wideSum) plus(v int) wideSum {
+	lo, carry := bits.Add64(s.lo, uint64(v), 0)
+	hi, _ := bits.Add64(s.hi, uint64(int64(v)>>63), carry)
+	return wideSum{hi: hi, lo: lo}
 }
 
-func saturatingMul(a, b int) int {
-	if a > math.MaxInt/b {
+func (s wideSum) saturated() int {
+	switch {
+	case s.hi == uint64(int64(s.lo)>>63):
+		return int(int64(s.lo))
+	case int64(s.hi) < 0:
+		return math.MinInt
+	default:
 		return math.MaxInt
 	}
-
-	return a * b
 }
 
 func uniqueDealersAt(wind tile.Wind, roundInWind int) int {
@@ -495,7 +504,6 @@ func (g Game) SeatView(seat tile.Seat) play.SeatView {
 		FirstDealer:      g.firstDealer,
 		FirstDealerDice:  g.firstDealerDice,
 		RiichiStickValue: g.settings().RiichiStickValue,
-		HonbaValue:       g.settings().HonbaValue,
 		History:          g.history,
 	}
 	return play.SeatView{
@@ -536,11 +544,22 @@ func (g Game) CheckInvariants() error {
 		return FinalScoresError{Found: scores, Expected: expected}
 	case points != 0:
 		return FinalPointsError{Points: points}
-	case placements != [tile.SeatCount]int{1, 2, 3, 4}:
+	case !ranksFromFirst(placements, g.settings().SplitTiedPlaces):
 		return PlacementsError{Placements: standings.Placements}
 	default:
 		return nil
 	}
+}
+
+func ranksFromFirst(sortedPlaces [tile.SeatCount]int, tiesShare bool) bool {
+	for i, place := range sortedPlaces {
+		sharesTheOneBefore := tiesShare && i > 0 && place == sortedPlaces[i-1]
+		if place != i+1 && !sharesTheOneBefore {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Phase returns the phase of the game.

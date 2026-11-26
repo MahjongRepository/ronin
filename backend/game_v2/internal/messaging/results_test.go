@@ -14,7 +14,6 @@ func endedRound(honba int, dora ...int) play.SeatRecord {
 		Header:           play.RoundHeader{Dealer: tile.Seats()[3], Honba: honba},
 		DoraIndicators:   idsOf(dora),
 		RiichiStickValue: 1000,
-		HonbaValue:       300,
 	}
 }
 
@@ -80,7 +79,7 @@ func TestRoundEndPayload_WhenAYakumanTsumoHasPaoHonbaAndUra_ShouldNameWhatTheLia
 	win := play.WinResult{
 		Winner: seat(t, 0), Hand: ids(t, 0, 1, 2), WinTile: id(t, 3), Value: play.Yakuman{Count: 1, Fu: play.Some(30)},
 		Limit: play.Some(play.LimitYakuman), Yaku: []play.YakuID{play.YakuDaisangen}, UraIndicators: ids(t, 10),
-		Pao: play.Some(seat(t, 2)), ScoreChanges: [tile.SeatCount]int{32600 + 2000, 0, -32600, 0},
+		Pao: play.Some(seat(t, 2)), HonbaBonus: 600, ScoreChanges: [tile.SeatCount]int{32600 + 2000, 0, -32600, 0},
 	}
 
 	m := payload(t, roundEnd(play.Tsumo{Win: win}, 0, 59600, 25000, -7600, 25000), endedRound(2))
@@ -117,7 +116,7 @@ func TestRoundEndPayload_WhenARonHasTwoWins_ShouldGiveTheCloserWinnerTheHonbaAnd
 	closer := play.WinResult{
 		Winner: seat(t, 2), Loser: play.Some(seat(t, 1)), WinTile: id(t, 50), Value: play.Han{Han: 2, Fu: 30},
 		Yaku: []play.YakuID{play.YakuRiichi}, Dora: play.DoraCount{UraDora: 1}, UraIndicators: ids(t, 30),
-		ScoreChanges: [tile.SeatCount]int{0, -2300, 2300 + 1000, 0},
+		HonbaBonus: 300, ScoreChanges: [tile.SeatCount]int{0, -2300, 2300 + 1000, 0},
 	}
 	farther := play.WinResult{
 		Winner: seat(t, 3), Loser: play.Some(seat(t, 1)), WinTile: id(t, 50), Value: play.Han{Han: 3, Fu: 40},

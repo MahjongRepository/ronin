@@ -9,7 +9,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +22,8 @@ import (
 )
 
 const pythonRowsPath = "testdata/python_rows.json"
+
+var scoredStandingEnd = regexp.MustCompile(`"final_score":-?\d+\}`)
 
 type playedGameRow struct {
 	ID        string  `json:"id"`
@@ -42,10 +46,10 @@ var (
 	fixtureResult      = store.Result{
 		RoundsPlayed: 9,
 		Placements: []store.Placement{
-			{Seat: 2, Score: 42300, FinalScore: 523},
-			{Seat: 0, Score: 28100, FinalScore: 81},
-			{Seat: 3, Score: 18600, FinalScore: -214},
-			{Seat: 1, Score: 11000, FinalScore: -390},
+			{Seat: 2, Place: 1, Score: 42300, FinalScore: 523},
+			{Seat: 0, Place: 2, Score: 28100, FinalScore: 81},
+			{Seat: 3, Place: 3, Score: 18600, FinalScore: -214},
+			{Seat: 1, Place: 4, Score: 11000, FinalScore: -390},
 		},
 	}
 )
@@ -205,11 +209,19 @@ func TestDB_WhenPlayingThePythonFixtureGames_ShouldWriteThePythonRowsMarkedInTen
 	rows := readRows(t, path)
 	for _, f := range fixtures {
 		want := f.Row
-		want.Data = strings.TrimSuffix(want.Data, "}") + `,"final_score_unit":"tenths"}`
+		want.Data = strings.TrimSuffix(withPlaces(want.Data), "}") + `,"final_score_unit":"tenths"}`
 		if diff := cmp.Diff(want, rows[f.Row.ID]); diff != "" {
 			t.Errorf("%s: row differs from Python's marked in tenths (-python +go):\n%s", f.Name, diff)
 		}
 	}
+}
+
+func withPlaces(data string) string {
+	place := 0
+	return scoredStandingEnd.ReplaceAllStringFunc(data, func(end string) string {
+		place++
+		return strings.TrimSuffix(end, "}") + `,"place":` + strconv.Itoa(place) + "}"
+	})
 }
 
 func TestRecordStart_WhenTheGameIsAlreadyRecorded_ShouldRefuseItWithErrGameRecordedAndKeepTheFirstRow(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/game"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/testkit"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -32,16 +33,28 @@ func eastStart(scores [tile.SeatCount]int, honba, riichiSticks int) play.Option[
 
 func kyuushuDealer(t *testing.T, start play.Option[play.StartPosition]) game.Game {
 	t.Helper()
+	return kyuushuDealerUnder(t, play.RulesetTenhou, start)
+}
+
+func kyuushuDealerUnder(t *testing.T, ruleset play.Ruleset, start play.Option[play.StartPosition]) game.Game {
+	t.Helper()
 	w := testkit.StartWall{
 		Hands: [tile.SeatCount][]tile.TileID{nineTerminalTypes(t), junk(t, 1), junk(t, 2), junk(t, 3)},
 		Draws: copies(t, 0, "6m"),
 	}
-	return begun(t, w, start)
+	return begunUnder(t, ruleset, w, start)
 }
 
 func TestKyuushu_WhenTheDealerHoldsNineTerminalTypesOnItsFirstDraw_ShouldBeOfferedLast(t *testing.T) {
 	legal := kyuushuDealer(t, noStart()).LegalActions(seat(t, 0))
 	assertEqual(t, "last offer", legal[len(legal)-1], play.KyuushuAction())
+}
+
+func TestKyuushu_WhenTheRulesetHasNoKyuushuAbort_ShouldNotBeOffered(t *testing.T) {
+	legal := kyuushuDealerUnder(t, play.RulesetRRC, noStart()).LegalActions(seat(t, 0))
+	if containsAction(legal, play.KyuushuAction()) {
+		t.Errorf("legal actions = %v, want no kyuushu", legal)
+	}
 }
 
 func TestKyuushu_WhenValid_ShouldEndTheRoundShowingTheWholeHandAndNoScoreChange(t *testing.T) {
@@ -219,6 +232,13 @@ func tripleRonScores() [tile.SeatCount]int {
 
 func tripleRonPrompt(t *testing.T, discardAs func(tile.TileID) play.Action) game.Game {
 	t.Helper()
+	return tripleRonPromptUnder(t, play.RulesetTenhou, eastStart(tripleRonScores(), 0, 1), discardAs)
+}
+
+func tripleRonPromptUnder(
+	t *testing.T, ruleset play.Ruleset, start play.Option[play.StartPosition], discardAs func(tile.TileID) play.Action,
+) game.Game {
+	t.Helper()
 	discard := tileOf(t, 2, "3p")
 	w := testkit.StartWall{
 		Hands: [tile.SeatCount][]tile.TileID{
@@ -229,7 +249,7 @@ func tripleRonPrompt(t *testing.T, discardAs func(tile.TileID) play.Action) game
 		},
 		Draws: []tile.TileID{discard},
 	}
-	g, events := script(t, begun(t, w, eastStart(tripleRonScores(), 0, 1)), act(seat(t, 0), discardAs(discard)))
+	g, events := script(t, begunUnder(t, ruleset, w, start), act(seat(t, 0), discardAs(discard)))
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"discarded"})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 1), seat(t, 2), seat(t, 3)))
 	oneTwoPin := [2]tile.TileID{tileOf(t, 0, "1p"), tileOf(t, 0, "2p")}
@@ -294,6 +314,32 @@ func TestTripleRon_WhenOneOfThreeRonCallersPasses_ShouldResolveADoubleRon(t *tes
 	assertEqual(t, "head bumped", ron.HeadBumped, []tile.Seat(nil))
 }
 
+func TestTripleRon_WhenTheRulesetPaysEveryRon_ShouldGiveEachWinnerTheHonbaAndTheNearestTheSticks(t *testing.T) {
+	start := eastStart([tile.SeatCount]int{30000, 30000, 30000, 29000}, 1, 1)
+	_, events := script(t, tripleRonPromptUnder(t, play.RulesetRRC, start, play.DiscardAction),
+		act(seat(t, 1), play.RonAction()), act(seat(t, 2), play.RonAction()), act(seat(t, 3), play.RonAction()))
+
+	ron, ok := roundResult(t, events).(play.Ron)
+	if !ok {
+		t.Fatalf("result = %+v, want a ron", roundResult(t, events))
+	}
+	assertEqual(t, "winners", winners(ron), []tile.Seat{seat(t, 1), seat(t, 2), seat(t, 3)})
+
+	for i, win := range ron.Wins {
+		moved := 0
+		for _, change := range win.ScoreChanges {
+			moved += change
+		}
+
+		wantSticks := 0
+		if i == 0 {
+			wantSticks = 1000
+		}
+		assertEqual(t, "honba bonus", win.HonbaBonus, 300)
+		assertEqual(t, "sticks taken", moved, wantSticks)
+	}
+}
+
 func winners(ron play.Ron) []tile.Seat {
 	seats := make([]tile.Seat, len(ron.Wins))
 	for i, win := range ron.Wins {
@@ -305,6 +351,11 @@ func winners(ron play.Ron) []tile.Seat {
 
 func declareFourthRiichi(t *testing.T, riichiDiscard tile.TileID) (game.Game, []play.Emitted) {
 	t.Helper()
+	return declareFourthRiichiUnder(t, play.RulesetTenhou, riichiDiscard)
+}
+
+func declareFourthRiichiUnder(t *testing.T, ruleset play.Ruleset, riichiDiscard tile.TileID) (game.Game, []play.Emitted) {
+	t.Helper()
 	w := testkit.StartWall{
 		Hands: [tile.SeatCount][]tile.TileID{
 			slices.Concat(copies(t, 2, "123456789m"), copies(t, 0, "3344z")),
@@ -315,15 +366,24 @@ func declareFourthRiichi(t *testing.T, riichiDiscard tile.TileID) (game.Game, []
 		Draws: slices.Concat(copies(t, 1, "5z"), copies(t, 0, "7z"), copies(t, 0, "6z"), copies(t, 0, "5z"),
 			[]tile.TileID{riichiDiscard}),
 	}
-	g, _ := discardDrawn(t, begun(t, w, noStart()), 1)
+	g, _ := discardDrawn(t, begunUnder(t, ruleset, w, noStart()), 1)
 	for _, riichi := range []struct {
 		seat int
 		tile string
 	}{{1, "7z"}, {2, "6z"}, {3, "5z"}} {
 		g, _ = script(t, g, act(seat(t, riichi.seat), play.RiichiAction(tileOf(t, 0, riichi.tile))))
 	}
-	assertEqual(t, "scores", g.Scores(), [tile.SeatCount]int{25000, 24000, 24000, 24000})
+	start := rules.Of(ruleset).StartingScore
+	assertEqual(t, "scores", g.Scores(), [tile.SeatCount]int{start, start - 1000, start - 1000, start - 1000})
 	return script(t, g, act(seat(t, 0), play.RiichiAction(riichiDiscard)))
+}
+
+func TestFourRiichi_WhenTheRulesetHasNoFourRiichiAbort_ShouldPlayOnWithTheFourthStickDeposited(t *testing.T) {
+	g, events := declareFourthRiichiUnder(t, play.RulesetRRC, tileOf(t, 1, "8s"))
+
+	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"discarded", "riichi_deposited", "drew", "drew", "drew", "drew"})
+	assertEqual(t, "phase", g.Phase(), play.PhasePlaying)
+	assertEqual(t, "riichi sticks", g.RiichiSticks(), 4)
 }
 
 func TestFourRiichi_WhenNobodyMayCallTheFourthRiichiDiscard_ShouldAbortAtOnceShowingEveryHand(t *testing.T) {

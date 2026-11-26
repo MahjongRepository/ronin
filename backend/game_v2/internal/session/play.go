@@ -307,16 +307,12 @@ func gameResult(events []play.Emitted, table func() messaging.Table) (store.Resu
 			continue
 		}
 
-		seats := tile.Seats()
-		ordered := seats[:]
-		slices.SortFunc(ordered, func(a, b tile.Seat) int {
-			return ended.Standings.Placements[a.Index()] - ended.Standings.Placements[b.Index()]
-		})
-
-		result := store.Result{RoundsPlayed: int(table().Record.Header.RoundNumber) + 1}
-		for _, s := range ordered {
+		record := table().Record
+		result := store.Result{RoundsPlayed: int(record.Header.RoundNumber) + 1}
+		for _, s := range ended.Standings.Ranked(record.FirstDealer) {
 			result.Placements = append(result.Placements, store.Placement{
 				Seat:       s.Index(),
+				Place:      ended.Standings.Placements[s.Index()],
 				Score:      ended.Standings.Scores[s.Index()],
 				FinalScore: ended.Standings.Points[s.Index()],
 			})

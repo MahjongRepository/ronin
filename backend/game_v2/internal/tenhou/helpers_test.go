@@ -194,6 +194,7 @@ var (
 	agariTags        = regexp.MustCompile(`<AGARI [^>]*/>`)
 	callTags         = regexp.MustCompile(`<N [^>]*/>`)
 	agariMachiTags   = regexp.MustCompile(`<AGARI [^>]* machi="\d+"`)
+	agariBa          = regexp.MustCompile(`<AGARI ba="\d+,\d+"`)
 	initRounds       = regexp.MustCompile(`<INIT seed="(\d+),(\d+),[^>]* oya="(\d)"`)
 )
 

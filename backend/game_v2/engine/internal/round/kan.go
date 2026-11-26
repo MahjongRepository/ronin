@@ -46,7 +46,7 @@ func (r *Round) kanOffers(seat tile.Seat) []play.Action {
 	}
 
 	kans := offer.KansBySeat(r.meldsBySeat())
-	return offer.KanOffers(r.hand(seat), r.seatMelds(seat), r.drawn.Value, r.InRiichi(seat), kans, r.LiveTiles())
+	return offer.KanOffers(r.hand(seat), r.seatMelds(seat), r.drawn.Value, r.InRiichi(seat), kans, r.LiveTiles(), r.ruleset)
 }
 
 func (r *Round) checkKan(seat tile.Seat, kind play.KanKind, id tile.TileID) (tile.TileID, bool) {

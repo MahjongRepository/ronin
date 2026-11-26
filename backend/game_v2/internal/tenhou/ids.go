@@ -28,6 +28,8 @@ func YakuID(y play.YakuID) (int, bool) {
 		return 6, true
 	case play.YakuDaburuRiichi:
 		return 21, true
+	case play.YakuRenhou:
+		return 36, true
 	case play.YakuPinfu:
 		return 7, true
 	case play.YakuTanyao:

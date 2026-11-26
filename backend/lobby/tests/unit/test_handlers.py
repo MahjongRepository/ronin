@@ -78,6 +78,18 @@ def _make_standing(
 
 
 class TestHistoryEntries:
+    def test_history_entries__when_two_players_share_first_place__should_mark_both_winners(self):
+        standings = [
+            PlayedGameStanding(name="a", seat=0, score=40000, final_score=200, place=1),
+            PlayedGameStanding(name="b", seat=2, score=40000, final_score=200, place=1),
+            PlayedGameStanding(name="c", seat=3, score=24000, final_score=-110, place=3),
+            PlayedGameStanding(name="d", seat=1, score=16000, final_score=-290, place=4),
+        ]
+        game = PlayedGame(game_id="g", started_at=datetime.now(UTC), standings=standings)
+
+        [entry] = history_entries([game], user_id=_VIEWER_USER_ID)
+        assert [p["is_winner"] for p in entry["players"]] == [True, True, False, False]
+
     def test_history_entries__when_viewer_did_not_play__should_link_without_seat(self):
         game = PlayedGame(
             game_id="game-1",

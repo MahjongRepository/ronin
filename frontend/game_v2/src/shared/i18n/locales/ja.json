@@ -237,12 +237,6 @@
     "game.status.word.removed": "除外",
     "game.status.word.replaced": "別の接続",
     "game.status.word.slow": "通信遅延",
-    "game.summary.leftover_paid": {
-        "other": "残り供託{count}本: {name}に{points}"
-    },
-    "game.summary.leftover_unpaid": {
-        "other": "残り供託{count}本: 受け取りなし"
-    },
     "game.summary.rank_1": "1位",
     "game.summary.rank_2": "2位",
     "game.summary.rank_3": "3位",

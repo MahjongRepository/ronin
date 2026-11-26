@@ -136,9 +136,14 @@ func dealNextRound(t *testing.T, g game.Game) game.Game {
 
 func begun(t *testing.T, w testkit.StartWall, start play.Option[play.StartPosition]) game.Game {
 	t.Helper()
-	g, err := testkit.BegunGame(w, start)
+	return begunUnder(t, play.RulesetTenhou, w, start)
+}
+
+func begunUnder(t *testing.T, ruleset play.Ruleset, w testkit.StartWall, start play.Option[play.StartPosition]) game.Game {
+	t.Helper()
+	g, err := testkit.BegunGameUnder(ruleset, w, start)
 	if err != nil {
-		t.Fatalf("BegunGame error = %v", err)
+		t.Fatalf("BegunGameUnder(%d) error = %v", ruleset, err)
 	}
 
 	return g

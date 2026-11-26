@@ -75,10 +75,10 @@ each fails alone, so the other tables still start:
       "ended_at": 1794395400.0,
       "end_reason": "completed",
       "result": [
-        {"name": "west", "seat": 0, "user_id": "...", "score": 41000, "final_score": 510},
-        {"name": "east", "seat": 2, "user_id": "...", "score": 28000, "final_score": 80},
-        {"name": "north", "seat": 1, "user_id": "...", "score": 19000, "final_score": -210},
-        {"name": "south", "seat": 3, "user_id": "...", "score": 12000, "final_score": -380}
+        {"name": "west", "seat": 0, "user_id": "...", "score": 41000, "final_score": 510, "place": 1},
+        {"name": "east", "seat": 2, "user_id": "...", "score": 28000, "final_score": 80, "place": 2},
+        {"name": "north", "seat": 1, "user_id": "...", "score": 19000, "final_score": -210, "place": 3},
+        {"name": "south", "seat": 3, "user_id": "...", "score": 12000, "final_score": -380, "place": 4}
       ]
     }
   ]
@@ -92,8 +92,9 @@ came online. `games` is oldest first, `players` East to North. `created_at` and
 - `end_reason` is `completed`, `abandoned` (no player stayed connected) or `error` (the game failed on a server
   error).
 - For a completed game, `result` is the final standings in placement order: `score` is the raw score, `final_score`
-  the uma/oka-adjusted one in tenths of a point, unrounded (`510` is +51.0, `-215` is -21.5). For any other end it
-  lists the four players with `null` scores and no placement.
+  the uma/oka-adjusted one in tenths of a point, unrounded (`510` is +51.0, `-215` is -21.5), and `place` the
+  place from 1, which tied players share under a ruleset that splits ties (`1, 1, 3, 4`); it is `null` for a game
+  recorded before places were. For any other end it lists the four players with `null` scores and places.
 - `seat` in `result` is the game engine's seat index (0 to 3), not a wind: the first dealer's seat is drawn by the
   game, so East may sit at any index (seat 2 in the example). Only `players` runs East to North.
 - `user_id` is the player's lobby account id (empty for an AI seat).

@@ -95,7 +95,7 @@ Key facts the diagram cannot show:
 * **The engine sits behind one seam.** Everything else in the game server, the replay tools and the
   scripts reaches the rules engine only through the `engine/` facade (`backend/game_v2/AGENTS.md`,
   The seam). The engine owns rules, calculations and state transitions for the ruleset each game is set up with
-  (Tenhou, the default and so far the only one) and never learns who
+  (Tenhou, the default, or RRC) and never learns who
   answers a seat. The session owns who plays each seat (participant, AI player or timeout), decision ids,
   timers and both pauses, the seed, seating and roster, and what a refusal leads to; messaging builds the
   prompts from a seat's decision and the reconnect snapshot from its view, and with the wire layer owns
@@ -482,7 +482,7 @@ The storage version fixes the integer metadata-key mapping and the seed's 96-byt
 decoders preserve numeric keys and restore the hexadecimal seed. Score-map seats remain data keys, the rules
 envelope's keys remain strings, and lists remain arrays. Replay storage and live WebSocket encoding have separate contracts over shared fixed field IDs.
 
-The game-start record stores the rules envelope of the game's ruleset: its profile ID (2 for Tenhou)
+The game-start record stores the rules envelope of the game's ruleset: its profile ID (2 for Tenhou, 3 for RRC)
 with no overrides, from which the replay loader picks the ruleset to play the game again under. Replays rewritten from storage version `0.4-dev` by `cmd/migrate` name profile 1: they stay
 readable but no longer reproduce, so the Go replay loader and `cmd/verify` refuse them. Storage version,
 RNG version and profile ID are independent.

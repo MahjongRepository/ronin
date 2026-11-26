@@ -140,11 +140,13 @@ export const handResultSchema = z.pipe(
 const playerStandingSchema = z.pipe(
     z.object({
         [WIRE_KEY.FINAL_SCORE]: z.int(),
+        [WIRE_KEY.PLACE]: z.optional(z.int().check(z.gte(1), z.lte(NUM_PLAYERS))),
         [WIRE_KEY.SEAT]: seatSchema,
         [WIRE_KEY.SCORE]: z.number(),
     }),
     z.transform((raw) => ({
         finalScore: raw[WIRE_KEY.FINAL_SCORE] / WIRE_FINAL_SCORE_DIVISOR,
+        place: raw[WIRE_KEY.PLACE] ?? null,
         score: raw[WIRE_KEY.SCORE] * WIRE_SCORE_DIVISOR,
         seat: raw[WIRE_KEY.SEAT],
     })),
@@ -401,8 +403,6 @@ export const gameEndSchema = z.pipe(
     z
         .object({
             [WIRE_KEY.END_CAUSE]: z.enum(GAME_END_CAUSE),
-            [WIRE_KEY.LEFTOVER_BONUS]: wireScoreSchema,
-            [WIRE_KEY.LEFTOVER_RIICHI]: z.int().check(z.gte(0)),
             [WIRE_KEY.ROUND_COUNT]: z.int(),
             [WIRE_KEY.STANDINGS]: z.array(playerStandingSchema),
             [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.GAME_END),
@@ -418,10 +418,11 @@ export const gameEndSchema = z.pipe(
         ),
     z.transform((raw) => ({
         endCause: raw[WIRE_KEY.END_CAUSE],
-        leftoverRiichiBonus: raw[WIRE_KEY.LEFTOVER_BONUS],
-        leftoverRiichiSticks: raw[WIRE_KEY.LEFTOVER_RIICHI],
         numRounds: raw[WIRE_KEY.ROUND_COUNT],
-        standings: raw[WIRE_KEY.STANDINGS],
+        standings: raw[WIRE_KEY.STANDINGS].map(({ place, ...standing }, index) => ({
+            ...standing,
+            place: place ?? index + 1,
+        })),
         type: "game_end" as const,
         winnerSeat: raw[WIRE_KEY.WINNER_SEAT],
     })),

@@ -25,7 +25,8 @@ func RiichiDiscards(
 ) []tile.TileID {
 	closed := !slices.ContainsFunc(melds, func(view play.MeldView) bool { return view.Kind != play.MeldClosedKan })
 	settings := rules.Of(ruleset)
-	if inRiichi || !closed || score < settings.RiichiStickValue || liveTiles < settings.RiichiMinWall {
+	cannotAffordStick := !settings.ShakkinRiichi && score < settings.RiichiStickValue
+	if inRiichi || !closed || cannotAffordStick || liveTiles < settings.RiichiMinWall {
 		return nil
 	}
 

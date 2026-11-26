@@ -32,7 +32,6 @@ import {
     stepGameClient,
 } from "@/entities/client";
 import { TablePanelDisplay, tablePanel } from "@/entities/table";
-import { gameEndDisplay } from "@/entities/table/lib/game-end-display";
 import {
     CLIENT_MESSAGE_TYPE,
     EVENT_TYPE,
@@ -556,13 +555,12 @@ describe("stepGameClient - desync around the game's start and end", () => {
         expect(ended.state.table.inStep).toBe(false);
     });
 
-    it("marks the ledger incomplete when the last round end itself could not be read, the leftover sticks the server's", () => {
+    it("marks the ledger incomplete when the last round end itself could not be read", () => {
         const lost = run(checkpointState(FINAL, "ron chosen"), [
             message(5000, { [WIRE_KEY.EVENT_TYPE]: 999 }),
         ]).state;
-        const desynced = { ...lost, table: { ...lost.table, riichiSticks: 2 } };
 
-        const ended = run(desynced, [
+        const ended = run(lost, [
             message(5000, { ...finalRoundEnd, [WIRE_KEY.RESULT_TYPE]: 99 }),
             message(5000, gameEnd),
         ]);
@@ -575,8 +573,6 @@ describe("stepGameClient - desync around the game's start and end", () => {
             null,
         ]);
         expect(ended.state.table.inStep).toBe(false);
-        expect(gameEnd[WIRE_KEY.LEFTOVER_RIICHI]).toBe(0);
-        expect(gameEndDisplay(ended.state.table, ended.state.viewerSeat)?.leftover).toBeNull();
     });
 });
 

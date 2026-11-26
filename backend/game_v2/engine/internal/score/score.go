@@ -14,6 +14,7 @@ type Rules struct {
 	FuForPinfuTsumo     bool
 	FuForDoubleWindPair int
 	KazoeYakuman        bool
+	Renhou              rules.Renhou
 	RiichiStickValue    int
 	HonbaValue          int
 }
@@ -27,9 +28,14 @@ func HandRules(ruleset rules.Ruleset) Rules {
 		FuForPinfuTsumo:     ruleset.FuForPinfuTsumo,
 		FuForDoubleWindPair: ruleset.FuForDoubleWindPair,
 		KazoeYakuman:        ruleset.KazoeYakuman,
+		Renhou:              ruleset.Renhou,
 		RiichiStickValue:    ruleset.RiichiStickValue,
 		HonbaValue:          ruleset.HonbaValue,
 	}
+}
+
+func (r Rules) scoresRenhouMangan() bool {
+	return r.Renhou == rules.RenhouMangan
 }
 
 type Win uint8

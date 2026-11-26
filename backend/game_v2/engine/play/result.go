@@ -1,6 +1,11 @@
 package play
 
-import "github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
+import (
+	"cmp"
+	"slices"
+
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
+)
 
 // RoundResult is how a round ended: ExhaustiveDraw, Tsumo, Ron or Abortive.
 //
@@ -128,7 +133,8 @@ type NagashiRiver struct {
 
 // WinResult is one seat's win and what it was paid. Loser is absent on a tsumo; Hand excludes the
 // winning tile; Yaku is sorted by yaku id and leaves the dora to Dora; Pao is the seat liable for
-// the yakuman.
+// the yakuman; HonbaBonus is what the honba counters added to the win, all payers together, and is
+// part of ScoreChanges.
 type WinResult struct {
 	Winner        tile.Seat
 	Loser         Option[tile.Seat]
@@ -141,6 +147,7 @@ type WinResult struct {
 	Dora          DoraCount
 	UraIndicators []tile.TileID
 	Pao           Option[tile.Seat]
+	HonbaBonus    int
 	ScoreChanges  [tile.SeatCount]int
 }
 
@@ -156,11 +163,26 @@ const (
 )
 
 // Standings are the end of a game: the final scores by seat with the leftover riichi sticks added
-// to first place, places 1 to 4 (a tie to the seat nearer after the first dealer), and the uma- and
-// oka-adjusted points by seat in tenths of a point, unrounded, summing to 0.
+// to first place, places 1 to 4, and the uma- and oka-adjusted points by seat in tenths of a point,
+// summing to 0. Tied seats share the higher place where the ruleset splits ties, as 1, 1, 3, 4;
+// otherwise the seat nearer after the first dealer takes it.
 type Standings struct {
 	Cause      GameEndCause
 	Scores     [tile.SeatCount]int
 	Placements [tile.SeatCount]int
 	Points     [tile.SeatCount]int
+}
+
+// Ranked returns the seats from first place to fourth; seats sharing a place go by score, then from
+// firstDealer on, as the leftover riichi sticks' remainder went.
+func (s Standings) Ranked(firstDealer tile.Seat) [tile.SeatCount]tile.Seat {
+	ranked := tile.Seats()
+	slices.SortFunc(ranked[:], func(a, b tile.Seat) int {
+		return cmp.Or(
+			cmp.Compare(s.Placements[a.Index()], s.Placements[b.Index()]),
+			cmp.Compare(s.Scores[b.Index()], s.Scores[a.Index()]),
+			cmp.Compare(a.DistanceFrom(firstDealer), b.DistanceFrom(firstDealer)),
+		)
+	})
+	return ranked
 }

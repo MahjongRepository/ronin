@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
@@ -25,5 +26,18 @@ func TestSettle_WhenTheWinIsTheOtherKind_ShouldReturnAMisfitWinError(t *testing.
 				t.Errorf("error = %v, want MisfitWinError of win %v", c.err, c.want)
 			}
 		})
+	}
+}
+
+func TestSettleRon_WhenTheTableHoldsFewerSticksThanTheRiichiWinners_ShouldRefuseIt(t *testing.T) {
+	riichi := play.Some(play.Riichi{})
+	winners := []engine.WinningHand{
+		{Seat: tile.Seats()[2], Win: engine.WinRon},
+		{Seat: tile.Seats()[3], Win: engine.WinRon, Riichi: riichi},
+	}
+
+	_, err := engine.SettleRon(engine.Table{Ruleset: play.RulesetRRC}, tile.Seats()[1], winners)
+	if !errors.Is(err, engine.TooFewRiichiSticksError{RiichiSticks: 0, RiichiWinners: 1}) {
+		t.Errorf("SettleRon error = %v, want TooFewRiichiSticksError", err)
 	}
 }

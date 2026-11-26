@@ -18,14 +18,18 @@ const MigratedRulesProfileID = 1
 
 const TenhouRulesProfileID = 2
 
+const RRCRulesProfileID = 3
+
 const noRulesProfile = 0
 
 // RulesProfileOf returns the rules profile a replay records for ruleset: 0, which no replay
 // accepts, for a ruleset with no profile.
 func RulesProfileOf(ruleset play.Ruleset) Int {
-	switch ruleset { //nolint:gocritic // a switch, so exhaustive flags a ruleset added without its profile
+	switch ruleset {
 	case play.RulesetTenhou:
 		return TenhouRulesProfileID
+	case play.RulesetRRC:
+		return RRCRulesProfileID
 	}
 
 	return noRulesProfile
@@ -34,15 +38,18 @@ func RulesProfileOf(ruleset play.Ruleset) Int {
 // RulesetOfProfile returns the ruleset a replay of rules profile id plays again under; false for
 // the migrated profile, which no ruleset reproduces, and for any unknown one.
 func RulesetOfProfile(id Value) (play.Ruleset, bool) {
-	if id == Int(TenhouRulesProfileID) {
+	switch id {
+	case Int(TenhouRulesProfileID):
 		return play.RulesetTenhou, true
+	case Int(RRCRulesProfileID):
+		return play.RulesetRRC, true
 	}
 
 	return 0, false
 }
 
 var replayKeys = keySet(func(k Key) bool {
-	return k <= KeyYakuYakumanCount || k == KeyShownHands
+	return k <= KeyYakuYakumanCount || k == KeyShownHands || k == KeyPlace
 })
 
 var replayProfile = profile{

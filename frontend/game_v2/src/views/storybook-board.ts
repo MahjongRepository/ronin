@@ -161,8 +161,8 @@ interface BoardStoryState {
     /** The calls shown, held still, kept in the page's `?callout=`; null for none. */
     readonly callout: StoryCall | null;
     readonly overlay: OverlayMode;
-    /** The game ends under rules that award the leftover sticks to nobody, kept in the page's `?leftover=lost`. */
-    readonly leftoverLost: boolean;
+    /** The game ends with two seats sharing first place, kept in the page's `?end=tied`. */
+    readonly endTied: boolean;
     readonly story: BoardStory;
     readonly result: ResultStory;
     readonly page: number;
@@ -976,13 +976,11 @@ const END_TABLE: TableState = {
     dealerSeat: 3,
     gameEndResult: {
         endCause: GAME_END_CAUSE.LENGTH,
-        leftoverRiichiBonus: 1000,
-        leftoverSticks: 1,
         standings: [
-            { finalScore: 49.5, score: 39_500, seat: 0 },
-            { finalScore: 9.1, score: 29_100, seat: 2 },
-            { finalScore: -20.6, score: 19_400, seat: 3 },
-            { finalScore: -38, score: 12_000, seat: 1 },
+            { finalScore: 49.5, place: 1, score: 39_500, seat: 0 },
+            { finalScore: 9.1, place: 2, score: 29_100, seat: 2 },
+            { finalScore: -20.6, place: 3, score: 19_400, seat: 3 },
+            { finalScore: -38, place: 4, score: 12_000, seat: 1 },
         ],
         winnerSeat: 0,
     },
@@ -990,18 +988,16 @@ const END_TABLE: TableState = {
     players: END_PLAYERS,
 };
 
-/** The same game under rules that award the leftover stick to nobody: the winner's score never took it. */
-const END_TABLE_STICK_LOST: TableState = {
+/** A game under rules that split ties, two seats sharing first place and its uma. */
+const END_TABLE_TIED: TableState = {
     ...END_TABLE,
     gameEndResult: {
         endCause: GAME_END_CAUSE.LENGTH,
-        leftoverRiichiBonus: 0,
-        leftoverSticks: 1,
         standings: [
-            { finalScore: 48.5, score: 38_500, seat: 0 },
-            { finalScore: 9.1, score: 29_100, seat: 2 },
-            { finalScore: -20.6, score: 19_400, seat: 3 },
-            { finalScore: -38, score: 12_000, seat: 1 },
+            { finalScore: 20, place: 1, score: 40_000, seat: 0 },
+            { finalScore: 20, place: 1, score: 40_000, seat: 2 },
+            { finalScore: -11, place: 3, score: 24_000, seat: 3 },
+            { finalScore: -29, place: 4, score: 16_000, seat: 1 },
         ],
         winnerSeat: 0,
     },
@@ -1073,7 +1069,7 @@ function buildOverlay(
     if (overlay !== "game_end") {
         return undefined;
     }
-    const panel = tablePanel(story.leftoverLost ? END_TABLE_STICK_LOST : END_TABLE, {
+    const panel = tablePanel(story.endTied ? END_TABLE_TIED : END_TABLE, {
         bottomSeat: 0,
         holdsResult: false,
         overGameEnd: false,
@@ -1316,7 +1312,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
         callout: parseStoryCall(query.get("callout")),
         compassDora: (query.get("dora") ?? defaultDora) === "compass",
         debug: false,
-        leftoverLost: query.get("leftover") === "lost",
+        endTied: query.get("end") === "tied",
         notice: query.get("notice") === "long",
         noticeOpen: false,
         offers: parseStoryOffers(query.get("offers")),

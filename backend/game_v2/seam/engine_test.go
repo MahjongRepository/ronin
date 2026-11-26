@@ -39,7 +39,7 @@ func TestSeedFunctions_WhenGivenTheSeedOfAGame_ShouldDescribeItsStartAndSeating(
 	permutation := engine.SeatPermutation(seed)
 	assertEqual[play.Event](t, "game started", events[0].Event, play.GameStarted{
 		FirstDealer: dealer, Dice: [2]tile.Dice{first, second}, Ruleset: play.RulesetTenhou, AkaDora: tile.AkaDoraEnabled,
-		RiichiStickValue: 1000, HonbaValue: 300,
+		RiichiStickValue: 1000,
 	})
 	started, ok := events[1].Event.(play.RoundStarted)
 	if !ok {

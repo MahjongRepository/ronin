@@ -2,6 +2,7 @@ package offer_test
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -118,6 +119,34 @@ func TestRonScoreChanges_WhenALiableSeat_ShouldSplitTheHandWithItAndChargeItTheH
 
 	if want := [4]int{0, 32300, 0, -32300}; liableDiscarder != want {
 		t.Errorf("RonScoreChanges with the discarder liable = %v, want %v", liableDiscarder, want)
+	}
+
+	discarderPaysHonba := offer.RonScoreChanges(seat(t, 1), seat(t, 2), payment, 1, 0, play.Some(seat(t, 3)), play.RulesetRRC)
+	if want := [4]int{0, 32300, -16300, -16000}; discarderPaysHonba != want {
+		t.Errorf("RonScoreChanges with the discarder paying the honba = %v, want %v", discarderPaysHonba, want)
+	}
+}
+
+func TestRonStickShares_ShouldGiveTheNearestWinnerEveryStickOrEachWinnerTheHonbaAndItsOwnStick(t *testing.T) {
+	inRiichi := []bool{true, false, true}
+	tests := []struct {
+		name    string
+		ruleset play.Ruleset
+		want    []offer.StickShare
+	}{
+		{name: "nearest takes all", ruleset: play.RulesetTenhou, want: []offer.StickShare{{Honba: 2, RiichiSticks: 5}, {}, {}}},
+		{
+			name:    "each winner",
+			ruleset: play.RulesetRRC,
+			want:    []offer.StickShare{{Honba: 2, RiichiSticks: 4}, {Honba: 2}, {Honba: 2, RiichiSticks: 1}},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := offer.RonStickShares(inRiichi, 2, 5, tc.ruleset); !slices.Equal(got, tc.want) {
+				t.Errorf("RonStickShares = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

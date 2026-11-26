@@ -143,6 +143,7 @@ func everyShapeRecords() []Map {
 		record(field(KeyEventType, Int(EventMeld)), field(KeyPackedMeld, Int(18285))),
 		record(field(KeyEventType, Int(EventPaoAssigned)), field(KeySeat, Int(2)), field(KeyPaoSeat, Int(1))),
 		ronRecord(ronWin(2), ronWin(3)),
+		ronRecord(ronWin(2), ronWin(3), ronWin(0)),
 		roundEndRecord(ResultTsumo,
 			field(KeyWinnerSeat, Int(2)),
 			field(KeyHandResult, with(handResult(), KeyYakumanCount, Int(1))),
@@ -220,7 +221,7 @@ func TestEncodeReplay_WhenARecordBreaksTheFormat_ShouldRefuseItAtItsPosition(t *
 		{"hexadecimal seed", with(gameStarted, KeySeed, Str(strings.Repeat("00", ReplaySeedBytes)))},
 		{"rules envelope of an integer", with(gameStarted, KeyGameSettings, Int(1))},
 		{"rules envelope without overrides", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(TenhouRulesProfileID)}})},
-		{"unknown rules profile", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(3)}, {Key: "overrides", Value: StrMap{}}})},
+		{"unknown rules profile", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(4)}, {Key: "overrides", Value: StrMap{}}})},
 		{"rules profile of a boolean", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Bool(true)}, {Key: "overrides", Value: StrMap{}}})},
 		{"rules overrides", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(TenhouRulesProfileID)}, {Key: "overrides", Value: StrMap{{Key: "has_akadora", Value: Bool(false)}}}})},
 		{"rules overrides of an integer", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(TenhouRulesProfileID)}, {Key: "overrides", Value: Int(0)}})},
@@ -241,7 +242,7 @@ func TestEncodeReplay_WhenARecordBreaksTheFormat_ShouldRefuseItAtItsPosition(t *
 		{"retired nagashi mangan", with(ron, KeyResultType, Int(5))},
 		{"ron without its wins", without(ron, KeyWinners)},
 		{"ron of no win", ronRecord()},
-		{"ron of three wins", ronRecord(ronWin(0), ronWin(2), ronWin(3))},
+		{"ron of four wins", ronRecord(ronWin(2), ronWin(3), ronWin(0), ronWin(1))},
 		{"win without its hand result", ronRecord(without(ronWin(2), KeyHandResult))},
 		{"hand result of an integer", ronRecord(with(ronWin(2), KeyHandResult, Int(6)))},
 		{"hand result without its limit", ronRecord(with(ronWin(2), KeyHandResult, without(handResult(), KeyHandLimit)))},
@@ -425,10 +426,25 @@ func TestDecodeReplay_WhenTheContentIsEmptyOrTooLarge_ShouldRefuseIt(t *testing.
 	}
 }
 
-func TestReplaySettings_ShouldNameThisServersRulesProfileWithoutOverrides(t *testing.T) {
-	got := appendValue(nil, ReplaySettings(play.RulesetTenhou))
+func TestReplaySettings_ShouldNameEachRulesetsProfileWithoutOverridesAndLoadItBack(t *testing.T) {
+	tests := []struct {
+		name    string
+		ruleset play.Ruleset
+		want    string
+	}{
+		{name: "tenhou", ruleset: play.RulesetTenhou, want: "82a2696402a96f7665727269646573" + "80"},
+		{name: "rrc", ruleset: play.RulesetRRC, want: "82a2696403a96f7665727269646573" + "80"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := appendValue(nil, ReplaySettings(tc.ruleset))
+			if want := hexBytes(t, tc.want); !bytes.Equal(got, want) {
+				t.Errorf("ReplaySettings(%d) = %x, want %x", tc.ruleset, got, want)
+			}
 
-	if want := hexBytes(t, "82a2696402a96f7665727269646573"+"80"); !bytes.Equal(got, want) {
-		t.Errorf("ReplaySettings(play.RulesetTenhou) = %x, want %x", got, want)
+			if loaded, ok := RulesetOfProfile(RulesProfileOf(tc.ruleset)); !ok || loaded != tc.ruleset {
+				t.Errorf("RulesetOfProfile(RulesProfileOf(%d)) = %d, %t, want %d, true", tc.ruleset, loaded, ok, tc.ruleset)
+			}
+		})
 	}
 }

@@ -645,20 +645,13 @@ describe("applyEvent - round_end", () => {
 });
 
 describe("applyEvent - game_end result data", () => {
-    test("populates gameEndResult with standings and finalScore, the leftover sticks counted by the server", () => {
+    test("populates gameEndResult with standings and finalScore", () => {
         const state = { ...stateAfterRoundEnded(), riichiSticks: 3 };
-        const event = makeGameEndEvent({
-            endCause: GAME_END_CAUSE.TOBI,
-            leftoverRiichiBonus: 2000,
-            leftoverRiichiSticks: 2,
-            winnerSeat: 0,
-        });
+        const event = makeGameEndEvent({ endCause: GAME_END_CAUSE.TOBI, winnerSeat: 0 });
         const next = applyEvent(state, event);
 
         expect(next.gameEndResult).toEqual({
             endCause: GAME_END_CAUSE.TOBI,
-            leftoverRiichiBonus: 2000,
-            leftoverSticks: 2,
             standings: event.standings,
             winnerSeat: 0,
         });

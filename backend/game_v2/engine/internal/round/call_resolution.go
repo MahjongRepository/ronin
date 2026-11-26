@@ -62,6 +62,8 @@ func (r *Round) passRonWindow(events []play.Emitted, points *Points) ([]play.Emi
 	}
 }
 
+const tripleRonCallers = tile.SeatCount - 1
+
 func (r *Round) resolveCall(honba int, points *Points) Transition {
 	prompt := r.prompt.Value
 	r.prompt = play.Option[CallPrompt]{}
@@ -71,7 +73,7 @@ func (r *Round) resolveCall(honba int, points *Points) Transition {
 	}
 
 	settings := r.settings()
-	if settings.AbortTripleRon && len(rons) > settings.MaxRonWinners {
+	if settings.AbortTripleRon && len(rons) == tripleRonCallers {
 		var hands []play.ShownHand
 		for _, seat := range rons {
 			hands = append(hands, r.shownHand(seat))
@@ -81,7 +83,11 @@ func (r *Round) resolveCall(honba int, points *Points) Transition {
 		return ended(nil, play.Abortive{Kind: result})
 	}
 
-	split := min(len(rons), settings.MaxRonWinners)
+	split := len(rons)
+	if settings.Atamahane {
+		split = 1
+	}
+
 	wins := r.rons(rons[:split], prompt, honba, points.RiichiSticks())
 	result := play.Ron{Discarder: prompt.from, Wins: wins, HeadBumped: slices.Clone(rons[split:])}
 	return ended(nil, result)

@@ -15,7 +15,7 @@ import (
 func TestKanOffers_WhenTwoQuadsAreHeld_ShouldNameTheFirstCopyOfEachInHandOrder(t *testing.T) {
 	hand := concat(copies(t, 0, "2222m1111m"), copies(t, 0, "12345p"))
 
-	got := offer.KanOffers(hand, nil, hand[0], false, [4]int{}, 10)
+	got := offer.KanOffers(hand, nil, hand[0], false, [4]int{}, 10, play.RulesetTenhou)
 
 	want := []play.Action{play.KanAction(play.KanClosed, hand[0]), play.KanAction(play.KanClosed, hand[4])}
 	if !slices.Equal(got, want) {
@@ -80,8 +80,8 @@ func TestKanOffers_WhenAClosedKanAndAPonsFourthCopyAreHeld_ShouldListTheClosedKa
 func TestKanOffers_WhenInRiichi_ShouldKeepOnlyTheDrawnClosedKan(t *testing.T) {
 	hand := copies(t, 0, "1111m78m234p567s99s")
 
-	drewTheFourth := offer.KanOffers(hand, nil, hand[3], true, [4]int{}, 10)
-	drewAnother := offer.KanOffers(hand, nil, hand[4], true, [4]int{}, 10)
+	drewTheFourth := offer.KanOffers(hand, nil, hand[3], true, [4]int{}, 10, play.RulesetTenhou)
+	drewAnother := offer.KanOffers(hand, nil, hand[4], true, [4]int{}, 10, play.RulesetTenhou)
 
 	if want := []play.Action{play.KanAction(play.KanClosed, hand[0])}; !slices.Equal(drewTheFourth, want) {
 		t.Errorf("KanOffers on the drawn fourth copy = %v, want %v", drewTheFourth, want)
@@ -92,10 +92,32 @@ func TestKanOffers_WhenInRiichi_ShouldKeepOnlyTheDrawnClosedKan(t *testing.T) {
 	}
 }
 
+func TestKanOffers_WhenInRiichiAndTheTripletAlsoReadsAsSequences_ShouldOfferItOnlyWhereReadingsMayChange(t *testing.T) {
+	triplets := copies(t, 0, "3333m444555m11p23s")
+	plain := copies(t, 0, "1111m78m234p567s99s")
+	tests := []struct {
+		name    string
+		hand    []tile.TileID
+		ruleset play.Ruleset
+		want    []play.Action
+	}{
+		{name: "waits only", hand: triplets, ruleset: play.RulesetTenhou, want: []play.Action{play.KanAction(play.KanClosed, triplets[0])}},
+		{name: "readings kept", hand: triplets, ruleset: play.RulesetRRC, want: nil},
+		{name: "a lone triplet", hand: plain, ruleset: play.RulesetRRC, want: []play.Action{play.KanAction(play.KanClosed, plain[0])}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := offer.KanOffers(tc.hand, nil, tc.hand[3], true, [4]int{}, 10, tc.ruleset); !slices.Equal(got, tc.want) {
+				t.Errorf("KanOffers = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestKanOffers_WhenInRiichiAndTheKanChangesTheWaits_ShouldOfferNone(t *testing.T) {
 	hand := copies(t, 0, "1111m2m456p789s123s")
 
-	if got := offer.KanOffers(hand, nil, hand[3], true, [4]int{}, 10); len(got) != 0 {
+	if got := offer.KanOffers(hand, nil, hand[3], true, [4]int{}, 10, play.RulesetTenhou); len(got) != 0 {
 		t.Errorf("KanOffers = %v, want none", got)
 	}
 }
@@ -104,7 +126,7 @@ func TestKanOffers_WhenInRiichi_ShouldOfferNoAddedKan(t *testing.T) {
 	hand := concat(copies(t, 3, "5p"), copies(t, 0, "23s"))
 	melds := []play.MeldView{calledMeld(t, play.MeldPon, 0, "555p", seat(t, 1))}
 
-	if got := offer.KanOffers(hand, melds, hand[0], true, [4]int{1, 0, 0, 0}, 10); len(got) != 0 {
+	if got := offer.KanOffers(hand, melds, hand[0], true, [4]int{1, 0, 0, 0}, 10, play.RulesetTenhou); len(got) != 0 {
 		t.Errorf("KanOffers = %v, want none", got)
 	}
 }
@@ -112,15 +134,15 @@ func TestKanOffers_WhenInRiichi_ShouldOfferNoAddedKan(t *testing.T) {
 func TestKanOffers_WhenNoKanIsLeftToSpareOrNoLiveTile_ShouldOfferNone(t *testing.T) {
 	hand := copies(t, 0, "1111m78m234p567s99s")
 
-	if got := offer.KanOffers(hand, nil, hand[0], false, [4]int{2, 2, 0, 0}, 10); len(got) != 0 {
+	if got := offer.KanOffers(hand, nil, hand[0], false, [4]int{2, 2, 0, 0}, 10, play.RulesetTenhou); len(got) != 0 {
 		t.Errorf("KanOffers at four kans = %v, want none", got)
 	}
 
-	if got := offer.KanOffers(hand, nil, hand[0], false, [4]int{}, 0); len(got) != 0 {
+	if got := offer.KanOffers(hand, nil, hand[0], false, [4]int{}, 0, play.RulesetTenhou); len(got) != 0 {
 		t.Errorf("KanOffers on an empty wall = %v, want none", got)
 	}
 
-	lastLiveTile := offer.KanOffers(hand, nil, hand[0], false, [4]int{}, 1)
+	lastLiveTile := offer.KanOffers(hand, nil, hand[0], false, [4]int{}, 1, play.RulesetTenhou)
 	if want := []play.Action{play.KanAction(play.KanClosed, hand[0])}; !slices.Equal(lastLiveTile, want) {
 		t.Errorf("KanOffers on the last live tile = %v, want %v", lastLiveTile, want)
 	}
@@ -152,7 +174,7 @@ func TestKanOffers_WhenKanCountsAreHuge_ShouldCountThemAsFourOrMore(t *testing.T
 
 	huge := [4]int{math.MaxInt, math.MaxInt, math.MaxInt, math.MaxInt}
 
-	if got := offer.KanOffers(quad, nil, quad[0], false, huge, 10); len(got) != 0 {
+	if got := offer.KanOffers(quad, nil, quad[0], false, huge, 10, play.RulesetTenhou); len(got) != 0 {
 		t.Errorf("KanOffers = %v, want none", got)
 	}
 }

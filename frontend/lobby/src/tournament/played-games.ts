@@ -43,6 +43,8 @@ const UNRANKED_OUTCOMES: Record<string, UnrankedOutcome> = {
 
 interface RankedPlayer {
     readonly name: string;
+    /** The place from 1, shared by tied players; by order for a game recorded before places were. */
+    readonly place: number;
     /** The uma/oka-adjusted final score in points, to its tenth. */
     readonly finalScore: number;
 }
@@ -57,15 +59,19 @@ export interface PlayedGame {
     readonly ranked: readonly RankedPlayer[] | null;
 }
 
-function readRankedPlayer(entry: unknown): RankedPlayer | null {
+function readRankedPlayer(entry: unknown, index: number): RankedPlayer | null {
     if (!isRecord(entry) || typeof entry.name !== "string") {
         return null;
     }
-    const { final_score: finalScore } = entry;
+    const { final_score: finalScore, place } = entry;
     if (typeof finalScore !== "number") {
         return null;
     }
-    return { finalScore: finalScore / FINAL_SCORE_TENTHS, name: entry.name };
+    return {
+        finalScore: finalScore / FINAL_SCORE_TENTHS,
+        name: entry.name,
+        place: typeof place === "number" ? place : index + 1,
+    };
 }
 
 function readRanked(message: Record<string, unknown>): RankedPlayer[] | null {
@@ -144,8 +150,8 @@ function unrankedOutcome(endReason: string): string {
 function rankedTemplate(ranked: readonly RankedPlayer[]): TemplateResult {
     return html`<ol class="played-game-places">
         ${ranked.map(
-            (player, index) => html`<li class="played-game-place">
-                <span class="played-game-rank">${formatNumber(index + 1)}</span>
+            (player) => html`<li class="played-game-place">
+                <span class="played-game-rank">${formatNumber(player.place)}</span>
                 <span class="played-game-name" title=${player.name}>${player.name}</span>
                 <span class=${finalScoreClass(player.finalScore)}
                     >${finalScoreText(player.finalScore)}</span

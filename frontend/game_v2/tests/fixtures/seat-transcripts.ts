@@ -24,7 +24,10 @@ export function scenarioFromTranscript(transcript: SeatTranscript): GeneratedSce
         gameTicket: `ticket-${transcript.seat}`,
         wsUrl: `ws://game/ws/${transcript.gameId}`,
     };
-    return { scenario: seatScenarioFromTranscript(transcript, handoff), transcript };
+    return {
+        scenario: seatScenarioFromTranscript(transcript, handoff),
+        transcript,
+    };
 }
 
 export function loadSeatScenario(name: string): GeneratedScenario {
@@ -106,7 +109,11 @@ export function switchedOnBefore(
     const index = stepIndex(scenario, label);
     const { at } = scenario.steps[index].event;
     const presses = switches.map((playSwitch): ScenarioStep => ({
-        event: { at, intent: { playSwitch, type: "toggle_switch" }, kind: "intent" },
+        event: {
+            at,
+            intent: { playSwitch, type: "toggle_switch" },
+            kind: "intent",
+        },
     }));
     return { ...scenario, steps: scenario.steps.toSpliced(index, 0, ...presses) };
 }
@@ -118,7 +125,10 @@ export function expecting(
     effects: readonly ClientEffect[],
 ): SeatScenario {
     const index = stepIndex(scenario, label);
-    const steps = scenario.steps.with(index, { ...scenario.steps[index], effects });
+    const steps = scenario.steps.with(index, {
+        ...scenario.steps[index],
+        effects,
+    });
     return { ...scenario, steps };
 }
 
@@ -134,10 +144,18 @@ export function answeredBySwitch(
         answer,
         holdMs,
         opens,
-    }: { readonly answer: string; readonly holdMs: number; readonly opens: string },
+    }: {
+        readonly answer: string;
+        readonly holdMs: number;
+        readonly opens: string;
+    },
 ): SeatScenario {
     const sent = scenario.steps[stepIndex(scenario, answer)].effects ?? [];
     const at = scenario.steps[stepIndex(scenario, opens)].event.at + holdMs;
-    const held: ScenarioStep = { effects: sent, event: { at, kind: "tick" }, label: "held answer" };
+    const held: ScenarioStep = {
+        effects: sent,
+        event: { at, kind: "tick" },
+        label: "held answer",
+    };
     return insertedAfter(expecting(scenario, answer, []), opens, [held]);
 }

@@ -60,7 +60,8 @@ a contract.
   the bots), so the forms `encode.go` writes and what `validate.go` admits change only together with them.
 * Keys, event codes and result codes are only ever added: a retired one leaves its gap, never a
   reused number. The key sets and the replay schema are `key.go` and `replay_schema.go`.
-* A change to the replay format bumps `wire.ReplayVersion`.
+* A change to the replay format bumps `wire.ReplayVersion`, except that a `-dev` version takes an additive
+  change, one every replay already written at that version still passes, without a bump.
 * `internal/wire/testdata/` holds the goldens a Go test owns (`go test ./internal/wire -update`
   rewrites their bytes and key names from their payloads; review the diff), the `0.4-dev` replays
   that are the one home of the old-format inputs (`legacy/`), and the expected output of rewriting
@@ -288,13 +289,13 @@ and the fixture tools.
 `internal/tenhou` writes a stored replay as a tenhou.net mjlog for the lobby's Tenhou download.
 It owns the Tenhou ids: each yaku's, the dora counts' and the limit codes.
 
-* It reads the records alone and never runs the engine, so a replay of either rules profile converts,
+* It reads the records alone and never runs the engine, so a replay of any rules profile converts,
   a rewritten `0.4-dev` one included: the rewritten robbed-kan replay converts to the log recorded in `testdata` from the
   original, and a test holds that.
 * Every seat moves to Tenhou's as it is read: Tenhou seats its first dealer at 0, so its seat order is
   the dealer order and each INIT's round counter counts the dealer rotations.
 * A ron writes one AGARI per win, each from the scores the win before it left, as Tenhou does: the
-  riichi sticks on the first win's `ba`, the honba on every win's, a winner's melds newest first.
+  riichi sticks each win collected on its own `ba`, the honba on every win's, a winner's melds newest first.
 * A replay with no game end has no log, and a record the log cannot be written from fails the export;
   neither ever answers a partial log.
 

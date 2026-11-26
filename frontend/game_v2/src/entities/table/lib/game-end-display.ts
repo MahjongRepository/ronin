@@ -7,7 +7,7 @@ import { type MessageKey, formatNumber, t } from "@/shared/i18n";
 import { GAME_END_CAUSE, type GameEndCause } from "@/shared/protocol";
 
 import { gameTypeName } from "./game-start-display";
-import { formatDelta, formatPoints } from "./round-end-display";
+import { formatPoints } from "./round-end-display";
 import { roundName } from "./round-name";
 
 export type ResultTone = "positive" | "negative" | "even";
@@ -33,13 +33,12 @@ export interface GameEnding {
 
 /**
  * The game's end as the seating panel shows it: the game's length, how it ended, the seats in placement order with
- * their scores and uma/oka results, and where the riichi sticks left at the end went.
+ * their places, scores and uma/oka results.
  */
 export interface GameEndDisplayState {
     readonly gameType: string | null;
     readonly ending: GameEnding;
     readonly seats: readonly GameEndSeat[];
-    readonly leftover: string | null;
 }
 
 const PLACEMENTS: readonly MessageKey[] = [
@@ -49,9 +48,9 @@ const PLACEMENTS: readonly MessageKey[] = [
     "game.summary.rank_4",
 ];
 
-function placementName(index: number): string {
-    const key = PLACEMENTS[index];
-    return key === undefined ? t("game.summary.rank_other", { rank: index + 1 }) : t(key);
+function placementName(place: number): string {
+    const key = PLACEMENTS[place - 1];
+    return key === undefined ? t("game.summary.rank_other", { rank: place }) : t(key);
 }
 
 function tone(value: number): ResultTone {
@@ -81,21 +80,6 @@ function nameAt(players: readonly PlayerState[], seat: number): string {
 }
 
 /** The sticks left at the game's end: what they paid the winner, or that the rules award them to nobody. */
-function leftoverText(end: GameEndResult, players: readonly PlayerState[]): string | null {
-    const { leftoverRiichiBonus, leftoverSticks, winnerSeat } = end;
-    if (leftoverSticks === 0 && leftoverRiichiBonus === 0) {
-        return null;
-    }
-    if (leftoverRiichiBonus === 0) {
-        return t("game.summary.leftover_unpaid", { count: leftoverSticks });
-    }
-    return t("game.summary.leftover_paid", {
-        count: leftoverSticks,
-        name: nameAt(players, winnerSeat),
-        points: formatDelta(leftoverRiichiBonus),
-    });
-}
-
 /** Each cause's line, with the last round where it is known and without it where it is not. */
 const ENDING_TEXTS: Readonly<
     Record<GameEndCause, { readonly withRound: MessageKey; readonly without: MessageKey }>
@@ -133,8 +117,8 @@ function gameEnding(table: TableState, end: GameEndResult): GameEnding {
 
 /**
  * The end of a table whose game ended, read from `viewerSeat` (the live player's seat, none in a replay): the seats in
- * placement order with their scores and uma/oka results as the server gave them, how the game ended and the leftover
- * riichi sticks. Null before the game ends.
+ * placement order with their places, scores and uma/oka results as the server gave them, and how the game ended. Null
+ * before the game ends.
  */
 export function gameEndDisplay(
     table: TableState,
@@ -147,12 +131,11 @@ export function gameEndDisplay(
     return {
         ending: gameEnding(table, end),
         gameType: gameTypeName(table),
-        leftover: leftoverText(end, table.players),
-        seats: end.standings.map((standing, index) => ({
+        seats: end.standings.map((standing) => ({
             isAiPlayer: playerAt(table.players, standing.seat)?.isAiPlayer ?? false,
             isViewer: standing.seat === viewerSeat,
             name: nameAt(table.players, standing.seat),
-            placement: placementName(index),
+            placement: placementName(standing.place),
             result: formatResult(standing.finalScore),
             resultTone: tone(standing.finalScore),
             score: formatPoints(standing.score),

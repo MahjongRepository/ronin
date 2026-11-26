@@ -10,7 +10,8 @@ import (
 
 func (r *Round) situation(seat tile.Seat, win score.Win) score.Situation {
 	situation := offer.BaseSituation(win, r.seatWind(seat), r.roundWind, r.riichi[seat.Index()])
-	situation.FirstTurn = win.IsTsumo() && len(r.rivers[seat.Index()]) == 0 && !r.hasAnyCall()
+	firstTurnWin := win.IsTsumo() || win == score.WinRon
+	situation.FirstTurn = firstTurnWin && len(r.rivers[seat.Index()]) == 0 && !r.hasAnyCall()
 	return situation
 }
 
@@ -54,7 +55,7 @@ func (r *Round) tsumoWin(seat tile.Seat) (tile.TileID, score.HandValue, bool) {
 
 func (r *Round) winResult(
 	winner tile.Seat, loser play.Option[tile.Seat], winTile tile.TileID, value score.HandValue,
-	changes [tile.SeatCount]int,
+	honba int, changes [tile.SeatCount]int,
 ) play.WinResult {
 	concealed := r.Hand(winner)
 	if !loser.OK {
@@ -78,6 +79,7 @@ func (r *Round) winResult(
 		Dora:          value.Dora,
 		UraIndicators: r.uraIndicators(winner),
 		Pao:           r.pao[winner.Index()],
+		HonbaBonus:    honba * r.settings().HonbaValue,
 		ScoreChanges:  changes,
 	}
 }
@@ -89,18 +91,24 @@ func (r *Round) tsumoResult(seat tile.Seat, honba, riichiSticks int) (play.WinRe
 	}
 
 	changes := offer.TsumoScoreChanges(seat, r.dealer, value.Payment, honba, riichiSticks, r.pao[seat.Index()], r.ruleset)
-	return r.winResult(seat, play.Option[tile.Seat]{}, winTile, value, changes), true
+	return r.winResult(seat, play.Option[tile.Seat]{}, winTile, value, honba, changes), true
 }
 
 func (r *Round) rons(winners []tile.Seat, prompt CallPrompt, honba, riichiSticks int) []play.WinResult {
 	win := offer.RonWin(prompt.source, r.LiveTiles())
+	inRiichi := make([]bool, len(winners))
+	for i, winner := range winners {
+		inRiichi[i] = r.InRiichi(winner)
+	}
+
+	shares := offer.RonStickShares(inRiichi, honba, riichiSticks, r.ruleset)
 	wins := make([]play.WinResult, 0, len(winners))
-	for position, winner := range winners {
+	for i, winner := range winners {
 		value := offer.SettledValue(r.hand(winner), prompt.tile, r.scoring(winner, win))
-		tableHonba, tableSticks := offer.RonTableShare(position, honba, riichiSticks)
 		pao := r.pao[winner.Index()]
-		changes := offer.RonScoreChanges(winner, prompt.from, value.Payment, tableHonba, tableSticks, pao, r.ruleset)
-		wins = append(wins, r.winResult(winner, play.Some(prompt.from), prompt.tile, value, changes))
+		share := shares[i]
+		changes := offer.RonScoreChanges(winner, prompt.from, value.Payment, share.Honba, share.RiichiSticks, pao, r.ruleset)
+		wins = append(wins, r.winResult(winner, play.Some(prompt.from), prompt.tile, value, share.Honba, changes))
 	}
 
 	return wins

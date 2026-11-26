@@ -23,6 +23,12 @@ class PlayedGameStanding(BaseModel, frozen=True):
     Uma/oka-adjusted score in tenths (e.g. +304 for +30.4); None while in progress.
     """
 
+    place: int | None = None
+    """
+    Place at game end from 1, shared by tied players where the rules split ties; None while in progress and for a game
+    recorded before places were.
+    """
+
 
 class GameEndReason(StrEnum):
     """

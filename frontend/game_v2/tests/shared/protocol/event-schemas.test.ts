@@ -705,8 +705,12 @@ function standing(seat: number): Record<string, number> {
     return { [WIRE_KEY.FINAL_SCORE]: 0, [WIRE_KEY.SEAT]: seat, [WIRE_KEY.SCORE]: 250 };
 }
 
+function placed(seat: number, place: number): Record<string, number> {
+    return { ...standing(seat), [WIRE_KEY.PLACE]: place };
+}
+
 describe("gameEndSchema", () => {
-    it("parses valid wire payload with standings, the final scores from whole tenths", () => {
+    it("parses valid wire payload with standings, the final scores from whole tenths and the places by order", () => {
         const wire = {
             [WIRE_KEY.END_CAUSE]: "target_reached",
             [WIRE_KEY.LEFTOVER_BONUS]: 20,
@@ -725,9 +729,13 @@ describe("gameEndSchema", () => {
         expect(result.type).toBe("game_end");
         expect(result.winnerSeat).toBe(0);
         expect([result.numRounds, result.endCause]).toEqual([8, "target_reached"]);
-        expect([result.leftoverRiichiBonus, result.leftoverRiichiSticks]).toEqual([2000, 2]);
-        expect(result.standings[0]).toEqual({ finalScore: 42.3, score: 35_000, seat: 0 });
-        expect(result.standings[2]).toEqual({ finalScore: -18.3, score: 20_000, seat: 2 });
+        expect(result.standings[0]).toEqual({ finalScore: 42.3, place: 1, score: 35_000, seat: 0 });
+        expect(result.standings[2]).toEqual({
+            finalScore: -18.3,
+            place: 3,
+            score: 20_000,
+            seat: 2,
+        });
         expect(() =>
             gameEndSchema.parse({
                 ...wire,
@@ -737,6 +745,25 @@ describe("gameEndSchema", () => {
                 })),
             }),
         ).toThrow();
+    });
+
+    it("keeps a place two seats share as the server names it", () => {
+        const result = gameEndSchema.parse({
+            [WIRE_KEY.END_CAUSE]: "length",
+            [WIRE_KEY.LEFTOVER_BONUS]: 0,
+            [WIRE_KEY.LEFTOVER_RIICHI]: 0,
+            [WIRE_KEY.ROUND_COUNT]: 8,
+            [WIRE_KEY.STANDINGS]: [placed(2, 1), placed(0, 1), placed(1, 3), placed(3, 4)],
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_END,
+            [WIRE_KEY.WINNER_SEAT]: 2,
+        });
+
+        expect(result.standings.map((s) => [s.seat, s.place])).toEqual([
+            [2, 1],
+            [0, 1],
+            [1, 3],
+            [3, 4],
+        ]);
     });
 
     it("refuses standings that rank a seat twice, in whatever order the server ranks them", () => {

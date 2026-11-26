@@ -22,7 +22,11 @@ export class ManualClock {
     elapsedNow = (): number => this.current;
 
     setTimer = (delayMs: number, callback: () => void): (() => void) => {
-        const timer: ManualTimer = { at: this.current + delayMs, callback, cancelled: false };
+        const timer: ManualTimer = {
+            at: this.current + delayMs,
+            callback,
+            cancelled: false,
+        };
         this.timers.push(timer);
         return () => {
             timer.cancelled = true;

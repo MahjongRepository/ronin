@@ -48,6 +48,10 @@ func TestRiichiDiscards_WhenBelowTheRiichiCost_ShouldOfferNone(t *testing.T) {
 	if !offersRiichi(t, hand, nil, false, 1000, 70) {
 		t.Error("riichi not offered at 1000 points, want offered")
 	}
+
+	if len(offer.RiichiDiscards(hand, nil, false, -500, 70, play.RulesetRRC)) == 0 {
+		t.Error("riichi not offered at -500 points under a ruleset with no riichi cost check, want offered")
+	}
 }
 
 func TestRiichiDiscards_WhenFewerThanFourLiveTiles_ShouldOfferNone(t *testing.T) {

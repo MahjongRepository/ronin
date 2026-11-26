@@ -42,6 +42,9 @@ def history_entries(games: list[PlayedGame], user_id: str) -> list[dict]:
     """
     Turn played games into the history view's JSON entries, standings in their stored order.
 
+    Every standing in first place is a winner, so tied leaders both are; a game stored without places has its first
+    standing win.
+
     A game the viewer played links its replay from their seat; the shareable link never carries one. The wind is the
     game type's glyph, or None for a type the history cannot name.
     """
@@ -55,12 +58,14 @@ def history_entries(games: list[PlayedGame], user_id: str) -> list[dict]:
             if is_viewer:
                 viewer_seat = s.seat
 
+            place = s.place if s.place is not None else i + 1
+
             players.append(
                 {
                     "name": s.name,
                     "score": s.score,
                     "final_score": s.final_score,
-                    "is_winner": has_scores and i == 0,
+                    "is_winner": has_scores and place == 1,
                     "is_viewer": is_viewer,
                 },
             )

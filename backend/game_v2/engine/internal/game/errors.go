@@ -70,6 +70,13 @@ func (StartInNorthError) Error() string {
 	return "a start is in North"
 }
 
+// StartInWestError reports a start in West under a ruleset that plays no West round.
+type StartInWestError struct{}
+
+func (StartInWestError) Error() string {
+	return "a start is in West, which the ruleset never plays"
+}
+
 // OwnershipError reports a tile missing or in more than one place; Err is the wall's error naming
 // it.
 type OwnershipError struct {
@@ -111,11 +118,11 @@ func (e FinalPointsError) Error() string {
 	return "final points total " + strconv.Itoa(e.Points) + ", not 0"
 }
 
-// PlacementsError reports final places, by seat, that are not 1 to 4.
+// PlacementsError reports final places, by seat, that do not rank the seats 1 to 4.
 type PlacementsError struct {
 	Placements [tile.SeatCount]int
 }
 
 func (e PlacementsError) Error() string {
-	return fmt.Sprintf("placements %v are not 1 to 4", e.Placements)
+	return fmt.Sprintf("placements %v do not rank the seats 1 to 4", e.Placements)
 }

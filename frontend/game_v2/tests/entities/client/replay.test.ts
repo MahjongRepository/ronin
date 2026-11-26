@@ -397,8 +397,6 @@ describe("readReplayTimeline - engine replays", () => {
         expect(end.phase).toBe("game_ended");
         expect(end.gameEndResult).toEqual({
             endCause: gameEnd.endCause,
-            leftoverRiichiBonus: gameEnd.leftoverRiichiBonus,
-            leftoverSticks: gameEnd.leftoverRiichiSticks,
             standings: gameEnd.standings,
             winnerSeat: gameEnd.winnerSeat,
         });
@@ -475,13 +473,8 @@ describe("readReplayTimeline - riichi deposits", () => {
         const end = stateAfter(timeline, timeline.events.length - 1);
 
         expect([scoresOf(drawn), drawn.riichiSticks]).toEqual([[23_500, 25_500, 50_500, -500], 1]);
-        expect(gameEnd.leftoverRiichiBonus).toBe(1000);
         expect([scoresOf(end), end.riichiSticks]).toEqual([[23_500, 25_500, 51_500, -500], 0]);
-        expect(end.gameEndResult).toMatchObject({
-            leftoverRiichiBonus: 1000,
-            leftoverSticks: 1,
-            winnerSeat: 2,
-        });
+        expect(end.gameEndResult?.winnerSeat).toBe(2);
     });
 
     test("riichi: a pon claims a riichi discard, the discarder stays in riichi and its next discard lies sideways", () => {

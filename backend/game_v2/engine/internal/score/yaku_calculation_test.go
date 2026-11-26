@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/meld"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/score"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -317,6 +318,39 @@ func TestEstimateHandValue_WhenNonDealerRonsOnFirstTurn_ShouldHaveNoYaku(t *test
 	yakuCheckCases(t, defaultRules(), yakuCase{
 		hand: yakuHand, winTile: "4s", situation: situation, wantErr: score.NoYakuError{},
 	})
+}
+
+func TestEstimateHandValue_WhenRenhouScoresMangan_ShouldPayTheBetterOfManganAndTheHandAlone(t *testing.T) {
+	situation := ron()
+	situation.FirstTurn = true
+	renhouRules := defaultRules()
+	renhouRules.Renhou = rules.RenhouMangan
+	dora := score.Dora{Indicators: tiles(t, "1m")}
+
+	cases := []struct {
+		name, hand, winTile string
+		total               int
+		yaku                []play.YakuID
+	}{
+		{name: "yakuless with dora", hand: "123m234p340678s22z", winTile: "2m", total: 8000, yaku: []play.YakuID{play.YakuRenhou}},
+		{name: "sanbaiman with dora", hand: "12345678911122m", winTile: "9m", total: 24000, yaku: []play.YakuID{play.YakuIttsu, play.YakuChinitsu}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := valueOf(t, tc.hand, tc.winTile, nil, situation, dora, renhouRules)
+			if err != nil {
+				t.Fatalf("EstimateHandValue error = %v", err)
+			}
+
+			var yaku []play.YakuID
+			for _, y := range got.Yaku {
+				yaku = append(yaku, y.ID)
+			}
+			if got.Total != tc.total || !slices.Equal(yaku, tc.yaku) {
+				t.Errorf("EstimateHandValue = total %d yaku %v, want %d %v", got.Total, yaku, tc.total, tc.yaku)
+			}
+		})
+	}
 }
 
 func TestEstimateHandValue_WhenRiichiIsDouble_ShouldScoreDaburuRiichiAlone(t *testing.T) {

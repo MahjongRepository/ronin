@@ -64,6 +64,9 @@ type MisfitMeldError = meld.MisfitMeldError
 // MisfitWinError reports a win settled as the other kind.
 type MisfitWinError = offer.MisfitWinError
 
+// TooFewRiichiSticksError reports a table holding fewer riichi sticks than the winners in riichi.
+type TooFewRiichiSticksError = offer.TooFewRiichiSticksError
+
 // SettleTsumo settles a tsumo as a game does, honba, riichi sticks and a liable seat included.
 // It returns a MisfitWinError for a ron, a MisfitMeldError, or the scorer's errors.
 func SettleTsumo(table Table, h WinningHand) (SettledWin, error) {
@@ -83,11 +86,26 @@ func SettleTsumo(table Table, h WinningHand) (SettledWin, error) {
 }
 
 // SettleRon settles the winners of one ron on discarder's tile as a game does, in the order given,
-// which a game sets from the discarder's next seat on: the first winner takes the table's honba
-// and riichi sticks. It returns SettleTsumo's errors for the first winner that has one.
+// which a game sets from the discarder's next seat on, splitting the table's honba and riichi
+// sticks as the ruleset does. It returns a TooFewRiichiSticksError for a table short of the winners'
+// riichi sticks, or SettleTsumo's errors for the first winner that has one.
 func SettleRon(table Table, discarder tile.Seat, winners []WinningHand) ([]SettledWin, error) {
+	inRiichi := make([]bool, len(winners))
+	riichiWinners := 0
+	for i, h := range winners {
+		inRiichi[i] = h.Riichi.OK
+		if h.Riichi.OK {
+			riichiWinners++
+		}
+	}
+
+	if riichiWinners > table.RiichiSticks {
+		return nil, TooFewRiichiSticksError{RiichiSticks: table.RiichiSticks, RiichiWinners: riichiWinners}
+	}
+
+	shares := offer.RonStickShares(inRiichi, table.Honba, table.RiichiSticks, table.Ruleset)
 	settled := make([]SettledWin, 0, len(winners))
-	for position, h := range winners {
+	for i, h := range winners {
 		if h.Win.IsTsumo() {
 			return nil, MisfitWinError{Win: h.Win}
 		}
@@ -97,8 +115,8 @@ func SettleRon(table Table, discarder tile.Seat, winners []WinningHand) ([]Settl
 			return nil, err
 		}
 
-		honba, sticks := offer.RonTableShare(position, table.Honba, table.RiichiSticks)
-		changes := offer.RonScoreChanges(h.Seat, discarder, value.Payment, honba, sticks, h.Pao, table.Ruleset)
+		share := shares[i]
+		changes := offer.RonScoreChanges(h.Seat, discarder, value.Payment, share.Honba, share.RiichiSticks, h.Pao, table.Ruleset)
 		settled = append(settled, SettledWin{Value: value, ScoreChanges: changes})
 	}
 

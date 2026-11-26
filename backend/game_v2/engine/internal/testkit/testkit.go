@@ -226,14 +226,20 @@ func FixedSetup(w StartWall, start play.Option[play.StartPosition]) (play.WallSo
 	return play.Fixed{Walls: [][tile.TileIDCount]tile.TileID{tiles}}, err
 }
 
-// BegunGame returns the game dealt from w alone, its dealer's first draw made.
+// BegunGame returns the game dealt from w alone under the default ruleset, its dealer's first
+// draw made.
 func BegunGame(w StartWall, start play.Option[play.StartPosition]) (game.Game, error) {
+	return BegunGameUnder(play.RulesetTenhou, w, start)
+}
+
+// BegunGameUnder returns the game dealt from w alone under ruleset, its dealer's first draw made.
+func BegunGameUnder(ruleset play.Ruleset, w StartWall, start play.Option[play.StartPosition]) (game.Game, error) {
 	source, err := FixedSetup(w, start)
 	if err != nil {
 		return game.Game{}, err
 	}
 
-	g, _, err := game.New(play.RulesetTenhou, source, start)
+	g, _, err := game.New(ruleset, source, start)
 	if err != nil {
 		return game.Game{}, err
 	}

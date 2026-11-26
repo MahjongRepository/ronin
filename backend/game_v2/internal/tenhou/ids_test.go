@@ -20,6 +20,7 @@ func TestYakuID_ShouldGiveEveryYakuItsTenhouID(t *testing.T) {
 		{play.YakuHaitei, 5},
 		{play.YakuHoutei, 6},
 		{play.YakuDaburuRiichi, 21},
+		{play.YakuRenhou, 36},
 		{play.YakuPinfu, 7},
 		{play.YakuTanyao, 8},
 		{play.YakuIipeikou, 9},

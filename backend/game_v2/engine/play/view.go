@@ -68,7 +68,6 @@ type SeatRecord struct {
 	FirstDealer      tile.Seat
 	FirstDealerDice  [2]tile.Dice
 	RiichiStickValue int
-	HonbaValue       int
 	History          []FinishedRound
 }
 

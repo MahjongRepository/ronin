@@ -20,7 +20,10 @@ import { type ParsedServerMessage, parseServerMessage } from "@/shared/protocol"
 import { type GameSessionData } from "@/shared/session";
 
 export const GAME_ID = "g1";
-export const HANDOFF = { gameTicket: "ticket-1", wsUrl: "ws://game/ws/g1" } as const;
+export const HANDOFF = {
+    gameTicket: "ticket-1",
+    wsUrl: "ws://game/ws/g1",
+} as const;
 
 interface Step<State, Effect> {
     readonly state: State;
@@ -114,8 +117,16 @@ export const clientEvent = {
         intent: { type: "confirm_opening" },
         kind: "intent",
     }),
-    leave: (at: number): LiveEvent => ({ at, intent: { type: "leave" }, kind: "intent" }),
-    message: (at: number, raw: WirePayload): LiveEvent => ({ at, kind: "server_message", raw }),
+    leave: (at: number): LiveEvent => ({
+        at,
+        intent: { type: "leave" },
+        kind: "intent",
+    }),
+    message: (at: number, raw: WirePayload): LiveEvent => ({
+        at,
+        kind: "server_message",
+        raw,
+    }),
     opened: (at: number): LiveEvent => ({ at, kind: "transport_opened" }),
     tick: (at: number): LiveEvent => ({ at, kind: "tick" }),
 };
@@ -128,7 +139,10 @@ function forbidIo(): never {
  * Run `work` with the socket and fetch globals throwing, and the timer, storage and clock functions spied on,
  * the clocks throwing too; return its result and how often each spy was called.
  */
-export function forbiddingIo<Result>(work: () => Result): { calls: number[]; result: Result } {
+export function forbiddingIo<Result>(work: () => Result): {
+    calls: number[];
+    result: Result;
+} {
     vi.stubGlobal("WebSocket", forbidIo);
     vi.stubGlobal("fetch", forbidIo);
     const spies = [

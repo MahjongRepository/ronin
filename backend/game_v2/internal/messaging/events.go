@@ -154,29 +154,21 @@ func dealPayload(
 }
 
 func gameEndedPayload(standings play.Standings, record play.SeatRecord) wire.Map {
-	placed := make(wire.Array, tile.SeatCount)
-	winner := tile.Seat{}
-	for _, s := range tile.Seats() {
-		place := standings.Placements[s.Index()]
-		if place < 1 || place > tile.SeatCount {
-			continue
-		}
-
-		if place == 1 {
-			winner = s
-		}
-
-		placed[place-1] = wire.Map{
+	ranked := standings.Ranked(record.FirstDealer)
+	placed := make(wire.Array, 0, tile.SeatCount)
+	for _, s := range ranked {
+		placed = append(placed, wire.Map{
 			{Key: wire.KeySeat, Value: seatValue(s)},
+			{Key: wire.KeyPlace, Value: wire.Int(standings.Placements[s.Index()])},
 			{Key: wire.KeyScore, Value: scoreValue(standings.Scores[s.Index()])},
 			{Key: wire.KeyFinalScore, Value: wire.Int(standings.Points[s.Index()])},
-		}
+		})
 	}
 
 	leftover := leftoverSticks(record)
 	return wire.Map{
 		{Key: wire.KeyEventType, Value: wire.Int(wire.EventGameEnd)},
-		{Key: wire.KeyWinnerSeat, Value: seatValue(winner)},
+		{Key: wire.KeyWinnerSeat, Value: seatValue(ranked[0])},
 		{Key: wire.KeyStandings, Value: placed},
 		{Key: wire.KeyLeftoverBonus, Value: scoreValue(leftover * record.RiichiStickValue)},
 		{Key: wire.KeyLeftoverRiichi, Value: wire.Int(leftover)},

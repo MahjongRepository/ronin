@@ -22,7 +22,7 @@ function SeatRow(seat: GameEndSeat): TemplateResult {
 
 /**
  * The game's end on the seating panel: the game's length and how it ended (always as completed), the seats in
- * placement order with their final scores and uma/oka results, the leftover riichi sticks, and its ways on.
+ * placement order with their places, final scores and uma/oka results, and its ways on.
  */
 export function GameEndDisplay(
     display: GameEndDisplayState,
@@ -43,7 +43,6 @@ export function GameEndDisplay(
             </li>
             ${display.seats.map(SeatRow)}
         </ol>
-        ${display.leftover === null ? nothing : html`<p class="seating__note">${display.leftover}</p>`}
         ${PanelActions(actions)}
     </section>`;
 }

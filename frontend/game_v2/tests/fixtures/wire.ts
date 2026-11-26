@@ -246,7 +246,11 @@ export function wireRoundEnd(
             [WIRE_KEY.HAND_LIMIT]: "none",
             [WIRE_KEY.POINTS]: 39,
             [WIRE_KEY.YAKU]: [
-                { [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_ID]: 0, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
+                {
+                    [WIRE_KEY.HAN]: 1,
+                    [WIRE_KEY.YAKU_ID]: 0,
+                    [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                },
             ],
         },
         [WIRE_KEY.MELDS]: [],

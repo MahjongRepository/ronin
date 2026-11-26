@@ -112,6 +112,84 @@ func playedToTheLastDraw(t *testing.T, hands [tile.SeatCount][]tile.TileID, rins
 	return g
 }
 
+func firstDiscardRonUnder(t *testing.T, ruleset play.Ruleset) game.Game {
+	t.Helper()
+	w := testkit.StartWall{
+		Hands: [tile.SeatCount][]tile.TileID{
+			souWithWinds(t, 0), copies(t, 1, "123m456m234p78p55z"), souWithWinds(t, 2), souWithWinds(t, 3),
+		},
+		Draws: copies(t, 0, "6p"),
+	}
+	g, _ := discardDrawn(t, begunUnder(t, ruleset, w, noStart()), 1)
+	return g
+}
+
+func TestRenhou_WhenTheRulesetScoresItAsMangan_ShouldLetAYakulessHandRonTheFirstDiscardForMangan(t *testing.T) {
+	win := winOf(t, firstDiscardRonUnder(t, play.RulesetRRC), seat(t, 1), play.RonAction())
+
+	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuRenhou})
+	assertEqual(t, "winner's gain", win.ScoreChanges[1], 8000)
+}
+
+func TestRenhou_WhenTheRulesetHasNone_ShouldOfferNoRonToAYakulessHandOnTheFirstDiscard(t *testing.T) {
+	g := firstDiscardRonUnder(t, play.RulesetTenhou)
+	if containsAction(g.LegalActions(seat(t, 1)), play.RonAction()) {
+		t.Errorf("legal actions = %v, want no ron", g.LegalActions(seat(t, 1)))
+	}
+}
+
+func TestRenhou_WhenACallOrKanCameBeforeTheRon_ShouldOfferNoRonToAYakulessHand(t *testing.T) {
+	renhouWaiter := copies(t, 1, "123m456m234p78p55z")
+	sixPin := tileOf(t, 0, "6p")
+	cases := []struct {
+		name    string
+		wall    testkit.StartWall
+		actions func(w testkit.StartWall) []testkit.SeatAction
+	}{
+		{
+			name: "a pon that skips the waiter",
+			wall: testkit.StartWall{
+				Hands: [tile.SeatCount][]tile.TileID{
+					souWithWinds(t, 0), renhouWaiter,
+					slices.Concat(copies(t, 2, "123456789s77z1z"), []tile.TileID{sixPin}), souWithWinds(t, 3),
+				},
+				Draws: copies(t, 0, "7z"),
+			},
+			actions: func(w testkit.StartWall) []testkit.SeatAction {
+				return []testkit.SeatAction{
+					act(seat(t, 0), play.DiscardAction(w.Draws[0])),
+					act(seat(t, 2), play.PonAction([2]tile.TileID(copies(t, 2, "77z")))),
+					act(seat(t, 2), play.DiscardAction(sixPin)),
+				}
+			},
+		},
+		{
+			name: "the dealer's closed kan",
+			wall: testkit.StartWall{
+				Hands: [tile.SeatCount][]tile.TileID{
+					copies(t, 0, "123456789s6666z"), renhouWaiter, souWithWinds(t, 2), souWithWinds(t, 3),
+				},
+				Draws:   copies(t, 0, "9m"),
+				Rinshan: []tile.TileID{sixPin},
+			},
+			actions: func(testkit.StartWall) []testkit.SeatAction {
+				return []testkit.SeatAction{
+					act(seat(t, 0), play.KanAction(play.KanClosed, tileOf(t, 0, "6z"))),
+					act(seat(t, 0), play.DiscardAction(sixPin)),
+				}
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g, _ := script(t, begunUnder(t, play.RulesetRRC, tc.wall, noStart()), tc.actions(tc.wall)...)
+			if containsAction(g.LegalActions(seat(t, 1)), play.RonAction()) {
+				t.Errorf("legal actions = %v, want no ron", g.LegalActions(seat(t, 1)))
+			}
+		})
+	}
+}
+
 func TestHaitei_WhenTheTsumoIsOnTheLastTile_ShouldAwardHaiteiNotHoutei(t *testing.T) {
 	hands := [tile.SeatCount][]tile.TileID{
 		copies(t, 1, "123456789s2345z"), ittsuEastTanki(t), copies(t, 2, "123456789s2345z"), copies(t, 3, "123456789s2345z"),

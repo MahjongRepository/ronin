@@ -53,7 +53,7 @@ func TestNew_WhenTheWallIsFixed_ShouldDealSeatZeroAndAnnounceEveryHand(t *testin
 	header := play.RoundHeader{Wind: tile.East, RoundInWind: 1, Dealer: seat(t, 0), Dice: evenDice()}
 	want := []play.Emitted{{To: play.ToAll(), Event: play.GameStarted{
 		FirstDealer: seat(t, 0), Dice: [2]tile.Dice{evenDice(), evenDice()},
-		Ruleset: play.RulesetTenhou, AkaDora: tile.AkaDoraEnabled, RiichiStickValue: 1000, HonbaValue: 300,
+		Ruleset: play.RulesetTenhou, AkaDora: tile.AkaDoraEnabled, RiichiStickValue: 1000,
 	}}}
 	for _, s := range tile.Seats() {
 		want = append(want, play.Emitted{To: play.ToSeat(s), Event: play.RoundStarted{
@@ -79,7 +79,7 @@ func TestNew_WhenSeeded_ShouldTakeTheFirstDealerAndTheRoundZeroWallFromTheSeed(t
 
 	assertEqual[play.Event](t, "first event", events[0].Event, play.GameStarted{
 		FirstDealer: seat(t, 0), Dice: [2]tile.Dice{{First: 2, Second: 2}, {First: 5, Second: 1}},
-		Ruleset: play.RulesetTenhou, AkaDora: tile.AkaDoraEnabled, RiichiStickValue: 1000, HonbaValue: 300,
+		Ruleset: play.RulesetTenhou, AkaDora: tile.AkaDoraEnabled, RiichiStickValue: 1000,
 	})
 	assertEqual(t, "dealer hand", g.Hand(seat(t, 0)), ids(t, 0, 6, 26, 35, 43, 54, 55, 62, 67, 73, 79, 88, 100, 72))
 	assertEqual(t, "dice", g.Header().Dice, tile.Dice{First: 5, Second: 5})
@@ -130,7 +130,7 @@ func TestNew_WhenTheWallIsFixedWithAStartPosition_ShouldDealTheStagedHandsFromIt
 }
 
 func TestNew_WhenTheRulesetIsUnknown_ShouldRefuseIt(t *testing.T) {
-	unknown := play.RulesetTenhou + 1
+	unknown := play.RulesetRRC + 1
 
 	_, _, err := game.New(unknown, seeded(t), noStart())
 	if !errors.Is(err, rules.UnknownRulesetError{Ruleset: unknown}) {
@@ -164,8 +164,13 @@ func TestNew_WhenNoWallSourceIsGiven_ShouldRefuseItAsNoFixedWall(t *testing.T) {
 
 func startError(t *testing.T, scores [tile.SeatCount]int, riichiSticks int, wind tile.Wind) error {
 	t.Helper()
+	return startErrorUnder(t, play.RulesetTenhou, scores, riichiSticks, wind)
+}
+
+func startErrorUnder(t *testing.T, ruleset play.Ruleset, scores [tile.SeatCount]int, riichiSticks int, wind tile.Wind) error {
+	t.Helper()
 	start := play.StartPosition{Scores: scores, RiichiSticks: riichiSticks, Dealer: seat(t, 0), Wind: wind}
-	_, _, err := game.New(play.RulesetTenhou, seeded(t), play.Some(start))
+	_, _, err := game.New(ruleset, seeded(t), play.Some(start))
 	return err
 }
 
@@ -242,6 +247,20 @@ func TestNew_WhenTheStartIsInNorthOrPastIt_ShouldRefuseIt(t *testing.T) {
 		if err := startError(t, [tile.SeatCount]int{25000, 25000, 25000, 25000}, 0, wind); !errors.Is(err, game.StartInNorthError{}) {
 			t.Errorf("wind %d error = %v, want StartInNorthError", wind, err)
 		}
+	}
+}
+
+func TestNew_WhenTheRulesetPlaysNoWestRound_ShouldRefuseAWestStart(t *testing.T) {
+	err := startErrorUnder(t, play.RulesetRRC, [tile.SeatCount]int{30000, 30000, 30000, 30000}, 0, tile.West)
+	if !errors.Is(err, game.StartInWestError{}) {
+		t.Errorf("error = %v, want StartInWestError", err)
+	}
+}
+
+func TestNew_WhenANoBustStartSumsPastTheIntRangeOnTheWay_ShouldStillAddUpTheTable(t *testing.T) {
+	huge := math.MaxInt - math.MaxInt%100
+	if err := startErrorUnder(t, play.RulesetRRC, [tile.SeatCount]int{huge, 120000, -huge, 0}, 0, tile.South); err != nil {
+		t.Errorf("error = %v, want none", err)
 	}
 }
 

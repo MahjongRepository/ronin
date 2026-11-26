@@ -101,11 +101,12 @@ func TestSetupAndInvariantErrors_ShouldDescribeTheirFault(t *testing.T) {
 		{name: "negative start count", err: NegativeStartCountError{}, want: "a start honba or riichi stick count is negative"},
 		{name: "start points off total", err: StartPointsOffTotalError{}, want: "the start scores and riichi sticks are off the table total"},
 		{name: "start in north", err: StartInNorthError{}, want: "a start is in North"},
+		{name: "start in west", err: StartInWestError{}, want: "a start is in West, which the ruleset never plays"},
 		{name: "ownership", err: OwnershipError{Err: wall.MissingTileError{}}, want: "tile ownership: tile 0 is nowhere"},
 		{name: "table points", err: TablePointsError{Found: 100100, Expected: 100000}, want: "scores and riichi sticks total 100100, not 100000"},
 		{name: "final scores", err: FinalScoresError{Found: 99000, Expected: 100000}, want: "final scores total 99000, not 100000"},
 		{name: "final points", err: FinalPointsError{Points: 1}, want: "final points total 1, not 0"},
-		{name: "placements", err: PlacementsError{Placements: [tile.SeatCount]int{1, 2, 2, 4}}, want: "placements [1 2 2 4] are not 1 to 4"},
+		{name: "placements", err: PlacementsError{Placements: [tile.SeatCount]int{1, 2, 2, 4}}, want: "placements [1 2 2 4] do not rank the seats 1 to 4"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if got := c.err.Error(); got != c.want {

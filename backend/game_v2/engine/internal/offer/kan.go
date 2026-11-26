@@ -70,18 +70,18 @@ func IsFourKans(kans [tile.SeatCount]int, ruleset play.Ruleset) bool {
 
 func checkedKanOffers(
 	hand []tile.TileID, melds []play.MeldView, drawn tile.TileID, inRiichi bool,
-	kans [tile.SeatCount]int, liveTiles int,
+	kans [tile.SeatCount]int, liveTiles int, ruleset play.Ruleset,
 ) ([]play.Action, error) {
 	if err := meld.CheckHandInput(hand, melds); err != nil {
 		return nil, err
 	}
 
-	return KanOffers(hand, melds, drawn, inRiichi, kans, liveTiles), nil
+	return KanOffers(hand, melds, drawn, inRiichi, kans, liveTiles, ruleset), nil
 }
 
 func KanOffers(
 	hand []tile.TileID, melds []play.MeldView, drawn tile.TileID, inRiichi bool,
-	kans [tile.SeatCount]int, liveTiles int,
+	kans [tile.SeatCount]int, liveTiles int, ruleset play.Ruleset,
 ) []play.Action {
 	if !mayAddKan(kans, liveTiles) {
 		return nil
@@ -89,7 +89,7 @@ func KanOffers(
 
 	var offers []play.Action
 	riichiDrawn := play.Option[tile.TileID]{Value: drawn, OK: inRiichi}
-	for _, id := range closedKanTiles(hand, melds, riichiDrawn) {
+	for _, id := range closedKanTiles(hand, melds, riichiDrawn, ruleset) {
 		offers = append(offers, play.KanAction(play.KanClosed, id))
 	}
 
@@ -104,7 +104,9 @@ func KanOffers(
 	return offers
 }
 
-func closedKanTiles(hand []tile.TileID, melds []play.MeldView, riichiDrawn play.Option[tile.TileID]) []tile.TileID {
+func closedKanTiles(
+	hand []tile.TileID, melds []play.MeldView, riichiDrawn play.Option[tile.TileID], ruleset play.Ruleset,
+) []tile.TileID {
 	var held [tile.KindCount]int
 	for _, id := range hand {
 		held[id.Kind()]++
@@ -120,7 +122,7 @@ func closedKanTiles(hand []tile.TileID, melds []play.MeldView, riichiDrawn play.
 
 		seen = seen.With(kind)
 
-		allowed := !riichiDrawn.OK || (riichiDrawn.Value.Kind() == kind && kanKeepsWaits(hand, melds, kind))
+		allowed := !riichiDrawn.OK || (riichiDrawn.Value.Kind() == kind && riichiKanKeepsHand(hand, melds, kind, ruleset))
 		if allowed {
 			tiles = append(tiles, id)
 		}
@@ -129,7 +131,7 @@ func closedKanTiles(hand []tile.TileID, melds []play.MeldView, riichiDrawn play.
 	return tiles
 }
 
-func kanKeepsWaits(held []tile.TileID, melds []play.MeldView, kind tile.Kind) bool {
+func riichiKanKeepsHand(held []tile.TileID, melds []play.MeldView, kind tile.Kind, ruleset play.Ruleset) bool {
 	melded := meldedTiles(melds)
 	before, _ := countsOfDistinctIDs(held).WithoutOne(kind)
 	after := slices.DeleteFunc(slices.Clone(held), func(id tile.TileID) bool { return id.Kind() == kind })
@@ -137,7 +139,37 @@ func kanKeepsWaits(held []tile.TileID, melds []play.MeldView, kind tile.Kind) bo
 
 	waitsBefore := hand.Waits(before, countsOfDistinctIDs(melded))
 	waitsAfter := hand.Waits(countsOfDistinctIDs(after), countsOfDistinctIDs(meldedAfter))
-	return waitsBefore == waitsAfter
+	if waitsBefore != waitsAfter {
+		return false
+	}
+
+	return !rules.Of(ruleset).RiichiKanKeepsReadings || everyReadingHoldsTriplet(before, waitsBefore, kind)
+}
+
+func everyReadingHoldsTriplet(before tile.Counts, waits tile.Kinds, kind tile.Kind) bool {
+	triplet := hand.Set{Shape: hand.Triplet, Kind: kind}
+	for wait := range waits.All() {
+		counts := before.Array()
+		counts[wait]++
+		completed, err := tile.CountsFromArray(counts)
+		if err != nil {
+			panic(play.EngineFaultError{Err: err})
+		}
+
+		readings, err := hand.Divide(completed)
+		if err != nil {
+			panic(play.EngineFaultError{Err: err})
+		}
+
+		for reading := range readings.All() {
+			sets, isSets := reading.SetsAndPair()
+			if !isSets || !slices.Contains(sets.Sets(), triplet) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func addedKanTiles(hand []tile.TileID, melds []play.MeldView) []tile.TileID {
