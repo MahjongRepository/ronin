@@ -21,6 +21,7 @@ func physicalLayout(dealer int, dice tile.Dice) (live, dead []int) {
 		if position > 17 {
 			wallSeat, position = (wallSeat+3)%4, 1
 		}
+
 		walk = append(walk, stackIndex(wallSeat, position))
 		position++
 	}
@@ -139,6 +140,7 @@ func TestFromSeed_WhenSeedIsTheFixedSeed_ShouldMatchThePinnedLayout(t *testing.T
 	if got := numbers(w.Rinshan()); !slices.Equal(got, []int{30, 41, 45, 131}) {
 		t.Errorf("rinshan = %v", got)
 	}
+
 	wantIndicators := [5]wall.Stack{
 		stack(t, 52, 99), stack(t, 97, 127), stack(t, 18, 53), stack(t, 120, 135), stack(t, 82, 91),
 	}
@@ -172,6 +174,7 @@ func TestFromTiles_ShouldLayOutLiveThenDeadStacks(t *testing.T) {
 	if got := numbers(w.Rinshan()); !slices.Equal(got, []int{122, 129, 123, 130}) {
 		t.Errorf("rinshan = %v", got)
 	}
+
 	var wantIndicators [5]wall.Stack
 	for i := range wantIndicators {
 		wantIndicators[i] = stack(t, 124+i, 131+i)
@@ -306,19 +309,22 @@ func TestDrawRinshan_WhenFourAreDrawn_ShouldRefuse(t *testing.T) {
 
 func TestWallErrors_ShouldNameWhatIsWrong(t *testing.T) {
 	cases := []struct {
+		name string
 		err  error
 		want string
 	}{
-		{wall.DuplicateTileError{Tile: id(t, 3)}, "the wall lists tile 3 twice"},
-		{wall.RinshanExhaustedError{}, "no rinshan tile is left"},
-		{wall.LiveWallEmptyError{}, "the live wall is empty"},
-		{wall.IndicatorsExhaustedError{}, "every dora indicator is revealed or pending"},
-		{wall.MissingTileError{Tile: id(t, 7)}, "tile 7 is nowhere"},
-		{wall.TileInTwoPlacesError{Tile: id(t, 100)}, "tile 100 is in more than one place"},
+		{"duplicate tile", wall.DuplicateTileError{Tile: id(t, 3)}, "the wall lists tile 3 twice"},
+		{"rinshan exhausted", wall.RinshanExhaustedError{}, "no rinshan tile is left"},
+		{"live wall empty", wall.LiveWallEmptyError{}, "the live wall is empty"},
+		{"indicators exhausted", wall.IndicatorsExhaustedError{}, "every dora indicator is revealed or pending"},
+		{"missing tile", wall.MissingTileError{Tile: id(t, 7)}, "tile 7 is nowhere"},
+		{"tile in two places", wall.TileInTwoPlacesError{Tile: id(t, 100)}, "tile 100 is in more than one place"},
 	}
-	for _, c := range cases {
-		if got := c.err.Error(); got != c.want {
-			t.Errorf("%#v message = %q, want %q", c.err, got, c.want)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.err.Error(); got != tc.want {
+				t.Errorf("%#v message = %q, want %q", tc.err, got, tc.want)
+			}
+		})
 	}
 }

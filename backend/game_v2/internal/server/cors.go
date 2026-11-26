@@ -45,6 +45,7 @@ func (c cors) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.Header().Add("Vary", "Origin")
 	}
+
 	c.next.ServeHTTP(w, r)
 }
 
@@ -64,13 +65,16 @@ func (c cors) preflight(w http.ResponseWriter, r *http.Request, origin string) {
 	default:
 		failures = append(failures, "origin")
 	}
+
 	method := r.Header.Get("Access-Control-Request-Method")
 	if method != http.MethodGet && method != http.MethodPost {
 		failures = append(failures, "method")
 	}
+
 	if !allowedHeaders(r.Header.Get("Access-Control-Request-Headers")) {
 		failures = append(failures, "headers")
 	}
+
 	if r.Header.Get("Access-Control-Request-Private-Network") != "" {
 		failures = append(failures, "private-network")
 	}
@@ -81,6 +85,7 @@ func (c cors) preflight(w http.ResponseWriter, r *http.Request, origin string) {
 		_, _ = w.Write([]byte("Disallowed CORS " + strings.Join(failures, ", ")))
 		return
 	}
+
 	_, _ = w.Write([]byte("OK"))
 }
 
@@ -88,11 +93,13 @@ func allowedHeaders(requested string) bool {
 	if requested == "" {
 		return true
 	}
+
 	allowed := strings.Split(strings.ToLower(corsAllowHeaders), ", ")
 	for header := range strings.SplitSeq(requested, ",") {
 		if !slices.Contains(allowed, strings.ToLower(strings.TrimSpace(header))) {
 			return false
 		}
 	}
+
 	return true
 }

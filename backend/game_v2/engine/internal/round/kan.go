@@ -23,13 +23,14 @@ func (r *Round) DeclareKan(seat tile.Seat, kind play.KanKind, id tile.TileID) (T
 	if !robbable {
 		events = append(events, r.standKan(seat, kind)...)
 	}
+
 	return playing(events), play.Option[play.Refusal]{}
 }
 
 func (r *Round) standKan(seat tile.Seat, kind play.KanKind) []play.Emitted {
 	r.endEveryIppatsu()
 	events := doraRevealed(r.revealKanDora(kind))
-	return appendDrawEvents(events, seat, r.drawRinshan(seat), true)
+	return appendDrawEvents(events, seat, r.drawRinshan(seat), rinshanDraw)
 }
 
 func (r *Round) drawRinshan(seat tile.Seat) tile.TileID {
@@ -44,6 +45,7 @@ func (r *Round) kanOffers(seat tile.Seat) []play.Action {
 	if !r.drawn.OK {
 		return nil
 	}
+
 	kans := offer.KansBySeat(r.meldsBySeat())
 	return offer.KanOffers(r.hand(seat), r.seatMelds(seat), r.drawn.Value, r.InRiichi(seat), kans, r.LiveTiles())
 }
@@ -56,6 +58,7 @@ func (r *Round) checkKan(seat tile.Seat, kind play.KanKind, id tile.TileID) (til
 			return kanTile(kind, id, held), true
 		}
 	}
+
 	return tile.TileID{}, false
 }
 
@@ -63,6 +66,7 @@ func kanTile(kind play.KanKind, named, held tile.TileID) tile.TileID {
 	if kind == play.KanClosed {
 		return named
 	}
+
 	return held
 }
 
@@ -73,6 +77,7 @@ func (r *Round) openChankanPrompt(seat tile.Seat, kind play.KanKind, id tile.Til
 			robbers = append(robbers, other)
 		}
 	}
+
 	if len(robbers) == 0 {
 		return false
 	}
@@ -106,6 +111,7 @@ func (r *Round) revealKanDora(kind play.KanKind) []tile.TileID {
 		indicator, _ := r.wall.AddDoraIndicator()
 		return append(revealed, indicator)
 	}
+
 	_ = r.wall.IncrementPendingDora()
 	return revealed
 }

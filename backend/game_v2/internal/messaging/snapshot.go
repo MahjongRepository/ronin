@@ -33,6 +33,7 @@ func ReconnectionPayload(
 	m = optionField(m, wire.KeyLatestDiscardSeat, record.LatestDiscard, func(s tile.Seat) wire.Value {
 		return seatValue(s)
 	})
+
 	m = append(m,
 		wire.Field{Key: wire.KeyDoraIndicators, Value: tilesValue(record.DoraIndicators)},
 		wire.Field{Key: wire.KeyHonba, Value: wire.Int(header.Honba)},
@@ -52,10 +53,12 @@ func ReconnectionPayload(
 	for i, player := range record.Players {
 		scores[i] = player.Score
 	}
+
 	result, err := roundEndFields(record.Result, scores, record.RiichiSticks, record)
 	if err != nil {
 		return nil, err
 	}
+
 	return append(m, wire.Field{Key: wire.KeyRoundResult, Value: result}), nil
 }
 
@@ -66,6 +69,7 @@ func playerStates(players [tile.SeatCount]play.PublicSeat) (wire.Array, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		state := wire.Map{
 			{Key: wire.KeySeat, Value: seatValue(player.Seat)},
 			{Key: wire.KeyScore, Value: scoreValue(player.Score)},
@@ -78,6 +82,7 @@ func playerStates(players [tile.SeatCount]play.PublicSeat) (wire.Array, error) {
 			return seatValue(s)
 		}))
 	}
+
 	return states, nil
 }
 
@@ -86,5 +91,6 @@ func roundHistory(history []play.FinishedRound) wire.Array {
 	for _, round := range history {
 		entries = append(entries, historyEntry(round))
 	}
+
 	return entries
 }

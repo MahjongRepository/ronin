@@ -75,6 +75,7 @@ func newConnection(ws *websocket.Conn, gameID string, s *Server) *connection {
 		close(c.terminated)
 		_ = c.ws.CloseNow()
 	})
+
 	return c
 }
 
@@ -113,6 +114,7 @@ func (c *connection) enqueue(item outgoing) (accepted bool) {
 	if c.closed || c.isTerminated() {
 		return false
 	}
+
 	c.closed = item.close
 	select {
 	case c.queue <- item:
@@ -149,6 +151,7 @@ func (c *connection) write(ctx context.Context) {
 				_ = c.ws.Close(item.code, item.reason)
 				return
 			}
+
 			if !c.writeMessage(withoutPerFrameTimeout, item.data) {
 				return
 			}
@@ -163,6 +166,7 @@ func (c *connection) writeMessage(ctx context.Context, data []byte) bool {
 	if err == nil {
 		return true
 	}
+
 	if c.sendTimedOut.Load() {
 		c.log.Warn(logSendDeadline)
 	} else {
@@ -178,6 +182,7 @@ func (c *connection) armSendDeadline() {
 		c.sendTimer = time.AfterFunc(c.sendDeadline, c.dropIfSendOverdue)
 		return
 	}
+
 	c.sendTimer.Reset(c.sendDeadline)
 }
 
@@ -194,9 +199,11 @@ func (c *connection) dropIfObservedSendOverdue(observedDue int64, elapsed time.D
 	if observedDue <= 0 || elapsed < time.Duration(observedDue) {
 		return
 	}
+
 	if !c.sendDue.CompareAndSwap(observedDue, sendDueClaimedByTimer) {
 		return
 	}
+
 	c.sendTimedOut.Store(true)
 	c.terminate()
 }
@@ -229,9 +236,11 @@ func (c *connection) pingOnce(ctx context.Context, timeout time.Duration) bool {
 	if err == nil {
 		return true
 	}
+
 	if errors.Is(err, context.DeadlineExceeded) {
 		c.log.Info(logPingTimeout)
 	}
+
 	c.terminate()
 	return false
 }
@@ -251,6 +260,7 @@ func (c *connection) stopWriter() {
 		case <-c.terminated:
 		case <-deadline.C:
 		}
+
 		deadline.Stop()
 	}
 

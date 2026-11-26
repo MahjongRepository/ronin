@@ -87,10 +87,12 @@ func Wins(r io.Reader) iter.Seq2[Win, error] {
 				yield(Win{}, err)
 				return
 			}
+
 			if !yield(win, nil) {
 				return
 			}
 		}
+
 		if err := scanner.Err(); err != nil {
 			yield(Win{}, err)
 		}
@@ -107,14 +109,18 @@ func Rounds(r io.Reader) iter.Seq2[[]Win, error] {
 				yield(nil, err)
 				return
 			}
+
 			if len(round) > 0 && (win.LogID != round[0].LogID || win.RoundIndex != round[0].RoundIndex) {
 				if !yield(round, nil) {
 					return
 				}
+
 				round = nil
 			}
+
 			round = append(round, win)
 		}
+
 		if len(round) > 0 {
 			yield(round, nil)
 		}
@@ -126,6 +132,7 @@ func Compare(round []Win) []Mismatch {
 	for i, win := range round {
 		ids[i] = win.ID
 	}
+
 	failed := func(check Check, err error) []Mismatch {
 		return []Mismatch{{WinID: strings.Join(ids, ","), Check: check, Detail: err.Error()}}
 	}
@@ -134,6 +141,7 @@ func Compare(round []Win) []Mismatch {
 	if errors.Is(err, errInput) {
 		return failed(CheckInput, err)
 	}
+
 	if err != nil {
 		return failed(CheckScore, err)
 	}
@@ -142,6 +150,7 @@ func Compare(round []Win) []Mismatch {
 	for i, win := range round {
 		mismatches = append(mismatches, compareWin(win, settled[i])...)
 	}
+
 	return mismatches
 }
 
@@ -149,32 +158,38 @@ var errInput = errors.New("not a round the engine takes")
 
 func settle(round []Win) ([]engine.SettledWin, error) {
 	if len(round) == 0 {
-		return nil, fmt.Errorf("%w: no wins", errInput)
+		return nil, fmt.Errorf("no wins: %w", errInput)
 	}
+
 	first := round[0]
 	table, err := tableOf(first)
 	if err != nil {
 		return nil, err
 	}
+
 	hands := make([]engine.WinningHand, 0, len(round))
 	for _, win := range round {
 		hand, handErr := winningHand(win)
 		if handErr != nil {
-			return nil, fmt.Errorf("%w: %s: %w", errInput, win.ID, handErr)
+			return nil, fmt.Errorf("win %s: %w: %w", win.ID, handErr, errInput)
 		}
+
 		hands = append(hands, hand)
 	}
 
 	if !first.Tsumo {
 		discarder, ok := tile.NewSeat(first.FromWho)
 		if !ok {
-			return nil, fmt.Errorf("%w: discarder %d", errInput, first.FromWho)
+			return nil, fmt.Errorf("discarder %d: %w", first.FromWho, errInput)
 		}
+
 		return engine.SettleRon(table, discarder, hands)
 	}
+
 	if len(hands) != 1 {
-		return nil, fmt.Errorf("%w: a tsumo with %d wins", errInput, len(hands))
+		return nil, fmt.Errorf("a tsumo with %d wins: %w", len(hands), errInput)
 	}
+
 	settled, err := engine.SettleTsumo(table, hands[0])
 	return []engine.SettledWin{settled}, err
 }
@@ -183,8 +198,9 @@ func tableOf(win Win) (engine.Table, error) {
 	dealer, dealerOK := tile.NewSeat(win.Dealer)
 	roundWind, windOK := tile.WindFromKind(tile.KindEast + tile.Kind(win.RoundWind))
 	if !dealerOK || !windOK {
-		return engine.Table{}, fmt.Errorf("%w: dealer %d, round wind %d", errInput, win.Dealer, win.RoundWind)
+		return engine.Table{}, fmt.Errorf("dealer %d, round wind %d: %w", win.Dealer, win.RoundWind, errInput)
 	}
+
 	return engine.Table{Dealer: dealer, RoundWind: roundWind, Honba: win.Honba, RiichiSticks: win.RiichiSticks}, nil
 }
 
@@ -194,21 +210,27 @@ func compareWin(win Win, settled engine.SettledWin) []Mismatch {
 	add := func(check Check, format string, args ...any) {
 		mismatches = append(mismatches, Mismatch{WinID: win.ID, Check: check, Detail: fmt.Sprintf(format, args...)})
 	}
+
 	if want, ok := hanFuOf(win); ok && value.Value != want {
 		add(CheckHanFu, "value = %v, want %v", value.Value, want)
 	}
+
 	if got, want := yakuOf(value), wantYaku(win); !slices.Equal(got, want) {
 		add(CheckYaku, "yaku = %v, want %v", got, want)
 	}
+
 	if got := limitCodeOf(value); got != win.Limit {
 		add(CheckLimit, "limit = %d, want %d", got, win.Limit)
 	}
+
 	if got := value.Payment.Sum(); got != win.Points {
 		add(CheckPoints, "points = %d, want %d", got, win.Points)
 	}
+
 	if got := settled.ScoreChanges[:]; !slices.Equal(got, win.ScoreDeltas) {
 		add(CheckDeltas, "deltas = %v, want %v (pao %t)", got, win.ScoreDeltas, win.Pao != nil)
 	}
+
 	return mismatches
 }
 
@@ -216,41 +238,50 @@ func winningHand(win Win) (engine.WinningHand, error) {
 	if !win.Aka || !win.Kuitan {
 		return engine.WinningHand{}, fmt.Errorf("aka %t and kuitan %t, the engine plays with both", win.Aka, win.Kuitan)
 	}
+
 	seat, ok := tile.NewSeat(win.Who)
 	if !ok {
 		return engine.WinningHand{}, fmt.Errorf("winner %d", win.Who)
 	}
+
 	var pao play.Option[tile.Seat]
 	if win.Pao != nil {
 		liable, liableOK := tile.NewSeat(*win.Pao)
 		if !liableOK {
 			return engine.WinningHand{}, fmt.Errorf("pao %d", *win.Pao)
 		}
+
 		pao = play.Some(liable)
 	}
+
 	closed := slices.Clone(win.Closed)
 	at := slices.Index(closed, win.WinTile)
 	if at < 0 {
 		return engine.WinningHand{}, fmt.Errorf("the closed tiles hold no winning tile %d", win.WinTile)
 	}
+
 	closed = slices.Delete(closed, at, at+1)
 
 	concealed, err := tileIDs(closed)
 	if err != nil {
 		return engine.WinningHand{}, err
 	}
+
 	winTile, err := tileIDs([]int{win.WinTile})
 	if err != nil {
 		return engine.WinningHand{}, err
 	}
+
 	melds, err := meldViews(win.Melds)
 	if err != nil {
 		return engine.WinningHand{}, err
 	}
+
 	dora, err := tileIDs(win.DoraIndicators)
 	if err != nil {
 		return engine.WinningHand{}, err
 	}
+
 	ura, err := tileIDs(win.UraIndicators)
 	if err != nil {
 		return engine.WinningHand{}, err
@@ -271,6 +302,7 @@ func winningHand(win Win) (engine.WinningHand, error) {
 	if isDouble || hasYaku(win, play.YakuRiichi) {
 		hand.Riichi = play.Some(play.Riichi{Double: isDouble, Ippatsu: hasYaku(win, play.YakuIppatsu)})
 	}
+
 	return hand, nil
 }
 
@@ -281,8 +313,10 @@ func tileIDs(ids []int) ([]tile.TileID, error) {
 		if !ok {
 			return nil, fmt.Errorf("tile id %d", n)
 		}
+
 		tiles = append(tiles, id)
 	}
+
 	return tiles, nil
 }
 
@@ -293,12 +327,15 @@ func meldViews(melds []Meld) ([]play.MeldView, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		kind, ok := meldKind(m.Kind)
 		if !ok {
 			return nil, fmt.Errorf("meld kind %q", m.Kind)
 		}
+
 		views = append(views, play.MeldView{Kind: kind, Tiles: tiles})
 	}
+
 	return views, nil
 }
 
@@ -341,9 +378,11 @@ func hasYaku(win Win, y play.YakuID) bool {
 	if !ok {
 		return false
 	}
+
 	if y.IsYakuman() {
 		return slices.Contains(win.Yakuman, id)
 	}
+
 	return slices.ContainsFunc(win.Yaku, func(yaku [2]int) bool { return yaku[0] == id })
 }
 
@@ -351,10 +390,12 @@ func hanFuOf(win Win) (play.Han, bool) {
 	if len(win.Yakuman) > 0 {
 		return play.Han{}, false
 	}
+
 	han := 0
 	for _, yaku := range win.Yaku {
 		han += yaku[1]
 	}
+
 	return play.Han{Han: han, Fu: win.Fu}, true
 }
 
@@ -366,12 +407,15 @@ func yakuOf(value engine.HandValue) [][2]int {
 		if !ok {
 			id = -int(y.ID)
 		}
+
 		han := y.Han
 		if isYakuman {
 			han = 0
 		}
+
 		yaku = append(yaku, [2]int{id, han})
 	}
+
 	for id, count := range map[int]int{
 		tenhou.DoraID:    value.Dora.Dora,
 		tenhou.UraDoraID: value.Dora.UraDora,
@@ -381,6 +425,7 @@ func yakuOf(value engine.HandValue) [][2]int {
 			yaku = append(yaku, [2]int{id, count})
 		}
 	}
+
 	slices.SortFunc(yaku, compareYaku)
 	return yaku
 }
@@ -390,6 +435,7 @@ func wantYaku(win Win) [][2]int {
 	for _, id := range win.Yakuman {
 		yaku = append(yaku, [2]int{id, 0})
 	}
+
 	if len(win.Yakuman) == 0 {
 		for _, y := range win.Yaku {
 			if y[1] > 0 {
@@ -397,6 +443,7 @@ func wantYaku(win Win) [][2]int {
 			}
 		}
 	}
+
 	slices.SortFunc(yaku, compareYaku)
 	return yaku
 }
@@ -405,6 +452,7 @@ func compareYaku(a, b [2]int) int {
 	if a[0] != b[0] {
 		return a[0] - b[0]
 	}
+
 	return a[1] - b[1]
 }
 
@@ -412,5 +460,6 @@ func limitCodeOf(value engine.HandValue) int {
 	if !value.Limit.OK {
 		return 0
 	}
+
 	return tenhou.LimitCode(value.Limit.Value)
 }

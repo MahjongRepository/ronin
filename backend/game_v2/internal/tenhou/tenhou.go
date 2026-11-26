@@ -47,10 +47,12 @@ func Convert(content []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	events := records[1:]
 	if !slices.ContainsFunc(events, isGameEnd) {
 		return "", ErrNoGameEnd
 	}
+
 	return convertEvents(events)
 }
 
@@ -69,6 +71,7 @@ func convertEvents(events []wire.Map) (string, error) {
 			return "", RecordError{Record: i + firstEventRecord, Err: c.r.err}
 		}
 	}
+
 	return strings.Join(c.tags, ""), nil
 }
 
@@ -135,11 +138,13 @@ func (c *converter) convert(event wire.Map) {
 func (c *converter) gameStarted(event wire.Map) {
 	c.firstDealer = c.r.seat(event, wire.KeyDealer)
 	c.started = true
+
 	seed := c.r.bin(event, wire.KeySeed)
 	rngVersion := c.r.str(event, wire.KeyRNGVersion)
 	if c.r.int(event, wire.KeyGameType) != int(wire.GameHanchan) {
 		c.r.fail(errors.New("only a hanchan has a Tenhou game type"))
 	}
+
 	goType := goVsHuman | goHanchan
 	if !c.r.boolean(event, wire.KeyHasAkadora) {
 		goType |= goNoAkadora
@@ -165,11 +170,14 @@ func (c *converter) bySeat(entries []wire.Map) [tile.SeatCount]wire.Map {
 		if seated[s] != nil {
 			c.r.fail(errors.New("a seat is listed twice"))
 		}
+
 		seated[s] = entry
 	}
+
 	if len(entries) != tile.SeatCount {
 		c.r.fail(errors.New("not every seat is listed"))
 	}
+
 	return seated
 }
 
@@ -204,6 +212,7 @@ func (c *converter) drew(event wire.Map) {
 		c.r.fail(err)
 		return
 	}
+
 	s := c.seat(seat)
 	c.hands[s] = append(c.hands[s], drawn.Index())
 	c.add("<" + drawLetters[s:s+1] + strconv.Itoa(drawn.Index()) + "/>")
@@ -215,11 +224,13 @@ func (c *converter) discarded(event wire.Map) {
 		c.r.fail(err)
 		return
 	}
+
 	s := c.seat(move.Seat)
 	c.take(s, move.Tile.Index())
 	if move.Riichi {
 		c.add(`<REACH who="` + strconv.Itoa(s) + `" step="1"/>`)
 	}
+
 	c.add("<" + discardTags[s:s+1] + strconv.Itoa(move.Tile.Index()) + "/>")
 }
 
@@ -229,6 +240,7 @@ func (c *converter) take(s, id int) {
 		c.r.fail(fmt.Errorf("seat %d gives up tile %d it does not hold", s, id))
 		return
 	}
+
 	c.hands[s] = slices.Delete(c.hands[s], i, i+1)
 }
 
@@ -245,6 +257,7 @@ func (c *converter) called(event wire.Map) {
 		c.r.fail(err)
 		return
 	}
+
 	code, err := meldCode(meld)
 	if err != nil {
 		c.r.fail(err)
@@ -261,6 +274,7 @@ func (c *converter) called(event wire.Map) {
 			}
 		}
 	}
+
 	c.add(`<N who="` + strconv.Itoa(s) + `" m="` + strconv.Itoa(code) + `"` + tagClose)
 }
 
@@ -276,6 +290,7 @@ func (c *converter) gameEnded(event wire.Map) {
 		c.r.fail(errors.New("the game end follows no round end"))
 		return
 	}
+
 	c.tags[last] = strings.TrimSuffix(c.tags[last], tagClose) + ` owari="` + strings.Join(owari, ",") + `"` + tagClose
 	c.add("</mjloggm>")
 }
@@ -285,6 +300,7 @@ func formatTenths(tenths int) string {
 	if tenths < 0 {
 		sign, tenths = "-", -tenths
 	}
+
 	return sign + strconv.Itoa(tenths/10) + "." + strconv.Itoa(tenths%10)
 }
 
@@ -293,6 +309,7 @@ func joinInts(values []int) string {
 	for i, v := range values {
 		parts[i] = strconv.Itoa(v)
 	}
+
 	return strings.Join(parts, ",")
 }
 
@@ -306,5 +323,6 @@ func escapeName(name string) string {
 			escaped.WriteString("%" + strings.ToUpper(hex.EncodeToString([]byte{b})))
 		}
 	}
+
 	return escaped.String()
 }

@@ -47,6 +47,7 @@ func ParseSeed(hex string) (Seed, error) {
 	if len(hex) != 2*SeedBytes {
 		return Seed{}, SeedLengthError{Length: len(hex)}
 	}
+
 	var seed Seed
 	for i := range seed {
 		high, highOK := hexDigit(hex[2*i])
@@ -54,8 +55,10 @@ func ParseSeed(hex string) (Seed, error) {
 		if !highOK || !lowOK {
 			return Seed{}, SeedNotHexError{}
 		}
+
 		seed[i] = high<<4 | low
 	}
+
 	return seed, nil
 }
 
@@ -68,6 +71,7 @@ func hexDigit(digit byte) (byte, bool) {
 	case 'A' <= digit && digit <= 'F':
 		return digit - 'A' + 10, true
 	}
+
 	return 0, false
 }
 
@@ -79,18 +83,23 @@ func (s Seed) String() string {
 func RoundWall(seed Seed, roundNumber uint32) ([tile.TileIDCount]tile.TileID, tile.Dice) {
 	round := []byte{byte(roundNumber), byte(roundNumber >> 8), byte(roundNumber >> 16), byte(roundNumber >> 24)}
 	words := newWordStream(wallDomain, seed[:], round)
+
 	tiles := tile.AllTileIDs()
 	shuffle(tiles[:], words.next)
+
 	return tiles, rollDice(words.next)
 }
 
 func FirstDealer(seed Seed) (dealer tile.Seat, first, second tile.Dice) {
 	words := newWordStream(dealerDomain, seed[:])
 	seats := tile.Seats()
+
 	first = rollDice(words.next)
 	thrower := seats[(first.Sum()-1)%tile.SeatCount]
+
 	second = rollDice(words.next)
 	dealer = seats[(thrower.Index()+second.Sum()-1)%tile.SeatCount]
+
 	return dealer, first, second
 }
 
@@ -112,6 +121,7 @@ func newWordStream(domain string, data ...[]byte) wordStream {
 	for _, part := range data {
 		_, _ = shake.Write(part)
 	}
+
 	return wordStream{shake: shake}
 }
 
@@ -122,6 +132,7 @@ func (s wordStream) next() uint64 {
 	for i := len(word) - 1; i >= 0; i-- {
 		n = n<<8 | uint64(word[i])
 	}
+
 	return n
 }
 

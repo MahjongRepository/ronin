@@ -4,9 +4,11 @@ import "testing"
 
 func TestHasChuurenPoutouRanks_WhenRanksAreNotTheChuurenShape_ShouldReject(t *testing.T) {
 	for _, mpsz := range []string{"111m234m567m899m9m", "11112233488999m", "11123444678999p", "111m1m22m345m678m999m"} {
-		if hasChuurenPoutouRanks(countsOf(t, mpsz)) {
-			t.Errorf("hasChuurenPoutouRanks(%s) = true, want false", mpsz)
-		}
+		t.Run(mpsz, func(t *testing.T) {
+			if hasChuurenPoutouRanks(countsOf(t, mpsz)) {
+				t.Errorf("hasChuurenPoutouRanks(%s) = true, want false", mpsz)
+			}
+		})
 	}
 }
 
@@ -22,9 +24,11 @@ func TestHasChuurenPoutouRanks_WhenEveryRankHoldsTheShapeAndOneMore_ShouldAccept
 		"11123456788999s",
 		"11123456789999s",
 	} {
-		if !hasChuurenPoutouRanks(countsOf(t, mpsz)) {
-			t.Errorf("hasChuurenPoutouRanks(%s) = false, want true", mpsz)
-		}
+		t.Run(mpsz, func(t *testing.T) {
+			if !hasChuurenPoutouRanks(countsOf(t, mpsz)) {
+				t.Errorf("hasChuurenPoutouRanks(%s) = false, want true", mpsz)
+			}
+		})
 	}
 }
 
@@ -39,9 +43,11 @@ func TestHonorYakuman_WhenTheHandHoldsTheirSets_ShouldAccept(t *testing.T) {
 		{"isDaisuushii", isDaisuushii, "22s111222333444z"},
 		{"isKokushiMusou", isKokushiMusou, "19m19p119s1234567z"},
 	} {
-		if !tc.check(countsOf(t, tc.mpsz)) {
-			t.Errorf("%s(%s) = false, want true", tc.name, tc.mpsz)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			if !tc.check(countsOf(t, tc.mpsz)) {
+				t.Errorf("%s(%s) = false, want true", tc.name, tc.mpsz)
+			}
+		})
 	}
 }
 
@@ -58,9 +64,11 @@ func TestTileYakuman_ShouldAcceptOnlyWhenEveryKindFits(t *testing.T) {
 		{"isChinroutou", isChinroutou, "111999m99p111999s", true},
 		{"isRyuuiisou", isRyuuiisou, "22334466888s666z", true},
 	} {
-		if got := tc.check(kindsOf(t, tc.mpsz)); got != tc.want {
-			t.Errorf("%s(%s) = %v, want %v", tc.name, tc.mpsz, got, tc.want)
-		}
+		t.Run(tc.name+" "+tc.mpsz, func(t *testing.T) {
+			if got := tc.check(kindsOf(t, tc.mpsz)); got != tc.want {
+				t.Errorf("%s(%s) = %v, want %v", tc.name, tc.mpsz, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -72,8 +80,10 @@ func TestIsKokushiMusou_WhenTheHandHoldsMoreOrFewerThanTheThirteenOrphansAndOneP
 		"19m19p19s1234567z",
 		"11m19p119s1234567z",
 	} {
-		if isKokushiMusou(countsOf(t, mpsz)) {
-			t.Errorf("isKokushiMusou(%s) = true, want false", mpsz)
-		}
+		t.Run(mpsz, func(t *testing.T) {
+			if isKokushiMusou(countsOf(t, mpsz)) {
+				t.Errorf("isKokushiMusou(%s) = true, want false", mpsz)
+			}
+		})
 	}
 }

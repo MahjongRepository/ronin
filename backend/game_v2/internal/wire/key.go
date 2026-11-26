@@ -245,5 +245,6 @@ func (k Key) String() string {
 	if int(k) < keyCount {
 		return keyNames[k]
 	}
+
 	return "Key(" + strconv.Itoa(int(k)) + ")"
 }

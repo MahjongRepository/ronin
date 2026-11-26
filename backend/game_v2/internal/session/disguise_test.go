@@ -31,6 +31,7 @@ func TestPick_WhenASeatPonsAndThenTimesOut_ShouldPlayPickedCopiesAndAPickedDisca
 				noWaits(timing)
 				timing.BaseTurn = time.Second
 			}))
+
 		conns := h.start("Alice", "Bob", "Carol")
 		alice, carol := conns[0], conns[2]
 		draw := lastDraw(t, alice)
@@ -48,15 +49,18 @@ func TestPick_WhenASeatPonsAndThenTimesOut_ShouldPlayPickedCopiesAndAPickedDisca
 		if len(melds) != 1 {
 			t.Fatalf("melds alice saw = %d, want carol's pon", len(melds))
 		}
+
 		meld, err := wire.UnpackMeld(intOf(t, melds[0], wire.KeyPackedMeld))
 		if err != nil || slices.Contains(meld.Tiles, held[0]) || !slices.Contains(meld.Tiles, held[2]) {
 			t.Errorf("pon tiles = %v (%v), want the picked copies %d and %d, not the named %d",
 				meld.Tiles, err, held[1].Index(), held[2].Index(), held[0].Index())
 		}
+
 		discards := ofEvent(alice.messages(), wire.EventDiscard)
 		if len(discards) < 2 {
 			t.Fatalf("discards alice saw = %d, want carol's timed out one after her own", len(discards))
 		}
+
 		move, err := wire.UnpackDiscard(intOf(t, discards[1], wire.KeyPackedMove))
 		if want := copies(t, 1, "4p")[0]; err != nil || move.Tile != want {
 			t.Errorf("timeout discard after the pon = %+v (%v), want the picked tile %d, not the last in hand order %d",

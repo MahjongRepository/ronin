@@ -12,15 +12,18 @@ func TestSettle_WhenTheWinIsTheOtherKind_ShouldReturnAMisfitWinError(t *testing.
 	_, tsumoErr := engine.SettleTsumo(engine.Table{}, engine.WinningHand{Win: engine.WinRon})
 	_, ronErr := engine.SettleRon(engine.Table{}, tile.Seats()[1], []engine.WinningHand{{Win: engine.WinTsumo}})
 
-	for name, c := range map[string]struct {
+	for _, c := range []struct {
+		name string
 		err  error
-		want string
+		want engine.Win
 	}{
-		"ron settled as a tsumo": {tsumoErr, "a ron win cannot be settled as a tsumo"},
-		"tsumo settled as a ron": {ronErr, "a tsumo win cannot be settled as a ron"},
+		{name: "ron settled as a tsumo", err: tsumoErr, want: engine.WinRon},
+		{name: "tsumo settled as a ron", err: ronErr, want: engine.WinTsumo},
 	} {
-		if _, ok := errors.AsType[engine.MisfitWinError](c.err); !ok || c.err.Error() != c.want {
-			t.Errorf("%s: error = %v, want MisfitWinError %q", name, c.err, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if got, ok := errors.AsType[engine.MisfitWinError](c.err); !ok || got.Win != c.want {
+				t.Errorf("error = %v, want MisfitWinError of win %v", c.err, c.want)
+			}
+		})
 	}
 }

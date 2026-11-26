@@ -61,6 +61,7 @@ func (c Config) valid() bool {
 	case k.Rate < 0 || k.ResyncRate < 0 || k.Burst <= 0 || k.ResyncBurst <= 0 || k.MaxDecodeErrors <= 0:
 		return false
 	}
+
 	return true
 }
 
@@ -85,9 +86,11 @@ func New(cfg Config) (*Server, error) {
 	if !cfg.valid() {
 		return nil, ErrConfig
 	}
+
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
+
 	s := &Server{
 		cfg:       cfg,
 		log:       cfg.Logger,
@@ -137,8 +140,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		for _, conn := range s.openSockets() {
 			terminating.Go(conn.terminate)
 		}
+
 		terminating.Wait()
 	}
+
 	return errors.Join(socketsErr, s.cfg.Session.Shutdown(ctx))
 }
 
@@ -162,6 +167,7 @@ func (s *Server) openSocketsLocked() []*connection {
 	for conn := range s.sockets {
 		conns = append(conns, conn)
 	}
+
 	return conns
 }
 
@@ -172,6 +178,7 @@ func (s *Server) track(conn *connection) bool {
 	if s.closing {
 		return false
 	}
+
 	s.sockets[conn] = struct{}{}
 	s.served.Add(1)
 	return true

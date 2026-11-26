@@ -23,6 +23,7 @@ func (h *harness) observe(t *testing.T, from int) session.Observation {
 	if !found {
 		t.Fatalf("Observe(%d) found no game", from)
 	}
+
 	return got
 }
 
@@ -32,6 +33,7 @@ func eventTypes(records []wire.Map) []wire.EventType {
 		typ, _ := eventType(record)
 		kinds = append(kinds, typ)
 	}
+
 	return kinds
 }
 
@@ -58,6 +60,7 @@ func TestObserve_WhenTheDelayPasses_ShouldServeOnlyRecordsOlderThanIt(t *testing
 			t.Errorf("Observe after the delay = next %d, ended %v, available in %v, want next 3, not ended, now",
 				started.Next, started.Ended, started.AvailableIn)
 		}
+
 		if _, seeded := started.Records[0].Get(wire.KeySeed); seeded {
 			t.Errorf("the observed game start holds the seed")
 		}
@@ -72,6 +75,7 @@ func TestObserve_WhenTheDelayPasses_ShouldServeOnlyRecordsOlderThanIt(t *testing
 			t.Errorf("records of alice's discard up to the one she may chi, her chi timeout left out, "+
 				"differ (-want +got):\n%s", diff)
 		}
+
 		if turn.Next != started.Next+len(wantTurn) || turn.Ended {
 			t.Errorf("Observe of alice's turn = next %d, ended %v, want next %d, not ended",
 				turn.Next, turn.Ended, started.Next+len(wantTurn))
@@ -95,6 +99,7 @@ func TestObserve_WhenTheGameEnds_ShouldServeItToTheEndOnceTheEndIsOldEnoughThenE
 			if _, closed := alice.closeCode(); closed {
 				break
 			}
+
 			sleep(time.Second)
 		}
 		if _, closed := alice.closeCode(); !closed {

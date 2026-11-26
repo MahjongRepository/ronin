@@ -41,6 +41,7 @@ func daisangenRonReplay(t *testing.T) []byte {
 			act(t, dragonCaller, play.PonAction([2]tile.TileID(pair))),
 			act(t, dragonCaller, play.DiscardAction(callerDiscards[i])))
 	}
+
 	actions = append(actions,
 		act(t, dragonFeeder, play.DiscardAction(north)),
 		act(t, sou9Discarder, play.DiscardAction(sou9)),
@@ -55,7 +56,7 @@ func daisangenRonReplay(t *testing.T) []byte {
 func TestConvert_WhenADaisangenDoubleRonFollowsALiablePon_ShouldWriteEachWinFromTheScoresTheOneBeforeLeft(t *testing.T) {
 	xml := converted(t, daisangenRonReplay(t))
 
-	got := tags(xml, `<AGARI [^>]*/>`)
+	got := tags(xml, agariTags)
 	want := []string{
 		`<AGARI ba="1,1" hai="1,5,9,13,17,21,25,29,33,37,41,45,105,106" machi="105" ten="40,3900,0" yaku="24,2"` +
 			` doraHai="113" who="0" fromWho="3" sc="250,52,250,0,250,0,240,-42" />`,
@@ -94,12 +95,12 @@ func TestConvert_WhenAnAddedKanCallerWinsOnTheRinshanTile_ShouldListOnlyTheKanAm
 	}
 
 	xml := converted(t, playedReplay(t, stagedSetup(t, wall, play.Option[play.StartPosition]{}), actions))
-
-	if got := tags(xml, `<N [^>]*/>`); !slices.Equal(got, []string{`<N who="1" m="18027" />`, `<N who="1" m="18035" />`}) {
+	if got := tags(xml, callTags); !slices.Equal(got, []string{`<N who="1" m="18027" />`, `<N who="1" m="18035" />`}) {
 		t.Errorf("N tags = %q, want the pon then its added kan", got)
 	}
+
 	agari := `<AGARI ba="0,0" hai="0,4,8,12,16,20,24,28,32,116,117" m="18035" machi="117"`
-	if got := tags(xml, `<AGARI [^>]* machi="\d+"`); !slices.Equal(got, []string{agari}) {
+	if got := tags(xml, agariMachiTags); !slices.Equal(got, []string{agari}) {
 		t.Errorf("AGARI = %q, want %q", got, agari)
 	}
 }

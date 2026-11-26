@@ -56,6 +56,7 @@ func isIttsu(sequences uint64) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -81,6 +82,7 @@ func countClosedTriplets(reading hand.Reading, winBlock hand.WinBlock, tsumo boo
 	if !tsumo && isSet && set.Shape == hand.Triplet {
 		return closed - 1
 	}
+
 	return closed
 }
 
@@ -100,9 +102,11 @@ func countHonorShapes(counts [tile.KindCount]uint8, honors []tile.Kind) honorSha
 		if hasHonorSet(counts, honor) {
 			shapes.sets++
 		}
+
 		if hasHonorPair(counts, honor) {
 			shapes.pairs++
 		}
 	}
+
 	return shapes
 }

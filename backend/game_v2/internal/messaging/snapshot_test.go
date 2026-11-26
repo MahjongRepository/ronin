@@ -23,10 +23,12 @@ func snapshot(t *testing.T, g engine.Game, s tile.Seat) wire.Map {
 	if err != nil {
 		t.Fatalf("ReconnectionPayload error = %v", err)
 	}
+
 	_, err = wire.Encode(m)
 	if err != nil {
 		t.Fatalf("Encode(snapshot) error = %v", err)
 	}
+
 	return m
 }
 
@@ -36,6 +38,7 @@ func seatScores(t *testing.T, m wire.Map) []int {
 	for _, state := range field(t, m, wire.KeyPlayerStates).(wire.Array) {
 		got = append(got, int(field(t, state.(wire.Map), wire.KeyScore).(wire.Int)))
 	}
+
 	return got
 }
 
@@ -49,6 +52,7 @@ func riichiOnFirstTurn(t *testing.T, g engine.Game, riichiSeat tile.Seat) engine
 			g, _ = act(t, g, turn.Seat, play.RiichiAction(drawn))
 			return playDefaultsUntilRoundOver(t, g)
 		}
+
 		d, _ := g.Decision(turn.Seat)
 		g, _ = act(t, g, turn.Seat, d.Default)
 	}
@@ -63,6 +67,7 @@ func TestReconnectionPayload_WhenTheRoundIsOver_ShouldShowTheEndedRoundAndItsRes
 	if _, ok := fresh.Get(wire.KeyLatestDiscardSeat); ok {
 		t.Error("a snapshot before the first discard names a latest discard")
 	}
+
 	for _, c := range []struct {
 		key  wire.Key
 		want wire.Value
@@ -74,7 +79,9 @@ func TestReconnectionPayload_WhenTheRoundIsOver_ShouldShowTheEndedRoundAndItsRes
 		{wire.KeyHonba, wire.Int(0)},
 		{wire.KeyRiichiSticks, wire.Int(0)},
 	} {
-		assertMap(t, c.key.String(), wire.Map{{Key: c.key, Value: field(t, over, c.key)}}, wire.Map{{Key: c.key, Value: c.want}})
+		t.Run(c.key.String(), func(t *testing.T) {
+			assertMap(t, c.key.String(), wire.Map{{Key: c.key, Value: field(t, over, c.key)}}, wire.Map{{Key: c.key, Value: c.want}})
+		})
 	}
 	result := field(t, over, wire.KeyRoundResult).(wire.Map)
 	assertMap(t, "round result head", result[:5], wire.Map{
@@ -104,6 +111,7 @@ func TestReconnectionPayload_WhenARoundEndedBefore_ShouldListItInTheRoundHistory
 	if _, ok := m.Get(wire.KeyRoundResult); ok {
 		t.Error("a snapshot of a round in play names a round result")
 	}
+
 	assertMap(t, "honba", wire.Map{{Key: wire.KeyHonba, Value: field(t, m, wire.KeyHonba)}}, wire.Map{{Key: wire.KeyHonba, Value: wire.Int(1)}})
 	assertMap(t, "history", wire.Map{{Key: wire.KeyRoundHistory, Value: field(t, m, wire.KeyRoundHistory)}}, wire.Map{
 		{Key: wire.KeyRoundHistory, Value: wire.Array{wire.Map{

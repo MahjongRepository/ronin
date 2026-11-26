@@ -20,10 +20,12 @@ func decompress(t *testing.T, compressed []byte) []byte {
 	if err != nil {
 		t.Fatalf("gzip header: %v", err)
 	}
+
 	content, err := io.ReadAll(reader)
 	if err != nil {
 		t.Fatalf("gunzip: %v", err)
 	}
+
 	return content
 }
 
@@ -41,6 +43,7 @@ func TestDirSave_WhenGivenAReplay_ShouldStoreItGzippedInOwnerOnlyShards(t *testi
 	if err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
+
 	replays := replayfile.New(dir)
 	content := []byte("encoded replay records")
 
@@ -54,9 +57,11 @@ func TestDirSave_WhenGivenAReplay_ShouldStoreItGzippedInOwnerOnlyShards(t *testi
 	if err != nil {
 		t.Fatalf("read stored replay: %v", err)
 	}
+
 	if got := decompress(t, stored); !bytes.Equal(got, content) {
 		t.Errorf("stored replay = %q, want %q", got, content)
 	}
+
 	assertMode(t, file, 0o600)
 	for _, d := range []string{dir, filepath.Join(dir, "ab"), filepath.Join(dir, "ab", "cd")} {
 		assertMode(t, d, 0o700)
@@ -71,8 +76,9 @@ func TestDirSave_WhenGivenAReplay_ShouldStoreItGzippedInOwnerOnlyShards(t *testi
 	if err != nil || !bytes.Equal(read, stored) {
 		t.Errorf("Read = %d bytes, %v; want the %d stored bytes", len(read), err, len(stored))
 	}
-	if got, err := replayfile.Decompress(read, len(content)); err != nil || !bytes.Equal(got, content) {
-		t.Errorf("Decompress = %q, %v; want %q", got, err, content)
+
+	if got, decompressErr := replayfile.Decompress(read, len(content)); decompressErr != nil || !bytes.Equal(got, content) {
+		t.Errorf("Decompress = %q, %v; want %q", got, decompressErr, content)
 	}
 }
 
@@ -82,6 +88,7 @@ func TestDecompress_WhenTheContentIsOverTheLimit_ShouldReadOneBytePastIt(t *test
 	if err != nil {
 		t.Fatalf("Save: %v", err)
 	}
+
 	read, err := replays.Read("game-1")
 	if err != nil {
 		t.Fatalf("Read: %v", err)
@@ -104,9 +111,11 @@ func TestDirSave_WhenTheGameHasAReplay_ShouldReplaceIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
+
 	if got := decompress(t, read); string(got) != "second" {
 		t.Errorf("stored replay = %q, want the second", got)
 	}
+
 	if want := freshBestCompression(t, []byte("second")); !bytes.Equal(read, want) {
 		t.Errorf("stored replay = %x, want the bytes of a fresh best-compression writer %x", read, want)
 	}
@@ -119,12 +128,15 @@ func freshBestCompression(t *testing.T, content []byte) []byte {
 	if err == nil {
 		_, err = writer.Write(content)
 	}
+
 	if err == nil {
 		err = writer.Close()
 	}
+
 	if err != nil {
 		t.Fatalf("gzip: %v", err)
 	}
+
 	return compressed.Bytes()
 }
 
@@ -146,12 +158,14 @@ func TestDirRead_WhenTheFileIsOverTheCap_ShouldRefuseIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
+
 	for name, size := range map[string]int{"atcap": replayfile.MaxFileSize, "atcapplus1": replayfile.MaxFileSize + 1} {
 		err = os.WriteFile(filepath.Join(shard, name+".msgpack.gz"), make([]byte, size), 0o600)
 		if err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
 	}
+
 	replays := replayfile.New(dir)
 
 	atCap, err := replays.Read("atcap")
@@ -171,14 +185,17 @@ func TestDir_WhenALinkLeadsOutOfTheDirectory_ShouldNotFollowIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("write outside: %v", err)
 	}
+
 	err = os.Mkdir(filepath.Join(dir, "ga"), 0o700)
 	if err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
+
 	err = os.Symlink(outside, filepath.Join(dir, "ga", "me"))
 	if err != nil {
 		t.Fatalf("symlink: %v", err)
 	}
+
 	replays := replayfile.New(dir)
 
 	_, readErr := replays.Read("game-1")

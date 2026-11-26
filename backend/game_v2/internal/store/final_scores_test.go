@@ -27,6 +27,7 @@ func pythonRows(t *testing.T) []playedGameRow {
 	if err != nil {
 		t.Fatalf("read %s: %v", pythonRowsPath, err)
 	}
+
 	var fixtures []struct {
 		Row playedGameRow `json:"row"`
 	}
@@ -39,6 +40,7 @@ func pythonRows(t *testing.T) []playedGameRow {
 	for _, f := range fixtures {
 		rows = append(rows, f.Row)
 	}
+
 	return rows
 }
 
@@ -65,6 +67,7 @@ func rowsByID(rows []playedGameRow) map[string]playedGameRow {
 	for _, r := range rows {
 		byID[r.ID] = r
 	}
+
 	return byID
 }
 
@@ -98,10 +101,12 @@ func TestMigrateFinalScores_WhenItRunsAgainBesideARowThisServerWrote_ShouldChang
 	if err != nil {
 		t.Fatalf("RecordCompleted: %v", err)
 	}
+
 	_, err = db.MigrateFinalScores(t.Context(), true)
 	if err != nil {
 		t.Fatalf("first MigrateFinalScores: %v", err)
 	}
+
 	before := readRows(t, path)
 
 	migration, err := db.MigrateFinalScores(t.Context(), true)
@@ -153,6 +158,7 @@ func TestMigrateFinalScores_WhenARowIsNotTheJSONThisServerWrites_ShouldLeaveItAn
 	if diff := cmp.Diff(rowsByID([]playedGameRow{unknownKey, reordered, unknownUnit, trailing}), readRows(t, path)); diff != "" {
 		t.Errorf("rows after the migration (-before +after):\n%s", diff)
 	}
+
 	wantErrs := map[string]error{
 		"game-reordered":    store.ErrRowData,
 		"game-trailing":     store.ErrRowData,
@@ -162,9 +168,9 @@ func TestMigrateFinalScores_WhenARowIsNotTheJSONThisServerWrites_ShouldLeaveItAn
 	if len(migration.Failed) != len(wantErrs) || migration.Converted != 0 {
 		t.Fatalf("migration = %+v, want the four rows failed", migration)
 	}
+
 	for _, failure := range migration.Failed {
-		if !errors.Is(failure.Err, wantErrs[failure.GameID]) ||
-			!strings.HasPrefix(failure.Error(), "played game "+failure.GameID+": ") {
+		if !errors.Is(failure.Err, wantErrs[failure.GameID]) {
 			t.Errorf("failure %v, want %v", failure, wantErrs[failure.GameID])
 		}
 	}

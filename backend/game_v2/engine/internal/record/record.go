@@ -7,9 +7,9 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// FromStart returns the record of seat after the events game.New returned, the start the parity
-// tests fold later events onto; false when they lack the GameStarted or the seat's RoundStarted.
-func FromStart(seat tile.Seat, events []play.Emitted) (play.SeatRecord, bool) {
+// fromStart returns the record of seat after the events game.New returned; false when they lack
+// the GameStarted or the seat's RoundStarted.
+func fromStart(seat tile.Seat, events []play.Emitted) (play.SeatRecord, bool) {
 	var started play.GameStarted
 	var dealt play.RoundStarted
 	foundGame, foundRound := false, false
@@ -17,10 +17,12 @@ func FromStart(seat tile.Seat, events []play.Emitted) (play.SeatRecord, bool) {
 		if event, ok := e.Event.(play.GameStarted); ok && !foundGame {
 			started, foundGame = event, true
 		}
+
 		if event, ok := e.Event.(play.RoundStarted); ok && !foundRound && event.Seat == seat {
 			dealt, foundRound = event, true
 		}
 	}
+
 	if !foundGame || !foundRound {
 		return play.SeatRecord{}, false
 	}
@@ -29,6 +31,7 @@ func FromStart(seat tile.Seat, events []play.Emitted) (play.SeatRecord, bool) {
 	for _, e := range events {
 		r = Apply(r, e)
 	}
+
 	return r, true
 }
 
@@ -42,9 +45,11 @@ func startedRecord(seat tile.Seat, started play.GameStarted, header play.RoundHe
 		FirstDealer:     started.FirstDealer,
 		FirstDealerDice: started.Dice,
 	}
+
 	for _, player := range tile.Seats() {
 		r.Players[player.Index()].Seat = player
 	}
+
 	return r
 }
 
@@ -93,6 +98,7 @@ func Apply(r play.SeatRecord, e play.Emitted) play.SeatRecord {
 		r.RiichiSticks = 0
 		r.Phase = play.PhaseGameOver
 	}
+
 	return r
 }
 
@@ -103,10 +109,12 @@ func startRound(r play.SeatRecord, event play.RoundStarted) play.SeatRecord {
 	for i := range r.Players {
 		r.Players[i] = play.PublicSeat{Seat: r.Players[i].Seat, ClosedTiles: len(event.Hand)}
 	}
+
 	r.Players = withScores(r.Players, event.Scores)
 	r.DoraIndicators = slices.Clone(event.DoraIndicators)
 	r.LiveTiles = event.LiveTiles
 	r.RiichiSticks = event.Header.RiichiSticks
+
 	r.Current = event.Header.Dealer
 	r.LatestDiscard = play.Option[tile.Seat]{}
 	r.Header = event.Header
@@ -119,6 +127,7 @@ func withScores(players [tile.SeatCount]play.PublicSeat, scores [tile.SeatCount]
 	for i := range players {
 		players[i].Score = scores[i]
 	}
+
 	return players
 }
 
@@ -129,6 +138,7 @@ func draw(r play.SeatRecord, seat tile.Seat, rinshan bool) play.SeatRecord {
 	if rinshan {
 		return endEveryIppatsu(r)
 	}
+
 	r.LatestDiscard = play.Option[tile.Seat]{}
 	return r
 }
@@ -148,9 +158,11 @@ func discard(r play.SeatRecord, event play.Discarded) play.SeatRecord {
 	if event.Seat != r.Seat {
 		return r
 	}
+
 	if position := slices.Index(r.Hand, event.Tile); position >= 0 {
 		r.Hand = slices.Delete(slices.Clone(r.Hand), position, position+1)
 	}
+
 	r.Drawn = play.Option[tile.TileID]{}
 	return r
 }
@@ -177,6 +189,7 @@ func call(r play.SeatRecord, seat tile.Seat, meld play.MeldView) play.SeatRecord
 				taken = append(taken, id)
 			}
 		}
+
 		player.Melds = slices.Clone(player.Melds)
 		player.Melds[pon] = cloneMeld(meld)
 	} else {
@@ -185,6 +198,7 @@ func call(r play.SeatRecord, seat tile.Seat, meld play.MeldView) play.SeatRecord
 				taken = append(taken, id)
 			}
 		}
+
 		player.Melds = append(slices.Clip(player.Melds), cloneMeld(meld))
 	}
 
@@ -201,6 +215,7 @@ func call(r play.SeatRecord, seat tile.Seat, meld play.MeldView) play.SeatRecord
 		r.Hand = slices.DeleteFunc(slices.Clone(r.Hand), func(held tile.TileID) bool { return slices.Contains(taken, held) })
 		r.Drawn = play.Option[tile.TileID]{}
 	}
+
 	return r
 }
 
@@ -208,6 +223,7 @@ func addedPon(melds []play.MeldView, meld play.MeldView) int {
 	if meld.Kind != play.MeldAddedKan {
 		return -1
 	}
+
 	return slices.IndexFunc(melds, func(pon play.MeldView) bool {
 		return pon.Kind == play.MeldPon && pon.Called == meld.Called
 	})
@@ -219,6 +235,7 @@ func endEveryIppatsu(r play.SeatRecord) play.SeatRecord {
 			r.Players[i].Riichi.Value.Ippatsu = false
 		}
 	}
+
 	return r
 }
 
@@ -233,12 +250,14 @@ func endRound(r play.SeatRecord, event play.RoundEnded) play.SeatRecord {
 	r.LatestDiscard = play.Option[tile.Seat]{}
 	r.Phase = play.PhaseRoundOver
 	r.Result = CloneResult(event.Result)
+
 	var riichiSeats []tile.Seat
 	for _, seat := range tile.Seats() {
 		if r.Players[seat.Index()].Riichi.OK {
 			riichiSeats = append(riichiSeats, seat)
 		}
 	}
+
 	r.History = append(slices.Clip(r.History), play.FinishedRound{
 		Header:      r.Header,
 		Result:      CloneResult(event.Result),

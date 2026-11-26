@@ -30,6 +30,7 @@ func lastResult(t *testing.T, g engine.Game) play.RoundResult {
 	if len(history) == 0 {
 		t.Fatal("no round has finished")
 	}
+
 	return history[len(history)-1].Result
 }
 
@@ -37,7 +38,6 @@ func TestPlayRound_WhenTsumogiriAgentsPlayASeededRound_ShouldEndInAnExhaustiveDr
 	g, initial := newGame(t, seededSetup(t, "ab"))
 
 	err := playRound(&g, initial, tsumogiriAgents(), noSink{})
-
 	assertEqual(t, "error", err, nil)
 	record := g.View(seat(t, 0)).Record
 	assertEqual(t, "phase", record.Phase, play.PhaseRoundOver)
@@ -45,6 +45,7 @@ func TestPlayRound_WhenTsumogiriAgentsPlayASeededRound_ShouldEndInAnExhaustiveDr
 	if _, ok := lastResult(t, g).(play.ExhaustiveDraw); !ok {
 		t.Errorf("result = %#v, want an exhaustive draw", lastResult(t, g))
 	}
+
 	assertEqual(t, "invariants", g.CheckInvariants(), nil)
 }
 
@@ -65,21 +66,26 @@ func TestDefaultAction_WhenPlayedByEveryAwaitedSeatThroughASeededRound_ShouldBeA
 			seats = awaiting.Seats
 		case play.AwaitingRoundOver, play.AwaitingGameOver:
 		}
+
 		if len(seats) == 0 {
 			break
 		}
+
 		for _, s := range seats {
 			if steps >= maxRoundSteps {
 				t.Fatalf("the round did not end in %d steps", maxRoundSteps)
 			}
+
 			decision, ok := g.Decision(s)
 			if !ok || !slices.Contains(decision.Legal, decision.Default) {
 				t.Fatalf("step %d: seat %d has no decision with a legal default", steps, s.Index())
 			}
+
 			g, _ = act(t, g, s, decision.Default)
 			if err := g.CheckInvariants(); err != nil {
 				t.Fatalf("after step %d: %v", steps, err)
 			}
+
 			steps++
 		}
 	}
@@ -99,6 +105,7 @@ func (w *handWatcher) observe(event play.Emitted) error {
 		w.dealtSeats = append(w.dealtSeats, started.Seat)
 		w.dealtHands = append(w.dealtHands, started.Hand)
 	}
+
 	return nil
 }
 
@@ -106,6 +113,7 @@ func (w *handWatcher) decide(decision play.Decision) (play.Action, error) {
 	if !w.handsSeenAtFirstChoice.OK {
 		w.handsSeenAtFirstChoice = play.Some(len(w.dealtHands))
 	}
+
 	w.decisions++
 	return decision.Default, nil
 }
@@ -125,7 +133,6 @@ func TestPlayRound_ShouldShowEachAgentItsHandBeforeItDecidesAndTheSinkEveryDealF
 	sink := &recorder{}
 
 	err := playRound(&g, initial, agents{watchers[0], watchers[1], watchers[2], watchers[3]}, sink)
-
 	assertEqual(t, "error", err, nil)
 	dealt, _ := newGame(t, seededSetup(t, "ab"))
 	for _, s := range tile.Seats() {
@@ -142,6 +149,7 @@ func TestPlayRound_ShouldShowEachAgentItsHandBeforeItDecidesAndTheSinkEveryDealF
 	if firstDraw < 0 {
 		t.Fatal("the sink saw no draw")
 	}
+
 	var dealtSeats []tile.Seat
 	allDealt := 0
 	for i, e := range sink.events {
@@ -152,6 +160,7 @@ func TestPlayRound_ShouldShowEachAgentItsHandBeforeItDecidesAndTheSinkEveryDealF
 			}
 		}
 	}
+
 	every := tile.Seats()
 	assertEqual(t, "seats dealt before the first draw", dealtSeats, every[:])
 	assertEqual(t, "deals", allDealt, tile.SeatCount)
@@ -169,6 +178,7 @@ func (unheldDiscarder) decide(decision play.Decision) (play.Action, error) {
 			return play.DiscardAction(candidate), nil
 		}
 	}
+
 	return play.Action{}, errors.New("every tile is held")
 }
 
@@ -187,6 +197,7 @@ func TestPlayRound_WhenTheEngineRefusesAnAgentsAction_ShouldStopWithoutFallingBa
 			break
 		}
 	}
+
 	assertEqual[error](t, "error", err, refusedError{
 		seat:    dealer,
 		action:  play.DiscardAction(unheld),
@@ -208,7 +219,6 @@ func TestPlayRound_WhenTsumogiriAgentsPlayADealerTsumoWall_ShouldEndInTheDealers
 	g, initial := newGame(t, fixedSetup(t, w))
 
 	err := playRound(&g, initial, tsumogiriAgents(), noSink{})
-
 	assertEqual(t, "error", err, nil)
 	assertEqual(t, "rounds", len(g.View(seat(t, 0)).Record.History), 1)
 	tsumo, ok := lastResult(t, g).(play.Tsumo)
@@ -223,6 +233,7 @@ func (failsOnItsDeal) observe(event play.Emitted) error {
 	if _, ok := event.Event.(play.RoundStarted); ok {
 		return errObserveFailed
 	}
+
 	return nil
 }
 
@@ -235,13 +246,13 @@ func TestDeliverEvents_WhenAnAgentFailsMidBatch_ShouldStillHaveRecordedTheWholeB
 	sink := &recorder{}
 
 	err := deliverEvents(initial, agents{tsumogiri{}, failsOnItsDeal{}, tsumogiri{}, tsumogiri{}}, sink)
-
 	assertEqual[error](t, "error", err, agentFailedError{seat: seat(t, 1), err: errObserveFailed})
 	last := initial[len(initial)-1]
 	to, single := last.To.Seat()
 	if _, dealt := last.Event.(play.RoundStarted); !dealt || !single || to != seat(t, 3) {
 		t.Errorf("last initial event = %#v, want seat 3's deal", last)
 	}
+
 	assertEqual(t, "recorded", sink.events, initial)
 }
 
@@ -253,6 +264,7 @@ func (s *failsOnSecondEvent) record(event play.Emitted) error {
 	if len(s.events) == 1 {
 		return errRecordFailed
 	}
+
 	s.events = append(s.events, event)
 	return nil
 }
@@ -276,7 +288,6 @@ func TestDeliverEvents_WhenTheSinkFails_ShouldStopBeforeAnyAgentObservesTheBatch
 	sink := &failsOnSecondEvent{}
 
 	err := deliverEvents(initial, agents{observers[0], observers[1], observers[2], observers[3]}, sink)
-
 	assertEqual[error](t, "error", err, sinkFailedError{err: errRecordFailed})
 	assertEqual(t, "recorded", sink.events, initial[:1])
 	var observed [tile.SeatCount]int
@@ -290,7 +301,6 @@ func TestPlayGame_WhenItsFixedWallsRunOut_ShouldEndTheGame(t *testing.T) {
 	g, initial := newGame(t, fixedSetup(t, notenWall(t)))
 
 	standings, err := playGame(&g, initial, tsumogiriAgents(), noSink{}, maxRoundSteps)
-
 	assertEqual(t, "error", err, nil)
 	assertEqual(t, "cause", standings.Cause, play.EndFixedWallsDealt)
 	assertEqual(t, "rounds", len(g.View(seat(t, 0)).Record.History), 1)
@@ -302,7 +312,6 @@ func TestPlayGameChecked_ShouldEndWithTheStandingsOfTheUncheckedGame(t *testing.
 
 	checkedStandings, checkedErr := playGameChecked(&checked, initial, tsumogiriAgents(), noSink{}, maxGameSteps)
 	standings, err := playGame(&unchecked, initial, tsumogiriAgents(), noSink{}, maxGameSteps)
-
 	assertEqual(t, "errors", [2]error{checkedErr, err}, [2]error{})
 	assertEqual(t, "standings", checkedStandings, standings)
 	assertEqual(t, "invariants", checked.CheckInvariants(), nil)
@@ -319,7 +328,6 @@ func TestPlayGameChecked_WhenTheGameStartsFromAPosition_ShouldCountThePointsItBr
 	g, initial := newGame(t, setup)
 
 	standings, err := playGameChecked(&g, initial, tsumogiriAgents(), noSink{}, maxGameSteps)
-
 	assertEqual(t, "error", err, nil)
 	assertEqual(t, "final score total", scoreTotal(standings.Scores), tablePoints)
 }

@@ -16,37 +16,43 @@ func TestLimitString_ShouldNameEachLimit(t *testing.T) {
 		play.Limit(5):       "play.Limit(5)",
 	} {
 		if got := limit.String(); got != want {
-			t.Errorf("String = %q, want %q", got, want)
+			t.Errorf("Limit(%d).String = %q, want %q", limit, got, want)
 		}
 	}
 }
 
 func TestValueString_ShouldShowHanAndFuOrTheYakumanCount(t *testing.T) {
 	for _, c := range []struct {
+		name  string
 		value play.Value
 		want  string
 	}{
-		{play.Han{Han: 3, Fu: 30}, "3 han, 30 fu"},
-		{play.Yakuman{Count: 1, Fu: play.Some(40)}, "yakuman"},
-		{play.Yakuman{Count: 2}, "2x yakuman"},
+		{name: "han and fu", value: play.Han{Han: 3, Fu: 30}, want: "3 han, 30 fu"},
+		{name: "single yakuman", value: play.Yakuman{Count: 1, Fu: play.Some(40)}, want: "yakuman"},
+		{name: "double yakuman", value: play.Yakuman{Count: 2}, want: "2x yakuman"},
 	} {
-		if got := c.value.String(); got != c.want {
-			t.Errorf("String = %q, want %q", got, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.value.String(); got != c.want {
+				t.Errorf("String = %q, want %q", got, c.want)
+			}
+		})
 	}
 }
 
 func TestPaymentSum_ShouldAddWhatEveryPayerPays(t *testing.T) {
 	for _, c := range []struct {
+		name    string
 		payment play.Payment
 		want    int
 	}{
-		{play.RonPayment{Discarder: 7700}, 7700},
-		{play.TsumoPayment{Dealer: 3900, NonDealer: 2000}, 7900},
-		{play.DealerTsumoPayment{NonDealer: 4000}, 12000},
+		{name: "ron", payment: play.RonPayment{Discarder: 7700}, want: 7700},
+		{name: "tsumo", payment: play.TsumoPayment{Dealer: 3900, NonDealer: 2000}, want: 7900},
+		{name: "dealer tsumo", payment: play.DealerTsumoPayment{NonDealer: 4000}, want: 12000},
 	} {
-		if got := c.payment.Sum(); got != c.want {
-			t.Errorf("%#v Sum = %d, want %d", c.payment, got, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.payment.Sum(); got != c.want {
+				t.Errorf("%#v Sum = %d, want %d", c.payment, got, c.want)
+			}
+		})
 	}
 }

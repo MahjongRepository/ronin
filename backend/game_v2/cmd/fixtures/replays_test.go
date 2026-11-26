@@ -18,7 +18,6 @@ func TestStagedGame_WhenAStagedDrawNamesAnotherSeat_ShouldFailNamingTheDraw(t *t
 			g.tsumogiri(0)
 			g.kyuushu(1)
 		})
-
 	assertFailureNames(t, err, "seat 1 drew staged draw 1 (staged for seat 3)")
 }
 
@@ -38,6 +37,7 @@ func TestCutAfter_WhenTheEventOpensACall_ShouldKeepTheWholeCall(t *testing.T) {
 		event, _ := record.Int(wire.KeyEventType)
 		tail = append(tail, event)
 	}
+
 	want := []int{int(wire.EventMeld), int(wire.EventDoraRevealed), int(wire.EventDraw)}
 	if diff := cmp.Diff(want, tail); diff != "" {
 		t.Errorf("the cut's last records (-want +got):\n%s", diff)

@@ -54,6 +54,7 @@ func (h *handTiles) keep(kept func(tile.TileID) bool) {
 			count++
 		}
 	}
+
 	clear(h.tiles[count:h.count])
 	h.count = count
 	h.waitsUntilHandMoves = play.Option[tile.Kinds]{}
@@ -85,5 +86,6 @@ func (m *seatMelds) addToPon(id tile.TileID) play.MeldView {
 			m.views[i] = added
 		}
 	}
+
 	return added
 }

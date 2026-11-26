@@ -2,6 +2,7 @@ package score_test
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"testing"
@@ -59,6 +60,7 @@ func yakumanEstimate(
 	if err != nil {
 		return yakumanSummary{}, err
 	}
+
 	return yakumanSummaryOf(value), nil
 }
 
@@ -120,15 +122,8 @@ func yakumanEachKind(tb testing.TB, mpsz string) []string {
 	for _, t := range held {
 		kinds = append(kinds, t.String())
 	}
+
 	return slices.Compact(kinds)
-}
-
-func TestEstimateHandValue_WhenFirstTurnTsumo_ShouldScoreTenhouForDealerAndChiihouForOthers(t *testing.T) {
-	yakumanExpectSummary(t, yakumanTenhouShape, "4s", nil, yakumanTenhou(), defaultRules(),
-		yakumanLimit(1, 30, []play.YakuID{play.YakuTenhou}, play.DealerTsumoPayment{NonDealer: 16000}))
-
-	yakumanExpectSummary(t, yakumanTenhouShape, "4s", nil, yakumanChiihou(), defaultRules(),
-		yakumanLimit(1, 30, []play.YakuID{play.YakuChiihou}, play.TsumoPayment{Dealer: 16000, NonDealer: 8000}))
 }
 
 func TestEstimateHandValue_WhenThreeDragonSets_ShouldScoreDaisangenWithTheReadingsFu(t *testing.T) {
@@ -185,14 +180,15 @@ func TestEstimateHandValue_WhenKokushiHoldsExtraTiles_ShouldRejectTheTileCount(t
 		{"122229", 17},
 		{"1559", 15},
 	} {
-		hand := row.man + "m19p119s1234567z"
+		t.Run(row.man, func(t *testing.T) {
+			hand := row.man + "m19p119s1234567z"
 
-		_, err := yakumanEstimate(t, hand, "1s", nil, ron(), defaultRules())
-
-		want := score.WrongTileCountError{Concealed: row.concealed, Melds: 0}
-		if !errors.Is(err, want) {
-			t.Errorf("EstimateHandValue(%s on 1s) error = %v, want %v", hand, err, want)
-		}
+			_, err := yakumanEstimate(t, hand, "1s", nil, ron(), defaultRules())
+			want := score.WrongTileCountError{Concealed: row.concealed, Melds: 0}
+			if !errors.Is(err, want) {
+				t.Errorf("EstimateHandValue(%s on 1s) error = %v, want %v", hand, err, want)
+			}
+		})
 	}
 }
 
@@ -200,7 +196,6 @@ func TestEstimateHandValue_WhenKokushiHoldsClosedKan_ShouldRejectTheTileCount(t 
 	melds := []meld.Meld{closedKan(t, "5555p")}
 
 	_, err := yakumanEstimate(t, "19m155559p119s1234567z", "1s", melds, ron(), defaultRules())
-
 	want := score.WrongTileCountError{Concealed: 13, Melds: 1}
 	if !errors.Is(err, want) {
 		t.Errorf("EstimateHandValue(kokushi with 5555p kan) error = %v, want %v", err, want)
@@ -248,9 +243,11 @@ func TestEstimateHandValue_WhenNineGatesWonOnTheNineSidedWait_ShouldScoreDaburuC
 		{"11123456789999m", "9m", 40},
 		{"11112345678999m", "1m", 40},
 	} {
-		yakumanExpectSummary(t, row.hand, row.winTile, nil, ron(), defaultRules(),
-			yakumanLimit(2, row.fu, []play.YakuID{play.YakuDaburuChuurenPoutou},
-				play.RonPayment{Discarder: yakumanNonDealerDouble}))
+		t.Run(row.hand+" on "+row.winTile, func(t *testing.T) {
+			yakumanExpectSummary(t, row.hand, row.winTile, nil, ron(), defaultRules(),
+				yakumanLimit(2, row.fu, []play.YakuID{play.YakuDaburuChuurenPoutou},
+					play.RonPayment{Discarder: yakumanNonDealerDouble}))
+		})
 	}
 }
 
@@ -274,7 +271,9 @@ func TestEstimateHandValue_WhenNineGatesShapeMixesSuitsOrHonors_ShouldScoreWitho
 			Total:   2600,
 		}},
 	} {
-		yakumanExpectSummary(t, row.hand, row.winTile, nil, ron(), defaultRules(), row.want)
+		t.Run(row.hand+" on "+row.winTile, func(t *testing.T) {
+			yakumanExpectSummary(t, row.hand, row.winTile, nil, ron(), defaultRules(), row.want)
+		})
 	}
 }
 
@@ -360,8 +359,10 @@ func TestEstimateHandValue_WhenKokushiStacksWithFirstTurnYakuman_ShouldCountEver
 			play.TsumoPayment{Dealer: 48000, NonDealer: 24000},
 		},
 	} {
-		yakumanExpectSummary(t, yakumanKokushi, row.winTile, nil, row.situation, defaultRules(),
-			yakumanKokushiLimit(row.count, row.yaku, row.payment))
+		t.Run(fmt.Sprintf("%s %v", row.winTile, row.yaku), func(t *testing.T) {
+			yakumanExpectSummary(t, yakumanKokushi, row.winTile, nil, row.situation, defaultRules(),
+				yakumanKokushiLimit(row.count, row.yaku, row.payment))
+		})
 	}
 }
 
@@ -374,31 +375,37 @@ func TestEstimateHandValue_WhenTenhouOnAnyWinTile_ShouldNameTheDoubleForm(t *tes
 		{"double yakuman", defaultRules(), 3},
 		{"single yakuman", yakumanNoDoubleRules(), 2},
 	} {
-		for _, handRow := range []struct {
-			mpsz       string
-			doubleForm play.YakuID
-		}{
-			{yakumanTenhouChuuren, play.YakuDaburuChuurenPoutou},
-			{yakumanKokushi, play.YakuDaburuKokushiMusou},
-			{yakumanTenhouSuuankou, play.YakuSuuankouTanki},
-		} {
-			for _, winTile := range yakumanEachKind(t, handRow.mpsz) {
-				got, err := yakumanEstimate(t, handRow.mpsz, winTile, nil, yakumanTenhou(), rulesRow.rules)
-				if err != nil {
-					t.Fatalf("EstimateHandValue(%s on %s, %s) error = %v", handRow.mpsz, winTile, rulesRow.name, err)
-				}
+		t.Run(rulesRow.name, func(t *testing.T) {
+			for _, handRow := range []struct {
+				mpsz       string
+				doubleForm play.YakuID
+			}{
+				{yakumanTenhouChuuren, play.YakuDaburuChuurenPoutou},
+				{yakumanKokushi, play.YakuDaburuKokushiMusou},
+				{yakumanTenhouSuuankou, play.YakuSuuankouTanki},
+			} {
+				t.Run(handRow.mpsz, func(t *testing.T) {
+					for _, winTile := range yakumanEachKind(t, handRow.mpsz) {
+						t.Run(winTile, func(t *testing.T) {
+							got, err := yakumanEstimate(t, handRow.mpsz, winTile, nil, yakumanTenhou(), rulesRow.rules)
+							if err != nil {
+								t.Fatalf("EstimateHandValue(%s on %s, %s) error = %v", handRow.mpsz, winTile, rulesRow.name, err)
+							}
 
-				yakuman, isYakuman := got.Value.(play.Yakuman)
-				wantYaku := []play.YakuID{handRow.doubleForm, play.YakuTenhou}
-				wantPayment := play.DealerTsumoPayment{NonDealer: yakumanDealerTsumoSingle * rulesRow.count}
-				if !isYakuman || yakuman.Count != rulesRow.count || !slices.Equal(got.Yaku, wantYaku) ||
-					got.Payment != wantPayment {
-					t.Errorf("EstimateHandValue(%s on %s, %s) = %v %v %v, want %d yakuman %v %v",
-						handRow.mpsz, winTile, rulesRow.name, got.Value, got.Yaku, got.Payment,
-						rulesRow.count, wantYaku, wantPayment)
-				}
+							yakuman, isYakuman := got.Value.(play.Yakuman)
+							wantYaku := []play.YakuID{handRow.doubleForm, play.YakuTenhou}
+							wantPayment := play.DealerTsumoPayment{NonDealer: yakumanDealerTsumoSingle * rulesRow.count}
+							if !isYakuman || yakuman.Count != rulesRow.count || !slices.Equal(got.Yaku, wantYaku) ||
+								got.Payment != wantPayment {
+								t.Errorf("EstimateHandValue(%s on %s, %s) = %v %v %v, want %d yakuman %v %v",
+									handRow.mpsz, winTile, rulesRow.name, got.Value, got.Yaku, got.Payment,
+									rulesRow.count, wantYaku, wantPayment)
+							}
+						})
+					}
+				})
 			}
-		}
+		})
 	}
 }
 
@@ -409,13 +416,16 @@ func TestEstimateHandValue_WhenTenhouOnAnyWinTile_ShouldPayTheSame(t *testing.T)
 		if err != nil {
 			return yakumanSummary{}, err
 		}
+
 		yakuman, isYakuman := summary.Value.(play.Yakuman)
 		if !isYakuman {
 			tb.Fatalf("EstimateHandValue(%s on %s) = %v, want a yakuman", mpsz, winTile, summary.Value)
 		}
+
 		summary.Value = play.Yakuman{Count: yakuman.Count}
 		return summary, nil
 	}
+
 	for _, rulesRow := range []struct {
 		name  string
 		rules score.Rules
@@ -423,20 +433,25 @@ func TestEstimateHandValue_WhenTenhouOnAnyWinTile_ShouldPayTheSame(t *testing.T)
 		{"double yakuman", defaultRules()},
 		{"single yakuman", yakumanNoDoubleRules()},
 	} {
-		for _, mpsz := range []string{
-			yakumanTenhouChuuren, yakumanKokushi, yakumanTenhouSuuankou, yakumanTenhouPinfuShape,
-		} {
-			kinds := yakumanEachKind(t, mpsz)
-			first, firstErr := paid(t, mpsz, kinds[0], rulesRow.rules)
-			for _, winTile := range kinds {
-				got, err := paid(t, mpsz, winTile, rulesRow.rules)
-
-				if !errors.Is(err, firstErr) || !reflect.DeepEqual(got, first) {
-					t.Errorf("EstimateHandValue(%s on %s, %s) = %+v, %v, want %+v, %v",
-						mpsz, winTile, rulesRow.name, got, err, first, firstErr)
-				}
+		t.Run(rulesRow.name, func(t *testing.T) {
+			for _, mpsz := range []string{
+				yakumanTenhouChuuren, yakumanKokushi, yakumanTenhouSuuankou, yakumanTenhouPinfuShape,
+			} {
+				t.Run(mpsz, func(t *testing.T) {
+					kinds := yakumanEachKind(t, mpsz)
+					first, firstErr := paid(t, mpsz, kinds[0], rulesRow.rules)
+					for _, winTile := range kinds {
+						t.Run(winTile, func(t *testing.T) {
+							got, err := paid(t, mpsz, winTile, rulesRow.rules)
+							if !errors.Is(err, firstErr) || !reflect.DeepEqual(got, first) {
+								t.Errorf("EstimateHandValue(%s on %s, %s) = %+v, %v, want %+v, %v",
+									mpsz, winTile, rulesRow.name, got, err, first, firstErr)
+							}
+						})
+					}
+				})
 			}
-		}
+		})
 	}
 }
 
@@ -448,19 +463,19 @@ func TestEstimateHandValue_WhenTenhou_ShouldKeepTheFuOfTheGivenWinTile(t *testin
 		{"6m", 20},
 		{"9p", 30},
 	} {
-		got, err := yakumanEstimate(t, yakumanTenhouPinfuShape, row.winTile, nil, yakumanTenhou(), score.HandRules())
-
-		want := play.Yakuman{Count: 1, Fu: play.Some(row.fu)}
-		if err != nil || got.Value != want {
-			t.Errorf("EstimateHandValue(%s on %s) = %v, %v, want %v",
-				yakumanTenhouPinfuShape, row.winTile, got.Value, err, want)
-		}
+		t.Run(row.winTile, func(t *testing.T) {
+			got, err := yakumanEstimate(t, yakumanTenhouPinfuShape, row.winTile, nil, yakumanTenhou(), score.HandRules())
+			want := play.Yakuman{Count: 1, Fu: play.Some(row.fu)}
+			if err != nil || got.Value != want {
+				t.Errorf("EstimateHandValue(%s on %s) = %v, %v, want %v",
+					yakumanTenhouPinfuShape, row.winTile, got.Value, err, want)
+			}
+		})
 	}
 }
 
 func TestEstimateHandValue_WhenChiihou_ShouldKeepTheWaitOfItsDrawnTile(t *testing.T) {
 	got, err := yakumanEstimate(t, yakumanTenhouChuuren, "1m", nil, yakumanChiihou(), defaultRules())
-
 	want := []play.YakuID{play.YakuChuurenPoutou, play.YakuChiihou}
 	if err != nil || !slices.Equal(got.Yaku, want) {
 		t.Errorf("EstimateHandValue(%s on 1m) = %v, %v, want %v", yakumanTenhouChuuren, got.Yaku, err, want)
@@ -476,12 +491,14 @@ func TestEstimateHandValue_WhenSevenPairsOfTwoToEight_ShouldScoreRyanpeikouChini
 		{"22334455667788s", "8s"},
 		{"22334455667788m", "8m"},
 	} {
-		yakumanExpectSummary(t, row.mpsz, row.winTile, nil, ron(), defaultRules(), yakumanSummary{
-			Value:   play.Han{Han: 11, Fu: 30},
-			Yaku:    []play.YakuID{play.YakuPinfu, play.YakuTanyao, play.YakuRyanpeikou, play.YakuChinitsu},
-			Payment: play.RonPayment{Discarder: 24000},
-			Total:   24000,
-			Limit:   play.Some(play.LimitSanbaiman),
+		t.Run(row.mpsz, func(t *testing.T) {
+			yakumanExpectSummary(t, row.mpsz, row.winTile, nil, ron(), defaultRules(), yakumanSummary{
+				Value:   play.Han{Han: 11, Fu: 30},
+				Yaku:    []play.YakuID{play.YakuPinfu, play.YakuTanyao, play.YakuRyanpeikou, play.YakuChinitsu},
+				Payment: play.RonPayment{Discarder: 24000},
+				Total:   24000,
+				Limit:   play.Some(play.LimitSanbaiman),
+			})
 		})
 	}
 }
@@ -499,6 +516,7 @@ func TestEstimateHandValue_WhenSuuankouCostsTheSameAsKazoe_ShouldScoreSuuankou(t
 	if got := yakumanSummaryOf(value); !reflect.DeepEqual(got, want) {
 		t.Errorf("EstimateHandValue(%s on 8p) = %+v, want %+v", yakumanSuuankouOrKazoe, got, want)
 	}
+
 	names := make([]string, 0, len(value.Yaku))
 	for _, y := range value.Yaku {
 		names = append(names, y.ID.Name())

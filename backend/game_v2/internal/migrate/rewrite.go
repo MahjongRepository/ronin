@@ -79,6 +79,7 @@ func (e RewriteError) Error() string {
 	if e.Record == 0 {
 		return e.Kind.String() + ": " + e.Err.Error()
 	}
+
 	return e.Kind.String() + " at record " + strconv.Itoa(e.Record) + ": " + e.Err.Error()
 }
 
@@ -100,6 +101,7 @@ func Rewrite(content []byte) (Rewritten, error) {
 	if err != nil && !cut {
 		return Rewritten{}, RewriteError{Kind: FailureUnreadable, Err: err}
 	}
+
 	version, _ := records[0].Get(wire.KeyReplayVersion)
 	if len(records[0]) != 1 || version != wire.Str(legacyVersion) {
 		return Rewritten{}, RewriteError{Kind: FailureVersion, Record: 1, Err: errors.New("not a 0.4-dev version record")}
@@ -117,12 +119,14 @@ func Rewrite(content []byte) (Rewritten, error) {
 	if err != nil {
 		return Rewritten{}, RewriteError{Kind: FailureEncode, Err: err}
 	}
+
 	if r.gameEnded {
 		_, err = tenhou.Convert(rewritten)
 		if err != nil {
 			return Rewritten{}, RewriteError{Kind: FailureExport, Err: err}
 		}
 	}
+
 	return Rewritten{Content: rewritten, Transforms: r.transforms(), GameEnded: r.gameEnded, Cut: cut}, nil
 }
 
@@ -142,6 +146,7 @@ func (r *rewriter) transforms() []Transform {
 			applied = append(applied, t)
 		}
 	}
+
 	return applied
 }
 
@@ -149,6 +154,7 @@ func (r *rewriter) add(record wire.Map) (FailureKind, error) {
 	if r.gameEnded {
 		return FailureShape, errors.New("a record after the game end")
 	}
+
 	err := checkLegacyShape(record)
 	if err != nil {
 		return FailureShape, err
@@ -170,9 +176,11 @@ func (r *rewriter) add(record wire.Map) (FailureKind, error) {
 		wire.EventSeatControl, wire.EventCallPrompt, wire.EventError, wire.EventFuriten, wire.EventTurn,
 		wire.EventDrawNotice, wire.EventPaoAssigned:
 	}
+
 	if err != nil {
 		return FailureInconsistent, err
 	}
+
 	r.out = append(r.out, record)
 	return 0, nil
 }
@@ -198,10 +206,12 @@ func (r *rewriter) called(record wire.Map) error {
 		if i < 0 {
 			return errors.New("an added kan of no pon of its seat")
 		}
+
 		r.melds[seat] = slices.Concat(earlier[:i], []wire.Meld{meld}, earlier[i+1:])
 	} else {
 		r.melds[seat] = append(slices.Clone(earlier), meld)
 	}
+
 	r.out = append(r.out, record)
 
 	liable := paoOf(earlier, meld)
@@ -214,6 +224,7 @@ func (r *rewriter) called(record wire.Map) error {
 			{Key: wire.KeyPaoSeat, Value: wire.Int(liable.Value.Index())},
 		})
 	}
+
 	return nil
 }
 
@@ -243,9 +254,11 @@ func paoOf(earlier []wire.Meld, meld wire.Meld) play.Option[tile.Seat] {
 			held++
 		}
 	}
+
 	if held != len(set)-1 {
 		return play.Option[tile.Seat]{}
 	}
+
 	return meld.From
 }
 
@@ -255,6 +268,7 @@ func (r *rewriter) roundEnded(record wire.Map) error {
 		if err != nil {
 			return err
 		}
+
 		r.declareRobbedKan(kan)
 		record = without(record, wire.KeyRobbedKan)
 	}
@@ -271,6 +285,7 @@ func (r *rewriter) roundEnded(record wire.Map) error {
 		if err != nil {
 			return err
 		}
+
 		record = ronOfOneWin(record)
 		r.applied[TransformRon] = true
 	case legacyDoubleRon:
@@ -281,6 +296,7 @@ func (r *rewriter) roundEnded(record wire.Map) error {
 				return err
 			}
 		}
+
 		record = withResult(record, wire.ResultRon)
 		r.applied[TransformDoubleRon] = true
 	case legacyNagashi:
@@ -288,6 +304,7 @@ func (r *rewriter) roundEnded(record wire.Map) error {
 		r.applied[TransformNagashi] = true
 	case wire.ResultExhaustiveDraw, wire.ResultAbortiveDraw:
 	}
+
 	r.out = append(r.out, record)
 	return nil
 }
@@ -316,6 +333,7 @@ func (r *rewriter) robbedKan(robbed wire.Value, roundEnd wire.Map) (wire.Map, er
 		if i < 0 {
 			return nil, errors.New("a robbed added kan of no pon of its seat")
 		}
+
 		meld = r.melds[seat.Index()][i]
 		meld.Kind, meld.Tiles, meld.Added = play.MeldAddedKan, append(slices.Clone(meld.Tiles), id), play.Some(id)
 	case wire.Str(legacyClosedKan):
@@ -328,6 +346,7 @@ func (r *rewriter) robbedKan(robbed wire.Value, roundEnd wire.Map) (wire.Map, er
 	if err != nil {
 		return nil, err
 	}
+
 	return wire.Map{
 		{Key: wire.KeyEventType, Value: wire.Int(wire.EventMeld)},
 		{Key: wire.KeyPackedMeld, Value: wire.Int(packed)},
@@ -341,6 +360,7 @@ func copiesOf(kind tile.Kind) []tile.TileID {
 			ids = append(ids, id)
 		}
 	}
+
 	return ids
 }
 
@@ -351,8 +371,10 @@ func (r *rewriter) declareRobbedKan(kan wire.Map) {
 		if wire.EventType(event) != wire.EventSeatControl {
 			break
 		}
+
 		at--
 	}
+
 	r.out = slices.Insert(r.out, at, kan)
 	r.applied[TransformRobbedKan] = true
 }
@@ -363,11 +385,13 @@ func (r *rewriter) checkPao(win wire.Map) error {
 	if !ok {
 		return errors.New("a win of no seat")
 	}
+
 	liable, hasPao := intOf(win, wire.KeyPaoSeat)
 	derived := r.pao[winner.Index()]
 	if derived.OK != hasPao || (hasPao && derived.Value.Index() != liable) {
 		return errors.New("a win's pao seat differs from the one its calls set")
 	}
+
 	return nil
 }
 
@@ -380,6 +404,7 @@ func (r *rewriter) gameEnd(record wire.Map) error {
 		if !ok {
 			return errors.New("a standing with no final score")
 		}
+
 		scored = append(scored, replaced(standing, wire.KeyFinalScore, wire.Int(final*store.FinalScoreFactor)))
 	}
 
@@ -406,6 +431,7 @@ func picked(m wire.Map, keys []wire.Key) wire.Map {
 			out = append(out, wire.Field{Key: k, Value: v})
 		}
 	}
+
 	return out
 }
 
@@ -416,6 +442,7 @@ func replaced(m wire.Map, k wire.Key, v wire.Value) wire.Map {
 			out[i].Value = v
 		}
 	}
+
 	return out
 }
 

@@ -26,6 +26,7 @@ func meldCode(m wire.Meld) (int, error) {
 	for _, t := range m.Tiles {
 		tiles = append(tiles, t.Index())
 	}
+
 	slices.Sort(tiles)
 	if len(tiles) == 0 {
 		return 0, errMeldShape
@@ -35,6 +36,7 @@ func meldCode(m wire.Meld) (int, error) {
 	if m.From.OK {
 		offset = m.From.Value.DistanceFrom(m.Caller)
 	}
+
 	kind := tiles[0] / tile.CopiesPerKind
 	switch m.Kind {
 	case play.MeldChi:
@@ -42,6 +44,7 @@ func meldCode(m wire.Meld) (int, error) {
 		if len(tiles) != setTiles || called < 0 {
 			return 0, errMeldShape
 		}
+
 		start := kind/ranksPerSuit*chiStartsPerSuit + kind%ranksPerSuit
 		return (start*setTiles+called)<<10 | copyIndex(tiles[2])<<7 | copyIndex(tiles[1])<<5 | copyIndex(tiles[0])<<3 |
 			meldChiFlag | offset, nil
@@ -50,27 +53,32 @@ func meldCode(m wire.Meld) (int, error) {
 		if len(tiles) != setTiles || called < 0 {
 			return 0, errMeldShape
 		}
+
 		unused := copySum - copyIndex(tiles[0]) - copyIndex(tiles[1]) - copyIndex(tiles[2])
 		return (kind*setTiles+called)<<9 | unused<<5 | meldPonFlag | offset, nil
 	case play.MeldAddedKan:
 		if !m.Added.OK {
 			return 0, errMeldShape
 		}
+
 		added := m.Added.Value.Index()
 		pon := slices.DeleteFunc(slices.Clone(tiles), func(t int) bool { return t == added })
 		called := calledIndex(m, pon)
 		if len(pon) != setTiles || called < 0 {
 			return 0, errMeldShape
 		}
+
 		return (kind*setTiles+called)<<9 | copyIndex(added)<<5 | meldAddedKanFlag | offset, nil
 	case play.MeldOpenKan:
 		if !m.Called.OK {
 			return 0, errMeldShape
 		}
+
 		return m.Called.Value.Index()<<8 | offset, nil
 	case play.MeldClosedKan:
 		return (kind * tile.CopiesPerKind) << 8, nil
 	}
+
 	return 0, errMeldShape
 }
 
@@ -78,6 +86,7 @@ func calledIndex(m wire.Meld, tiles []int) int {
 	if !m.Called.OK {
 		return -1
 	}
+
 	return slices.Index(tiles, m.Called.Value.Index())
 }
 

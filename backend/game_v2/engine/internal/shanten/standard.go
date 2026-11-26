@@ -31,6 +31,7 @@ func hash(counts []uint8, table [][15][5]uint32) int {
 		tiles += int(count)
 		h += int(table[i][tiles][count])
 	}
+
 	return h
 }
 
@@ -61,6 +62,7 @@ func updateDP(lhs *unpackedNumbers, rhs unpackedNumbers) {
 		for j := 1; j < i; j++ {
 			r = min(r, lhs[j]+rhs[i-j])
 		}
+
 		lhs[i] = r
 	}
 }
@@ -71,6 +73,7 @@ func updateDPFinal(lhs *unpackedNumbers, rhs unpackedNumbers) {
 		for j := pairedOffset; j < i; j++ {
 			r = min(r, lhs[j]+rhs[i-j], lhs[i-j]+rhs[j])
 		}
+
 		lhs[i] = r
 	}
 }

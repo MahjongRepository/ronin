@@ -3,6 +3,7 @@ package rng
 import (
 	"crypto/sha3"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"testing"
 
@@ -23,6 +24,7 @@ func (s *scriptedWords) next() uint64 {
 	if len(s.words) == 0 {
 		s.t.Fatal("the script has no word left")
 	}
+
 	word := s.words[0]
 	s.words = s.words[1:]
 	return word
@@ -33,6 +35,7 @@ func littleEndianWords(digest []byte) []uint64 {
 	for start := 0; start+wordBytes <= len(digest); start += wordBytes {
 		words = append(words, binary.LittleEndian.Uint64(digest[start:]))
 	}
+
 	return words
 }
 
@@ -98,6 +101,7 @@ func TestShuffle_WhenFedAStream_ShouldPermuteAllTiles(t *testing.T) {
 	for _, id := range tiles {
 		seen[id.Index()] = true
 	}
+
 	for n, ok := range seen {
 		if !ok {
 			t.Errorf("tile %d is missing", n)
@@ -117,8 +121,10 @@ func TestRollDice_ShouldMapEachWordToADieFace(t *testing.T) {
 		{[]uint64{7, 11}, tile.Dice{First: 2, Second: 6}},
 	}
 	for _, c := range cases {
-		if got := rollDice(script(t, c.words...).next); got != c.want {
-			t.Errorf("rollDice(%v) = %v, want %v", c.words, got, c.want)
-		}
+		t.Run(fmt.Sprint(c.words), func(t *testing.T) {
+			if got := rollDice(script(t, c.words...).next); got != c.want {
+				t.Errorf("rollDice(%v) = %v, want %v", c.words, got, c.want)
+			}
+		})
 	}
 }

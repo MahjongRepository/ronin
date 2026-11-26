@@ -13,6 +13,7 @@ func TestTileIDKind_WhenIDIsASuitBoundary_ShouldMapToTheSuitsKind(t *testing.T) 
 	for _, id := range mustIDs(t, 0, 35, 36, 71, 72, 107, 108, 135, 1, 2, 3) {
 		got = append(got, id.Kind())
 	}
+
 	want := []tile.Kind{0, 8, 9, 17, 18, 26, 27, 33, 0, 0, 0}
 	if !slices.Equal(got, want) {
 		t.Errorf("kinds = %v, want %v", got, want)
@@ -25,6 +26,7 @@ func TestNewTileID_WhenNumberIsNot0To135_ShouldRefuse(t *testing.T) {
 			t.Errorf("NewTileID(%d) accepted", n)
 		}
 	}
+
 	if id, ok := tile.NewTileID(135); !ok || id.Index() != 135 {
 		t.Errorf("NewTileID(135) = %d, %v; want id 135", id.Index(), ok)
 	}
@@ -43,6 +45,7 @@ func TestKindCounts_ShouldCountTheIDsOfEachKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("KindCounts error = %v", err)
 	}
+
 	var want [tile.KindCount]uint8
 	want[0], want[9], want[27], want[4] = 4, 1, 1, 2
 	if got := counts.Array(); got != want {

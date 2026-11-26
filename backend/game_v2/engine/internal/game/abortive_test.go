@@ -41,7 +41,6 @@ func kyuushuDealer(t *testing.T, start play.Option[play.StartPosition]) game.Gam
 
 func TestKyuushu_WhenTheDealerHoldsNineTerminalTypesOnItsFirstDraw_ShouldBeOfferedLast(t *testing.T) {
 	legal := kyuushuDealer(t, noStart()).LegalActions(seat(t, 0))
-
 	assertEqual(t, "last offer", legal[len(legal)-1], play.KyuushuAction())
 }
 
@@ -79,7 +78,6 @@ func TestKyuushu_WhenANonDealerHasItsFirstDrawAfterOthersDiscarded_ShouldBeOffer
 
 func TestKyuushu_WhenANonDealerDeclares_ShouldNameItsSeatAndShowItsHand(t *testing.T) {
 	_, events := script(t, kyuushuSeatTwo(t), act(seat(t, 2), play.KyuushuAction()))
-
 	assertEqual(t, "result", roundResult(t, events), play.RoundResult(play.Abortive{Kind: play.KyuushuKyuuhai{
 		Seat: seat(t, 2), Hand: slices.Concat(sorted(nineTerminalTypes(t)), copies(t, 0, "6m")),
 	}}))
@@ -189,7 +187,6 @@ func TestFourWinds_WhenASeatHasAClosedKan_ShouldNotAbort(t *testing.T) {
 	)
 
 	g, events := discardDrawn(t, g, 2)
-
 	if slices.Contains(testkit.EventKinds(events), "round_ended") {
 		t.Errorf("event kinds = %v, want no round end", testkit.EventKinds(events))
 	}
@@ -202,11 +199,11 @@ func TestFourWinds_WhenTheFourthSameWindDiscardDeclaresRiichi_ShouldAbortWithout
 	for i := range hands {
 		hands[i] = copies(t, i, "123456789m1234p")
 	}
+
 	scores := [tile.SeatCount]int{24000, 24000, 26000, 24000}
 	g, _ := discardDrawn(t, begun(t, testkit.StartWall{Hands: hands, Draws: copies(t, 0, "1111z")}, eastStart(scores, 0, 2)), 3)
 
 	_, events := script(t, g, act(seat(t, 3), play.RiichiAction(tileOf(t, 3, "1z"))))
-
 	if discarded, ok := events[0].Event.(play.Discarded); !ok || !discarded.Riichi {
 		t.Errorf("first event = %+v, want a riichi discard", events[0].Event)
 	}
@@ -220,7 +217,7 @@ func tripleRonScores() [tile.SeatCount]int {
 	return [tile.SeatCount]int{25000, 25000, 25000, 24000}
 }
 
-func tripleRonPrompt(t *testing.T, riichi bool) game.Game {
+func tripleRonPrompt(t *testing.T, discardAs func(tile.TileID) play.Action) game.Game {
 	t.Helper()
 	discard := tileOf(t, 2, "3p")
 	w := testkit.StartWall{
@@ -232,11 +229,7 @@ func tripleRonPrompt(t *testing.T, riichi bool) game.Game {
 		},
 		Draws: []tile.TileID{discard},
 	}
-	action := play.DiscardAction(discard)
-	if riichi {
-		action = play.RiichiAction(discard)
-	}
-	g, events := script(t, begun(t, w, eastStart(tripleRonScores(), 0, 1)), act(seat(t, 0), action))
+	g, events := script(t, begun(t, w, eastStart(tripleRonScores(), 0, 1)), act(seat(t, 0), discardAs(discard)))
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"discarded"})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 1), seat(t, 2), seat(t, 3)))
 	oneTwoPin := [2]tile.TileID{tileOf(t, 0, "1p"), tileOf(t, 0, "2p")}
@@ -245,11 +238,12 @@ func tripleRonPrompt(t *testing.T, riichi bool) game.Game {
 	for _, n := range []int{2, 3} {
 		assertEqual(t, "offers", g.LegalActions(seat(t, n)), []play.Action{play.RonAction(), play.PassAction()})
 	}
+
 	return g
 }
 
 func TestTripleRon_WhenThreeRonCallersDeclareOnARiichiDiscard_ShouldAbortShowingTheirHands(t *testing.T) {
-	g, events := script(t, tripleRonPrompt(t, true),
+	g, events := script(t, tripleRonPrompt(t, play.RiichiAction),
 		act(seat(t, 1), play.RonAction()), act(seat(t, 2), play.RonAction()), act(seat(t, 3), play.RonAction()))
 
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"round_ended"})
@@ -271,7 +265,7 @@ func TestTripleRon_WhenThreeRonCallersDeclareOnARiichiDiscard_ShouldAbortShowing
 }
 
 func TestTripleRon_WhenTheAnswersComeOutOfSeatOrder_ShouldListTheRonSeatsInCallerOrder(t *testing.T) {
-	_, events := script(t, tripleRonPrompt(t, false),
+	_, events := script(t, tripleRonPrompt(t, play.DiscardAction),
 		act(seat(t, 3), play.RonAction()), act(seat(t, 1), play.RonAction()), act(seat(t, 2), play.RonAction()))
 
 	abort, _ := roundResult(t, events).(play.Abortive)
@@ -279,6 +273,7 @@ func TestTripleRon_WhenTheAnswersComeOutOfSeatOrder_ShouldListTheRonSeatsInCalle
 	if !ok {
 		t.Fatalf("result = %+v, want a triple ron abort", roundResult(t, events))
 	}
+
 	var ronSeats []tile.Seat
 	for _, hand := range tripleRon.Hands {
 		ronSeats = append(ronSeats, hand.Seat)
@@ -287,7 +282,7 @@ func TestTripleRon_WhenTheAnswersComeOutOfSeatOrder_ShouldListTheRonSeatsInCalle
 }
 
 func TestTripleRon_WhenOneOfThreeRonCallersPasses_ShouldResolveADoubleRon(t *testing.T) {
-	_, events := script(t, tripleRonPrompt(t, false),
+	_, events := script(t, tripleRonPrompt(t, play.DiscardAction),
 		act(seat(t, 1), play.RonAction()), act(seat(t, 2), play.PassAction()), act(seat(t, 3), play.RonAction()))
 
 	ron, ok := roundResult(t, events).(play.Ron)
@@ -304,6 +299,7 @@ func winners(ron play.Ron) []tile.Seat {
 	for i, win := range ron.Wins {
 		seats[i] = win.Winner
 	}
+
 	return seats
 }
 
@@ -332,7 +328,6 @@ func declareFourthRiichi(t *testing.T, riichiDiscard tile.TileID) (game.Game, []
 
 func TestFourRiichi_WhenNobodyMayCallTheFourthRiichiDiscard_ShouldAbortAtOnceShowingEveryHand(t *testing.T) {
 	g, events := declareFourthRiichi(t, tileOf(t, 1, "8s"))
-
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"discarded", "riichi_deposited", "round_ended"})
 	assertEqual[play.Event](t, "round end", events[2].Event, play.RoundEnded{
 		Result: play.Abortive{Kind: play.FourRiichi{Hands: []play.ShownHand{
@@ -354,7 +349,6 @@ func TestFourRiichi_WhenTheRonCallerPassesTheFourthRiichiDiscard_ShouldAbortWith
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 1)))
 
 	_, passed := script(t, g, act(seat(t, 1), play.PassAction()))
-
 	assertEqual(t, "kinds", testkit.EventKinds(passed), []string{"riichi_deposited", "round_ended"})
 	assertEqual[play.Event](t, "deposit", passed[0].Event, play.RiichiDeposited{Seat: seat(t, 0), Score: 24000, RiichiSticks: 4})
 	ended, _ := passed[1].Event.(play.RoundEnded)

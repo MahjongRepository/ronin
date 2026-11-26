@@ -68,27 +68,33 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if err != nil {
 		return config{}, fmt.Errorf("GAME_MAX_CAPACITY: %w", err)
 	}
+
 	cfg.corsOrigins, err = stringListOf(getenv("GAME_CORS_ORIGINS"))
 	if err != nil {
 		return config{}, fmt.Errorf("GAME_CORS_ORIGINS: %w", err)
 	}
+
 	cfg.logLevel, err = logLevelOf(getenv("LOG_LEVEL"))
 	if err != nil {
 		return config{}, fmt.Errorf("LOG_LEVEL: %w", err)
 	}
+
 	cfg.logJSON, err = logJSONOf(getenv("LOG_FORMAT"))
 	if err != nil {
 		return config{}, fmt.Errorf("LOG_FORMAT: %w", err)
 	}
+
 	local, err := isLocalEnvironment(getenv("GAME_ENVIRONMENT"))
 	if err != nil {
 		return config{}, fmt.Errorf("GAME_ENVIRONMENT: %w", err)
 	}
+
 	cfg.socket, cfg.discardHold = server.DefaultSocketConfig(), session.RandomDiscardHold
 	if local {
 		cfg.socket.Rate, cfg.socket.Burst = localSocketRate, localSocketBurst
 		cfg.discardHold = nil
 	}
+
 	return cfg, nil
 }
 
@@ -97,11 +103,13 @@ func buildCommit() string {
 	if !ok {
 		return defaultVersion
 	}
+
 	for _, setting := range info.Settings {
 		if setting.Key == "vcs.revision" && setting.Value != "" {
 			return setting.Value[:min(shortCommitChars, len(setting.Value))]
 		}
 	}
+
 	return defaultVersion
 }
 
@@ -111,10 +119,12 @@ func capacityOf(value string) (int, error) {
 	if value == "" {
 		return defaultCapacity, nil
 	}
+
 	n, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil || n < 1 {
 		return 0, errCapacity
 	}
+
 	return n, nil
 }
 
@@ -128,6 +138,7 @@ func stringListOf(value string) ([]string, error) {
 		if err != nil || len(list) == 0 {
 			return nil, errStringList
 		}
+
 		return list, nil
 	}
 
@@ -137,9 +148,11 @@ func stringListOf(value string) ([]string, error) {
 			list = append(list, item)
 		}
 	}
+
 	if len(list) == 0 {
 		return nil, errStringList
 	}
+
 	return list, nil
 }
 
@@ -160,6 +173,7 @@ func logLevelOf(value string) (slog.Level, error) {
 	case "CRITICAL":
 		return levelCritical, nil
 	}
+
 	return 0, errLogLevel
 }
 
@@ -172,6 +186,7 @@ func logJSONOf(value string) (bool, error) {
 	case logFormatConsole, "":
 		return false, nil
 	}
+
 	return false, errLogFormat
 }
 
@@ -184,5 +199,6 @@ func isLocalEnvironment(value string) (bool, error) {
 	case environmentLocal:
 		return true, nil
 	}
+
 	return false, errEnvironment
 }

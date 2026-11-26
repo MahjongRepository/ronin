@@ -23,6 +23,7 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 	if err != nil {
 		t.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	var seen [tile.KindCount]int
 	got := make([]tile.TileID, 0, len(parsed))
 	for _, p := range parsed {
@@ -31,9 +32,11 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 		if !ok {
 			t.Fatalf("no copy %d of %v", first+seen[kind], kind)
 		}
+
 		got = append(got, id)
 		seen[kind]++
 	}
+
 	return got
 }
 
@@ -41,6 +44,7 @@ func dealSlot(offset, i int) int {
 	if block := i / dealBlockSize; block < dealBlocks {
 		return block*dealRoundSize + offset*dealBlockSize + i%dealBlockSize
 	}
+
 	return finalDealStart + offset
 }
 
@@ -53,14 +57,17 @@ func fixedWall(t *testing.T, hands [tile.SeatCount][]tile.TileID, draws []tile.T
 		if slices.Contains(placed, at) {
 			t.Fatalf("wall places tile %d twice", at.Index())
 		}
+
 		slots[slot], filled[slot] = at, true
 		placed = append(placed, at)
 	}
+
 	for _, s := range tile.Seats() {
 		for i, held := range hands[s.Index()] {
 			place(dealSlot(s.Index(), i), held)
 		}
 	}
+
 	for i, drawn := range draws {
 		place(firstDrawSlot+i, drawn)
 	}
@@ -71,11 +78,13 @@ func fixedWall(t *testing.T, hands [tile.SeatCount][]tile.TileID, draws []tile.T
 			free = append(free, unplaced)
 		}
 	}
+
 	for slot := range slots {
 		if !filled[slot] {
 			slots[slot], free = free[0], free[1:]
 		}
 	}
+
 	return slots
 }
 

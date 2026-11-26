@@ -30,6 +30,7 @@ func CheckOwnership(w Wall, held iter.Seq[tile.TileID]) error {
 	for _, id := range w.Tiles() {
 		counts[id.Index()]++
 	}
+
 	for id := range held {
 		counts[id.Index()]++
 	}
@@ -42,5 +43,6 @@ func CheckOwnership(w Wall, held iter.Seq[tile.TileID]) error {
 			return TileInTwoPlacesError{Tile: id}
 		}
 	}
+
 	return nil
 }

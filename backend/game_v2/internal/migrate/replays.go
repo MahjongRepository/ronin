@@ -40,13 +40,14 @@ func (r replayReport) Kinds() [failureKindCount]int {
 			kinds[rewriteErr.Kind]++
 		}
 	}
+
 	return kinds
 }
 
 func migrateReplays(ctx context.Context, dir string, apply bool) (report replayReport, err error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return replayReport{}, fmt.Errorf("open replay directory: %w", err)
+		return replayReport{}, fmt.Errorf("open replay directory %s: %w", dir, err)
 	}
 	defer func() { err = errors.Join(err, root.Close()) }()
 
@@ -55,9 +56,11 @@ func migrateReplays(ctx context.Context, dir string, apply bool) (report replayR
 		if walkErr != nil {
 			return walkErr
 		}
+
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+
 		if entry.IsDir() {
 			return nil
 		}
@@ -67,12 +70,14 @@ func migrateReplays(ctx context.Context, dir string, apply bool) (report replayR
 			report.Ignored = append(report.Ignored, name)
 			return nil
 		}
+
 		report.add(gameID, migrateReplay(replays, gameID, apply))
 		return nil
 	})
 	if err != nil {
-		return replayReport{}, fmt.Errorf("walk replay directory: %w", err)
+		return replayReport{}, fmt.Errorf("walk replay directory %s: %w", dir, err)
 	}
+
 	return report, nil
 }
 
@@ -93,9 +98,11 @@ func (r *replayReport) add(gameID string, outcome replayOutcome) {
 		for _, t := range outcome.rewritten.Transforms {
 			r.Transforms[t]++
 		}
+
 		if !outcome.rewritten.GameEnded {
 			r.Unfinished++
 		}
+
 		if outcome.rewritten.Cut {
 			r.Cut++
 		}
@@ -107,6 +114,7 @@ func storedGameID(name string, entry fs.DirEntry) (string, bool) {
 	if !isReplay || !entry.Type().IsRegular() || !replayfile.IsValidGameID(gameID) {
 		return "", false
 	}
+
 	return gameID, name == replayfile.Path(gameID)
 }
 
@@ -115,6 +123,7 @@ func migrateReplay(replays replayfile.Dir, gameID string, apply bool) replayOutc
 	if err != nil {
 		return replayOutcome{err: RewriteError{Kind: FailureUnreadable, Err: err}}
 	}
+
 	content, err := replayfile.Decompress(compressed, wire.MaxReplayBytes)
 	if err != nil {
 		return replayOutcome{err: RewriteError{Kind: FailureUnreadable, Err: err}}
@@ -124,6 +133,7 @@ func migrateReplay(replays replayfile.Dir, gameID string, apply bool) replayOutc
 	if err == nil {
 		return replayOutcome{current: true}
 	}
+
 	if _, isOtherVersion := errors.AsType[wire.UnsupportedVersionError](err); !isOtherVersion {
 		return replayOutcome{err: RewriteError{Kind: FailureUnreadable, Err: err}}
 	}
@@ -132,11 +142,13 @@ func migrateReplay(replays replayfile.Dir, gameID string, apply bool) replayOutc
 	if err != nil {
 		return replayOutcome{err: err}
 	}
+
 	if apply {
 		err = replays.Save(gameID, rewritten.Content)
 		if err != nil {
 			return replayOutcome{err: RewriteError{Kind: FailureWrite, Err: err}}
 		}
 	}
+
 	return replayOutcome{rewritten: rewritten}
 }

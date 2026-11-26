@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -58,7 +57,8 @@ func playSeededGame(t *testing.T) string {
 		if err != nil {
 			t.Fatalf("store.Open error = %v", err)
 		}
-		m, err := session.New(context.Background(), session.Config{
+
+		m, err := session.New(t.Context(), session.Config{
 			Timing:   session.DefaultTiming(),
 			Capacity: 1,
 			DB:       db,
@@ -74,6 +74,7 @@ func playSeededGame(t *testing.T) string {
 		if err != nil {
 			t.Fatalf("CreatePendingGame error = %v", err)
 		}
+
 		human := &humanConn{}
 		m.Connect(human)
 		m.Join(human, "ticket-1")
@@ -85,13 +86,18 @@ func playSeededGame(t *testing.T) string {
 		if !human.isClosed() {
 			t.Fatalf("the game did not end in %d hours", maxGameHours)
 		}
-		if err := m.Shutdown(context.Background()); err != nil {
-			t.Fatalf("Shutdown error = %v", err)
+
+		shutdownErr := m.Shutdown(t.Context())
+		if shutdownErr != nil {
+			t.Fatalf("Shutdown error = %v", shutdownErr)
 		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("db.Close error = %v", err)
+
+		closeErr := db.Close()
+		if closeErr != nil {
+			t.Fatalf("db.Close error = %v", closeErr)
 		}
 	})
+
 	return replayDir
 }
 
@@ -101,18 +107,22 @@ func storedRecords(t *testing.T, replays replayfile.Dir, gameID string) []wire.M
 	if err != nil {
 		t.Fatalf("Replays.Read error = %v", err)
 	}
+
 	reader, err := gzip.NewReader(bytes.NewReader(compressed))
 	if err != nil {
 		t.Fatalf("gzip.NewReader error = %v", err)
 	}
+
 	content, err := io.ReadAll(reader)
 	if err != nil {
 		t.Fatalf("read replay error = %v", err)
 	}
+
 	records, err := wire.DecodeReplay(content)
 	if err != nil {
 		t.Fatalf("DecodeReplay error = %v", err)
 	}
+
 	return records
 }
 
@@ -123,11 +133,13 @@ func runVerify(t *testing.T, replayDir string, ids ...string) (int, string) {
 		if name == "GAME_REPLAY_DIR" {
 			return replayDir
 		}
+
 		return ""
 	}, &stdout, &stderr)
 	if stderr.Len() > 0 {
 		t.Errorf("verify wrote to stderr: %s", stderr.String())
 	}
+
 	return code, stdout.String()
 }
 
@@ -135,7 +147,6 @@ func TestRun_WhenGivenAGameTheSessionPlayedToTheEnd_ShouldReproduceItsReplay(t *
 	replayDir := playSeededGame(t)
 
 	code, out := runVerify(t, replayDir, playedGameID)
-
 	if want := "ok      " + playedGameID + "\n1/1 game(s) verified\n"; code != 0 || out != want {
 		t.Errorf("verify = %d, %q, want 0, %q", code, out, want)
 	}
@@ -146,11 +157,12 @@ func TestRun_WhenAStoredReplayDiffersFromItsRun_ShouldFailThatGameAtTheDiffering
 	replays := replayfile.New(replayDir)
 	tests := []struct {
 		name   string
-		tamper func(records []wire.Map) int
+		tamper func(t *testing.T, records []wire.Map) int
 	}{
 		{
 			name: "round end altered",
-			tamper: func(records []wire.Map) int {
+			tamper: func(t *testing.T, records []wire.Map) int {
+				t.Helper()
 				rebindGameID(records)
 				i := firstRecordOf(t, records, wire.EventRoundEnd)
 				sticks, _ := records[i].Get(wire.KeyRiichiSticks)
@@ -160,7 +172,8 @@ func TestRun_WhenAStoredReplayDiffersFromItsRun_ShouldFailThatGameAtTheDiffering
 		},
 		{
 			name: "draw altered",
-			tamper: func(records []wire.Map) int {
+			tamper: func(t *testing.T, records []wire.Map) int {
+				t.Helper()
 				rebindGameID(records)
 				i := firstRecordOf(t, records, wire.EventDraw)
 				left, _ := records[i].Get(wire.KeyTilesRemaining)
@@ -170,7 +183,8 @@ func TestRun_WhenAStoredReplayDiffersFromItsRun_ShouldFailThatGameAtTheDiffering
 		},
 		{
 			name: "copied under another id",
-			tamper: func(records []wire.Map) int {
+			tamper: func(t *testing.T, records []wire.Map) int {
+				t.Helper()
 				return firstRecordOf(t, records, wire.EventGameStarted)
 			},
 		},
@@ -179,17 +193,18 @@ func TestRun_WhenAStoredReplayDiffersFromItsRun_ShouldFailThatGameAtTheDiffering
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			records := storedRecords(t, replays, playedGameID)
-			position := tc.tamper(records) + 1
+			position := tc.tamper(t, records) + 1
 			content, err := wire.EncodeReplay(records)
 			if err != nil {
 				t.Fatalf("EncodeReplay error = %v", err)
 			}
-			if err := replays.Save(tamperedGameID, content); err != nil {
-				t.Fatalf("Replays.Save error = %v", err)
+
+			saveErr := replays.Save(tamperedGameID, content)
+			if saveErr != nil {
+				t.Fatalf("Replays.Save error = %v", saveErr)
 			}
 
 			code, out := runVerify(t, replayDir, playedGameID, tamperedGameID)
-
 			head := "ok      " + playedGameID + "\nFAILED  " + tamperedGameID + ": record " + strconv.Itoa(position) +
 				" differs:\n"
 			if code != 1 || !strings.HasPrefix(out, head) || !strings.HasSuffix(out, "\n1/2 game(s) verified\n") {
@@ -206,6 +221,7 @@ func firstRecordOf(t *testing.T, records []wire.Map, event wire.EventType) int {
 			return i
 		}
 	}
+
 	t.Fatalf("the replay holds no record of event %d", event)
 	return 0
 }
@@ -224,7 +240,9 @@ func with(m wire.Map, k wire.Key, v wire.Value) wire.Map {
 		if f.Key == k {
 			f.Value = v
 		}
+
 		edited = append(edited, f)
 	}
+
 	return edited
 }

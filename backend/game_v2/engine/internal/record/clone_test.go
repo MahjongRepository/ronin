@@ -1,7 +1,9 @@
 package record_test
 
 import (
+	"maps"
 	"reflect"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -16,6 +18,7 @@ func sliceArrays(v reflect.Value, path string, into map[uintptr]string) {
 		if v.Len() > 0 {
 			into[v.Pointer()] = path
 		}
+
 		for i := range v.Len() {
 			sliceArrays(v.Index(i), path+"["+strconv.Itoa(i)+"]", into)
 		}
@@ -38,8 +41,13 @@ func assertNoSharedSlice(t *testing.T, got, kept any) {
 	sliceArrays(reflect.ValueOf(kept), "kept", keptArrays)
 	gotArrays := map[uintptr]string{}
 	sliceArrays(reflect.ValueOf(got), "got", gotArrays)
+	gotPaths := make(map[string]uintptr, len(gotArrays))
 	for data, path := range gotArrays {
-		if keptPath, shared := keptArrays[data]; shared {
+		gotPaths[path] = data
+	}
+
+	for _, path := range slices.Sorted(maps.Keys(gotPaths)) {
+		if keptPath, shared := keptArrays[gotPaths[path]]; shared {
 			t.Errorf("%s shares its backing array with %s", path, keptPath)
 		}
 	}
@@ -54,6 +62,7 @@ func everyResultRecord(t *testing.T) play.SeatRecord {
 		Hand: copies(t, 0, "123p"), Melds: melds, Yaku: []play.YakuID{play.YakuRiichi},
 		UraIndicators: copies(t, 0, "9s"),
 	}
+
 	results := []play.RoundResult{
 		play.ExhaustiveDraw{Tenpai: shown, Nagashi: []play.NagashiRiver{{River: river}}},
 		play.Tsumo{Win: win},
@@ -64,12 +73,14 @@ func everyResultRecord(t *testing.T) play.SeatRecord {
 		play.Abortive{Kind: play.FourWinds{}},
 		play.Abortive{Kind: play.FourKans{}},
 	}
+
 	r := play.SeatRecord{Hand: copies(t, 0, "456s"), DoraIndicators: copies(t, 0, "5z"), Result: results[1]}
 	r.Players[0].River = river
 	r.Players[0].Melds = melds
 	for _, result := range results {
 		r.History = append(r.History, play.FinishedRound{Result: result, RiichiSeats: []tile.Seat{seat(t, 0)}})
 	}
+
 	return r
 }
 
@@ -77,7 +88,6 @@ func TestClone_ShouldShareNoSliceWithTheRecord(t *testing.T) {
 	r := everyResultRecord(t)
 
 	cloned := record.Clone(r)
-
 	assertEqual(t, "clone", cloned, r)
 	assertNoSharedSlice(t, cloned, r)
 }
@@ -86,7 +96,6 @@ func TestClone_WhenSlicesAreEmpty_ShouldMakeThemNil(t *testing.T) {
 	r := play.SeatRecord{Hand: []tile.TileID{}, History: []play.FinishedRound{}}
 
 	cloned := record.Clone(r)
-
 	if cloned.Result != nil || cloned.Hand != nil || cloned.History != nil {
 		t.Errorf("Clone = %+v, want no result and nil slices", cloned)
 	}

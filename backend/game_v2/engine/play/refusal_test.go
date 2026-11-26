@@ -14,7 +14,7 @@ func TestRefusalKindString_ShouldBeItsWireIdentifier(t *testing.T) {
 		play.RefusalKind(3):    "play.RefusalKind(3)",
 	} {
 		if got := kind.String(); got != want {
-			t.Errorf("String = %q, want %q", got, want)
+			t.Errorf("RefusalKind(%d).String = %q, want %q", kind, got, want)
 		}
 	}
 }
@@ -32,7 +32,7 @@ func TestRefusalCodeString_ShouldBeItsWireIdentifier(t *testing.T) {
 		play.RefusalCode(8):          "play.RefusalCode(8)",
 	} {
 		if got := code.String(); got != want {
-			t.Errorf("String = %q, want %q", got, want)
+			t.Errorf("RefusalCode(%d).String = %q, want %q", code, got, want)
 		}
 	}
 }

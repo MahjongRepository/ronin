@@ -1,6 +1,7 @@
 package score
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -17,11 +18,13 @@ type paymentCase struct {
 func checkPayments(t *testing.T, win Win, seatWind tile.Wind, rules Rules, cases []paymentCase) {
 	t.Helper()
 	for _, c := range cases {
-		limit, payment := paymentOf(c.value, win, seatWind, 0, rules)
-		if limit != c.limit || payment != c.payment {
-			t.Errorf("paymentOf(%v, %v, %v) = %v, %+v; want %v, %+v", c.value, win, seatWind, limit, payment,
-				c.limit, c.payment)
-		}
+		t.Run(fmt.Sprint(c.value), func(t *testing.T) {
+			limit, payment := paymentOf(c.value, win, seatWind, 0, rules)
+			if limit != c.limit || payment != c.payment {
+				t.Errorf("paymentOf(%v, %v, %v) = %v, %+v; want %v, %+v", c.value, win, seatWind, limit, payment,
+					c.limit, c.payment)
+			}
+		})
 	}
 }
 
@@ -117,12 +120,16 @@ func TestPaymentOf_WhenTheDealerWinsByTsumo_ShouldChargeEveryoneDouble(t *testin
 func TestPaymentOf_WhenWonOnAnyTsumoOrRonKind_ShouldPayAsThatKind(t *testing.T) {
 	oneHan := []paymentCase{{play.Han{Han: 1, Fu: 30}, noLimit(), play.TsumoPayment{Dealer: 500, NonDealer: 300}}}
 	for _, win := range []Win{WinTsumo, WinRinshan, WinHaitei} {
-		checkPayments(t, win, tile.South, defaultRules(), oneHan)
+		t.Run(fmt.Sprint(win), func(t *testing.T) {
+			checkPayments(t, win, tile.South, defaultRules(), oneHan)
+		})
 	}
 
 	oneHan = []paymentCase{{play.Han{Han: 1, Fu: 30}, noLimit(), play.RonPayment{Discarder: 1000}}}
 	for _, win := range []Win{WinRon, WinChankan, WinHoutei} {
-		checkPayments(t, win, tile.South, defaultRules(), oneHan)
+		t.Run(fmt.Sprint(win), func(t *testing.T) {
+			checkPayments(t, win, tile.South, defaultRules(), oneHan)
+		})
 	}
 }
 
@@ -156,11 +163,13 @@ func TestPaymentOf_WhenHonbaAreOnTheTable_ShouldAddThemToEveryPayer(t *testing.T
 			13500,
 		},
 	} {
-		limit, payment := paymentOf(tc.value, tc.win, tc.seatWind, tc.honba, defaultRules())
-		if limit != tc.limit || payment != tc.payment || payment.Sum() != tc.sum {
-			t.Errorf("paymentOf(%v, honba %d) = %v, %+v (sum %d); want %v, %+v (sum %d)", tc.value, tc.honba, limit,
-				payment, payment.Sum(), tc.limit, tc.payment, tc.sum)
-		}
+		t.Run(fmt.Sprintf("%v honba %d", tc.value, tc.honba), func(t *testing.T) {
+			limit, payment := paymentOf(tc.value, tc.win, tc.seatWind, tc.honba, defaultRules())
+			if limit != tc.limit || payment != tc.payment || payment.Sum() != tc.sum {
+				t.Errorf("paymentOf(%v, honba %d) = %v, %+v (sum %d); want %v, %+v (sum %d)", tc.value, tc.honba, limit,
+					payment, payment.Sum(), tc.limit, tc.payment, tc.sum)
+			}
+		})
 	}
 }
 
@@ -203,9 +212,11 @@ func TestHonbaBonus_ShouldPay300PerHonbaOnRonAnd100PerPayerOnTsumo(t *testing.T)
 	}{
 		{WinRon, 900}, {WinChankan, 900}, {WinHoutei, 900}, {WinTsumo, 300}, {WinRinshan, 300}, {WinHaitei, 300},
 	} {
-		if got := HonbaBonus(tc.win, 3); got != tc.want {
-			t.Errorf("HonbaBonus(%v, 3) = %d, want %d", tc.win, got, tc.want)
-		}
+		t.Run(fmt.Sprint(tc.win), func(t *testing.T) {
+			if got := HonbaBonus(tc.win, 3); got != tc.want {
+				t.Errorf("HonbaBonus(%v, 3) = %d, want %d", tc.win, got, tc.want)
+			}
+		})
 	}
 	if got := HonbaBonus(WinRon, 0); got != 0 {
 		t.Errorf("HonbaBonus(WinRon, 0) = %d, want 0", got)
@@ -219,19 +230,22 @@ func TestHonbaBonus_ShouldMatchWhatHonbaAddToAPayment(t *testing.T) {
 		seatWind tile.Wind
 		payers   int
 	}{{WinRon, tile.South, 1}, {WinTsumo, tile.South, 3}, {WinTsumo, tile.East, 3}} {
-		_, without := paymentOf(value, tc.win, tc.seatWind, 0, defaultRules())
-		_, with := paymentOf(value, tc.win, tc.seatWind, 2, defaultRules())
-
-		if got, want := with.Sum()-without.Sum(), tc.payers*HonbaBonus(tc.win, 2); got != want {
-			t.Errorf("2 honba add %d to a %v by %v, want %d", got, tc.win, tc.seatWind, want)
-		}
+		t.Run(fmt.Sprintf("win %d seat %d", tc.win, tc.seatWind), func(t *testing.T) {
+			_, without := paymentOf(value, tc.win, tc.seatWind, 0, defaultRules())
+			_, with := paymentOf(value, tc.win, tc.seatWind, 2, defaultRules())
+			if got, want := with.Sum()-without.Sum(), tc.payers*HonbaBonus(tc.win, 2); got != want {
+				t.Errorf("2 honba add %d to a %v by %v, want %d", got, tc.win, tc.seatWind, want)
+			}
+		})
 	}
 }
 
 func TestRiichiSticksBonus_ShouldPay1000PerStick(t *testing.T) {
 	for _, tc := range []struct{ sticks, want int }{{0, 0}, {2, 2000}} {
-		if got := RiichiSticksBonus(tc.sticks); got != tc.want {
-			t.Errorf("RiichiSticksBonus(%d) = %d, want %d", tc.sticks, got, tc.want)
-		}
+		t.Run(fmt.Sprint(tc.sticks), func(t *testing.T) {
+			if got := RiichiSticksBonus(tc.sticks); got != tc.want {
+				t.Errorf("RiichiSticksBonus(%d) = %d, want %d", tc.sticks, got, tc.want)
+			}
+		})
 	}
 }

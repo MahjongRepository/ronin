@@ -38,6 +38,7 @@ func lastDraw(t *testing.T, conn *fakeConn) wire.Map {
 	if len(draws) == 0 {
 		t.Fatalf("%s got no draw", conn.id)
 	}
+
 	return draws[len(draws)-1]
 }
 
@@ -58,6 +59,7 @@ func defaultAnswer(t *testing.T, opening wire.Map) messaging.GameActionMessage {
 	if typ, _ := eventType(opening); typ == wire.EventCallPrompt {
 		return answer(waitID, play.PassAction())
 	}
+
 	return discard(waitID, drawnTile(t, opening))
 }
 
@@ -70,12 +72,14 @@ func TestTurnTimeout_WhenBaseAndBankRunOut_ShouldDiscardTheDrawnTileAndEmptyTheB
 		if got := len(ofEvent(alice.messages(), wire.EventDiscard)); got != 0 {
 			t.Fatalf("the seat timed out before its base and bank ran out")
 		}
+
 		sleep(time.Millisecond)
 
 		discards := ofEvent(alice.messages(), wire.EventDiscard)
 		if len(discards) == 0 {
 			t.Fatal("the timeout discarded nothing")
 		}
+
 		move, err := wire.UnpackDiscard(intOf(t, discards[0], wire.KeyPackedMove))
 		if err != nil || move.Tile != drawn || !move.Tsumogiri {
 			t.Errorf("timeout discard = %+v (%v), want tsumogiri of %d", move, err, drawn.Index())
@@ -95,18 +99,18 @@ func TestBank_WhenTheSeatActsPastItsBaseTime_ShouldKeepWhatIsLeftWholeOrFraction
 		h, alice := soloDealer(t, withTiming(noWaits))
 
 		for _, tc := range []struct {
+			name  string
 			after time.Duration
 			want  wire.Value
 		}{
-			{15 * time.Second, wire.Int(15)},
-			{12500 * time.Millisecond, wire.Float(12.5)},
+			{name: "whole seconds", after: 15 * time.Second, want: wire.Int(15)},
+			{name: "fractional seconds", after: 12500 * time.Millisecond, want: wire.Float(12.5)},
 		} {
 			opening := lastOpening(t, alice)
 			sleep(tc.after)
 			h.act(alice, defaultAnswer(t, opening))
-
 			if got, _ := lastOpening(t, alice).Get(wire.KeyBankSeconds); got != tc.want {
-				t.Errorf("bank after acting at %v = %v, want %v", tc.after, got, tc.want)
+				t.Errorf("bank after acting at %v (%s) = %v, want %v", tc.after, tc.name, got, tc.want)
 			}
 		}
 	})
@@ -125,10 +129,12 @@ func TestBank_WhenTheNextHandIsDealt_ShouldResetToFull(t *testing.T) {
 			if typ == wire.EventRoundStarted {
 				deals++
 			}
+
 			if typ == wire.EventDraw && deals == 2 {
 				if got, _ := m.Get(wire.KeyBankSeconds); got != wire.Int(20) {
 					t.Errorf("first draw of the second hand bank = %v, want whole 20", got)
 				}
+
 				return
 			}
 		}
@@ -146,6 +152,7 @@ func TestAITurns_WhenAIPlayersFollowAHuman_ShouldPlayOneTurnPerDelay(t *testing.
 			if got := len(ofEvent(alice.messages(), wire.EventDiscard)); got != want {
 				t.Fatalf("discards before AI turn %d = %d, want %d", want, got, want)
 			}
+
 			sleep(time.Second)
 		}
 		if got := len(ofEvent(alice.messages(), wire.EventDiscard)); got != 4 {
@@ -189,14 +196,15 @@ func TestGameAction_WhenTheTileIsNotHeld_ShouldClose1008AndSeatAnAIPlayer(t *tes
 		notHeld, _ := tile.NewTileID(int(bobsTile.(wire.Array)[0].(wire.Int)))
 
 		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), notHeld))
-
 		if code, closed := alice.closeCode(); !closed || code != session.CloseInvalidAction {
 			t.Errorf("alice close = %v, %v, want 1008", code, closed)
 		}
+
 		control := ofSession(bob.messages(), "seat_control")
 		if len(control) != 1 || intOf(t, control[0], wire.KeySeat) != 0 {
 			t.Fatalf("bob seat_control = %v, want seat 0 handed to an AI player", control)
 		}
+
 		sleep(time.Second)
 		if got := len(ofEvent(bob.messages(), wire.EventDiscard)); got != 1 {
 			t.Errorf("discards bob saw = %d, want the AI player's for seat 0", got)
@@ -213,15 +221,16 @@ func TestDisconnect_WhenTheLastHumanLeaves_ShouldAbandonTheGameAndDiscardItsRepl
 		if got := len(ofSession(bob.messages(), "seat_control")); got != 1 {
 			t.Errorf("bob got %d seat_control, want 1", got)
 		}
+
 		h.m.Disconnect(bob)
 		synctest.Wait()
-
 		if got := h.m.GameCounts(); got != (session.GameCounts{}) {
 			t.Errorf("GameCounts = %+v, want none", got)
 		}
 		if reason, _ := h.playedGame(t); reason.String != "abandoned" {
 			t.Errorf("end_reason = %q, want abandoned", reason.String)
 		}
+
 		_, err := replayfile.New(h.replayDir).Read(testGameID)
 		if !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("Replays.Read error = %v, want no replay stored", err)
@@ -242,6 +251,7 @@ func callPrompt(t *testing.T, conn *fakeConn) wire.Map {
 	if len(prompts) != 1 {
 		t.Fatalf("%s got %d call prompts, want 1", conn.id, len(prompts))
 	}
+
 	return prompts[0]
 }
 
@@ -271,6 +281,7 @@ func TestCallTimers_WhenOneOfTwoCallersPasses_ShouldKeepTheOtherCallersPromptAnd
 		if got := h.m.Stats().MeldTimeouts; got != 0 {
 			t.Fatalf("carol timed out before her own deadline")
 		}
+
 		sleep(time.Millisecond)
 		if got := h.m.Stats().MeldTimeouts; got != 1 {
 			t.Errorf("MeldTimeouts at carol's deadline = %d, want 1", got)
@@ -308,11 +319,13 @@ func TestCallTimers_WhenAPonOutranksAChiWhileARonIsOpen_ShouldKeepTheChiPromptUn
 		if got := len(ofSession(bob.messages(), "call_closed")); got != 0 {
 			t.Fatalf("call_closed bob got while dave can still ron = %d, want none: it would show dave's ron offer", got)
 		}
+
 		for _, conn := range []*fakeConn{alice, bob, dave} {
 			if got := len(ofEvent(conn.messages(), wire.EventMeld)); got != 0 {
 				t.Errorf("melds %s saw while dave can still ron = %d, want none", conn.id, got)
 			}
 		}
+
 		h.act(bob, messaging.GameActionMessage{
 			Action: messaging.GameActionChi,
 			WaitID: intOf(t, chiPrompt, wire.KeyWaitID),
@@ -326,11 +339,13 @@ func TestCallTimers_WhenAPonOutranksAChiWhileARonIsOpen_ShouldKeepTheChiPromptUn
 		if got := h.m.Stats().MeldTimeouts; got != 0 {
 			t.Fatalf("dave timed out before his own deadline")
 		}
+
 		sleep(time.Millisecond)
 		melds := ofEvent(alice.messages(), wire.EventMeld)
 		if len(melds) != 1 {
 			t.Fatalf("melds alice saw once dave timed out = %d, want 1", len(melds))
 		}
+
 		meld, err := wire.UnpackMeld(intOf(t, melds[0], wire.KeyPackedMeld))
 		if err != nil || meld.Kind != play.MeldPon || meld.Caller.Index() != 2 {
 			t.Errorf("meld alice saw = %+v (%v), want carol's pon over bob's chi", meld, err)
@@ -358,6 +373,7 @@ func TestCallTimers_WhenBothCallersTimeOutWhileTheOutcomeIsHeld_ShouldCloseEachP
 		if got := len(ofEvent(bob.messages(), wire.EventDraw)); got != 0 {
 			t.Fatalf("bob draws before the hold ran out = %d, want none", got)
 		}
+
 		h.act(carol, answer(ponWait, play.PassAction()))
 		if got := len(ofEvent(carol.messages(), wire.EventError)); got != 0 {
 			t.Errorf("errors for carol's pass in flight as her call timed out = %d, want none", got)
@@ -383,6 +399,7 @@ func TestCallTimers_WhenBothCallersTimeOutWithNothingHeld_ShouldDropTheirLatePas
 		if got := len(ofEvent(bob.messages(), wire.EventDraw)); got != 1 {
 			t.Fatalf("bob draws once both calls timed out = %d, want 1", got)
 		}
+
 		h.act(carol, answer(ponWait, play.PassAction()))
 		h.act(bob, answer(ronWait, play.PassAction()))
 
@@ -428,7 +445,6 @@ func TestCallTimers_WhenTwoClaimsInARowCloseASeatsPrompts_ShouldDropItsInFlightA
 
 		h.act(bob, answer(chiWait, play.PassAction()))
 		h.act(bob, answer(ponWait, play.PassAction()))
-
 		if got := len(ofEvent(bob.messages(), wire.EventError)); got != 0 {
 			t.Errorf("errors for bob's answers in flight to both closed prompts = %d, want none", got)
 		}
@@ -459,6 +475,7 @@ func TestRoundAdvancePause_WhenADoubleRonEndsTheRound_ShouldWaitOncePerWinner(t 
 		if got := h.m.Stats().RoundAdvanceTimeouts; got != 0 {
 			t.Fatalf("the pause timed out before twice the round advance")
 		}
+
 		sleep(time.Millisecond)
 		if got := h.m.Stats().RoundAdvanceTimeouts; got != 3 {
 			t.Errorf("RoundAdvanceTimeouts = %d, want each of the three seats", got)
@@ -511,6 +528,7 @@ func onTurns(answer stubAgent) stubAgent {
 		if _, call := decision.Context.(play.Call); call {
 			return decision.Default, nil
 		}
+
 		return answer(ctx, decision)
 	}
 }
@@ -521,6 +539,7 @@ func offered(decision play.Decision, kind play.ActionKind, unlike play.Action) p
 			return action
 		}
 	}
+
 	return decision.Default
 }
 
@@ -578,16 +597,20 @@ func TestAgent_WhenItAnswersAnAITurn_ShouldPlayAnOfferedAnswerElseTheDefaultOrFa
 					if code, closed := alice.closeCode(); !closed || code != session.CloseInternalError {
 						t.Errorf("alice close = %v, %v, want 1011", code, closed)
 					}
+
 					return
 				}
+
 				discards := ofEvent(alice.messages(), wire.EventDiscard)
 				if len(discards) != tc.wantDiscards {
 					t.Fatalf("discards alice saw = %d, want %d", len(discards), tc.wantDiscards)
 				}
+
 				move, err := wire.UnpackDiscard(intOf(t, discards[1], wire.KeyPackedMove))
 				if err != nil || move.Tsumogiri != tc.wantTsumogiri {
 					t.Errorf("first AI discard = %+v (%v), want tsumogiri %v", move, err, tc.wantTsumogiri)
 				}
+
 				fellBack := strings.Contains(h.logs.String(), "AI agent answer unusable, playing the default")
 				if fellBack != tc.wantFallback {
 					t.Errorf("fallback warning logged = %v, want %v", fellBack, tc.wantFallback)
@@ -605,18 +628,22 @@ func TestAgent_WhenACallersSeatIsTakenBackDuringItsRequest_ShouldLetTheOtherCall
 			if _, call := d.Context.(play.Call); !call {
 				return d.Default, nil
 			}
+
 			if d.Seat.Index() == 1 {
 				bobAsked.Store(true)
 				<-ctx.Done()
 				return offered(d, play.ActionRon, d.Default), nil
 			}
+
 			carolAsked.Store(true)
 			select {
 			case <-releaseCarolsCall:
 			case <-ctx.Done():
 			}
+
 			return offered(d, play.ActionPon, d.Default), nil
 		})
+
 		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withWalls(ronAndPonWall(t)), withTiming(noWaits),
 			withAgent(agent))
 		conns := h.start("Alice", "Bob", "Carol")
@@ -631,14 +658,15 @@ func TestAgent_WhenACallersSeatIsTakenBackDuringItsRequest_ShouldLetTheOtherCall
 			t.Fatalf("asked before the take-back: bob %v, carol %v, want bob's AI caller only",
 				bobAsked.Load(), carolAsked.Load())
 		}
+
 		bob := h.reconnect("ticket-Bob")
 		if !carolAsked.Load() {
 			t.Fatal("carol's AI caller was not asked once bob took his seat back")
 		}
+
 		close(releaseCarolsCall)
 		synctest.Wait()
 		h.act(bob, answer(intOf(t, lastOpening(t, bob), wire.KeyWaitID), play.PassAction()))
-
 		if got := len(ofEvent(alice.messages(), wire.EventRoundEnd)); got != 0 {
 			t.Errorf("round ends alice saw = %d, want none from the reclaimed seat's late ron", got)
 		}
@@ -656,13 +684,16 @@ func TestAgent_WhenAHumanAnswersWhileAnAICallerDecides_ShouldKeepItsRequest(t *t
 			if _, call := d.Context.(play.Call); !call {
 				return d.Default, nil
 			}
+
 			asks.Add(1)
 			select {
 			case <-release:
 			case <-ctx.Done():
 			}
+
 			return offered(d, play.ActionRon, d.Default), nil
 		})
+
 		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withWalls(ronAndPonWall(t)), withTiming(noWaits),
 			withAgent(agent))
 		conns := h.start("Alice", "Bob", "Carol")
@@ -676,6 +707,7 @@ func TestAgent_WhenAHumanAnswersWhileAnAICallerDecides_ShouldKeepItsRequest(t *t
 		if got := asks.Load(); got != 1 {
 			t.Errorf("asks of bob's AI caller after carol passed = %d, want its first request kept", got)
 		}
+
 		close(release)
 		synctest.Wait()
 		if got := len(ofEvent(alice.messages(), wire.EventRoundEnd)); got != 1 {
@@ -690,8 +722,10 @@ func TestAgent_WhenAPonOutranksAnAIChiWhileAnAIRonIsOpen_ShouldAskTheRonCallerAt
 			if _, call := d.Context.(play.Call); call && d.Seat.Index() == 1 {
 				<-ctx.Done()
 			}
+
 			return d.Default, nil
 		})
+
 		wall := fixedWall(t, [tile.SeatCount][]tile.TileID{
 			junkHand(t, 2),
 			copies(t, 1, "1357m2468p1346s7z"),

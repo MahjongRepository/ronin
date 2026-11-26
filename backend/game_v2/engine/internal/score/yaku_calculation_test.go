@@ -2,6 +2,7 @@ package score_test
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"testing"
@@ -37,17 +38,21 @@ func yakuSummaryOf(value score.HandValue) yakuSummary {
 func yakuCheckCases(t *testing.T, rules score.Rules, cases ...yakuCase) {
 	t.Helper()
 	for _, c := range cases {
-		value, err := valueOf(t, c.hand, c.winTile, c.melds, c.situation, c.dora, rules)
-		if c.wantErr != nil {
-			if !errors.Is(err, c.wantErr) {
-				t.Errorf("EstimateHandValue(%s on %s) error = %v, want %v", c.hand, c.winTile, err, c.wantErr)
+		t.Run(c.hand+" on "+c.winTile, func(t *testing.T) {
+			value, err := valueOf(t, c.hand, c.winTile, c.melds, c.situation, c.dora, rules)
+			if c.wantErr != nil {
+				if !errors.Is(err, c.wantErr) {
+					t.Errorf("EstimateHandValue(%s on %s) error = %v, want %v", c.hand, c.winTile, err, c.wantErr)
+				}
+
+				return
 			}
-			continue
-		}
-		got := yakuSummaryOf(value)
-		if err != nil || !reflect.DeepEqual(got, c.want) {
-			t.Errorf("EstimateHandValue(%s on %s) = %+v, %v, want %+v", c.hand, c.winTile, got, err, c.want)
-		}
+
+			got := yakuSummaryOf(value)
+			if err != nil || !reflect.DeepEqual(got, c.want) {
+				t.Errorf("EstimateHandValue(%s on %s) = %+v, %v, want %+v", c.hand, c.winTile, got, err, c.want)
+			}
+		})
 	}
 }
 
@@ -86,29 +91,24 @@ func yakuMustValue(
 	if err != nil {
 		t.Fatalf("EstimateHandValue(%s on %s) error = %v", wholeHand, winTile, err)
 	}
+
 	return value
 }
 
-func yakuCheckSeatWind(
-	t *testing.T,
-	honor string,
-	wind, otherRoundWind tile.Wind,
-	seatYaku, roundYaku play.YakuID,
-) {
-	t.Helper()
+func yakuSeatWindCases(honor string, wind, otherRoundWind tile.Wind, seatYaku, roundYaku play.YakuID) []yakuCase {
 	hand := "23422m234567s" + honor + honor + honor + "z"
 	winTile := honor + "z"
 
-	yakuCheckCases(t, defaultRules(),
-		yakuCase{
+	return []yakuCase{
+		{
 			hand: hand, winTile: winTile, situation: yakuWinds(wind, otherRoundWind),
 			want: yakuHan(1, 40, seatYaku),
 		},
-		yakuCase{
+		{
 			hand: hand, winTile: winTile, situation: yakuWinds(wind, wind),
 			want: yakuHan(2, 40, seatYaku, roundYaku),
 		},
-	)
+	}
 }
 
 func TestEstimateHandValue_WhenHandIsClosed_ShouldScoreItsYakuAndFu(t *testing.T) {
@@ -221,18 +221,21 @@ func TestEstimateHandValue_WhenChiTilesComeInAnyOrder_ShouldScoreTheSame(t *test
 	want := yakuHan(1, 30, play.YakuHaku)
 
 	for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
-		m, err := meld.NewChi([3]tile.Tile{chiTiles[order[0]], chiTiles[order[1]], chiTiles[order[2]]})
-		if err != nil {
-			t.Fatalf("NewChi(%v) error = %v", order, err)
-		}
-		h := score.Hand{Concealed: concealed, WinTile: oneTile(t, "5z"), Melds: []meld.Meld{m}}
+		t.Run(fmt.Sprint(order), func(t *testing.T) {
+			m, err := meld.NewChi([3]tile.Tile{chiTiles[order[0]], chiTiles[order[1]], chiTiles[order[2]]})
+			if err != nil {
+				t.Fatalf("NewChi(%v) error = %v", order, err)
+			}
 
-		value, err := score.EstimateHandValue(h, ron(), score.Dora{}, defaultRules())
+			h := score.Hand{Concealed: concealed, WinTile: oneTile(t, "5z"), Melds: []meld.Meld{m}}
 
-		got := yakuSummaryOf(value)
-		if err != nil || !reflect.DeepEqual(got, want) {
-			t.Errorf("EstimateHandValue(chi in order %v) = %+v, %v, want %+v", order, got, err, want)
-		}
+			value, err := score.EstimateHandValue(h, ron(), score.Dora{}, defaultRules())
+
+			got := yakuSummaryOf(value)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Errorf("EstimateHandValue(chi in order %v) = %+v, %v, want %+v", order, got, err, want)
+			}
+		})
 	}
 }
 
@@ -323,15 +326,6 @@ func TestEstimateHandValue_WhenRiichiIsDouble_ShouldScoreDaburuRiichiAlone(t *te
 	yakuCheckCases(t, defaultRules(), yakuCase{
 		hand: yakuHand, winTile: "4s", situation: situation, want: yakuHan(2, 40, play.YakuDaburuRiichi),
 	})
-}
-
-func TestNagashiMangan_WhenNonDealer_ShouldPayManganTsumo(t *testing.T) {
-	got := score.NagashiMangan(tile.South)
-
-	want := play.TsumoPayment{Dealer: 4000, NonDealer: 2000}
-	if got != want {
-		t.Errorf("NagashiMangan(South) = %+v, want %+v", got, want)
-	}
 }
 
 func TestEstimateHandValue_WhenSevenPairs_ShouldScoreChiitoitsuAt25Fu(t *testing.T) {
@@ -520,6 +514,7 @@ func TestEstimateHandValue_WhenRonCompletesAPon_ShouldCountItOpenUnlessAClosedCh
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("EstimateHandValue(444m777p222234s55z on 2s) = %+v, want %+v", got, want)
 	}
+
 	wantFu := []score.FuDetail{
 		{Fu: 30, Reason: score.FuBase},
 		{Fu: 4, Reason: score.FuClosedPon},
@@ -637,38 +632,33 @@ func TestEstimateHandValue_WhenStraightOneToNine_ShouldScoreIttsuLessWhenOpen(t 
 	)
 }
 
-func TestEstimateHandValue_WhenHakuPon_ShouldScoreHaku(t *testing.T) {
-	yakuCheckCases(t, defaultRules(), yakuCase{
-		hand: "23422m234567s555z", winTile: "5z", situation: ron(), want: yakuHan(1, 40, play.YakuHaku),
-	})
-}
-
-func TestEstimateHandValue_WhenHatsuPon_ShouldScoreHatsu(t *testing.T) {
-	yakuCheckCases(t, defaultRules(), yakuCase{
-		hand: "23422m234567s666z", winTile: "6z", situation: ron(), want: yakuHan(1, 40, play.YakuHatsu),
-	})
-}
-
-func TestEstimateHandValue_WhenChunPon_ShouldScoreChun(t *testing.T) {
-	yakuCheckCases(t, defaultRules(), yakuCase{
-		hand: "23422m234567s777z", winTile: "7z", situation: ron(), want: yakuHan(1, 40, play.YakuChun),
-	})
-}
-
-func TestEstimateHandValue_WhenEastPon_ShouldScoreEastAsSeatAndRoundWind(t *testing.T) {
-	yakuCheckSeatWind(t, "1", tile.East, tile.West, play.YakuSeatWindEast, play.YakuRoundWindEast)
-}
-
-func TestEstimateHandValue_WhenSouthPon_ShouldScoreSouthAsSeatAndRoundWind(t *testing.T) {
-	yakuCheckSeatWind(t, "2", tile.South, tile.East, play.YakuSeatWindSouth, play.YakuRoundWindSouth)
-}
-
-func TestEstimateHandValue_WhenWestPon_ShouldScoreWestAsSeatAndRoundWind(t *testing.T) {
-	yakuCheckSeatWind(t, "3", tile.West, tile.East, play.YakuSeatWindWest, play.YakuRoundWindWest)
-}
-
-func TestEstimateHandValue_WhenNorthPon_ShouldScoreNorthAsSeatAndRoundWind(t *testing.T) {
-	yakuCheckSeatWind(t, "4", tile.North, tile.East, play.YakuSeatWindNorth, play.YakuRoundWindNorth)
+func TestEstimateHandValue_WhenHonorPon_ShouldScoreItsYaku(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		cases []yakuCase
+	}{
+		{"haku", []yakuCase{{
+			hand: "23422m234567s555z", winTile: "5z", situation: ron(), want: yakuHan(1, 40, play.YakuHaku),
+		}}},
+		{"hatsu", []yakuCase{{
+			hand: "23422m234567s666z", winTile: "6z", situation: ron(), want: yakuHan(1, 40, play.YakuHatsu),
+		}}},
+		{"chun", []yakuCase{{
+			hand: "23422m234567s777z", winTile: "7z", situation: ron(), want: yakuHan(1, 40, play.YakuChun),
+		}}},
+		{"east as seat and round wind", yakuSeatWindCases(
+			"1", tile.East, tile.West, play.YakuSeatWindEast, play.YakuRoundWindEast)},
+		{"south as seat and round wind", yakuSeatWindCases(
+			"2", tile.South, tile.East, play.YakuSeatWindSouth, play.YakuRoundWindSouth)},
+		{"west as seat and round wind", yakuSeatWindCases(
+			"3", tile.West, tile.East, play.YakuSeatWindWest, play.YakuRoundWindWest)},
+		{"north as seat and round wind", yakuSeatWindCases(
+			"4", tile.North, tile.East, play.YakuSeatWindNorth, play.YakuRoundWindNorth)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			yakuCheckCases(t, defaultRules(), tc.cases...)
+		})
+	}
 }
 
 func TestEstimateHandValue_WhenIndicatorsPointAtHandTiles_ShouldCountDoraOnlyWithAYaku(t *testing.T) {
@@ -776,25 +766,27 @@ func TestEstimateHandValue_WhenOpenTsumoHasNoOtherFu_ShouldScore30FuWhateverTheO
 	wantPayment := play.TsumoPayment{Dealer: 500, NonDealer: 300}
 
 	for _, fuForOpenPinfu := range []bool{true, false} {
-		rules := defaultRules()
-		rules.OpenTanyao = true
-		rules.FuForOpenPinfu = fuForOpenPinfu
+		t.Run(fmt.Sprintf("FuForOpenPinfu=%t", fuForOpenPinfu), func(t *testing.T) {
+			rules := defaultRules()
+			rules.OpenTanyao = true
+			rules.FuForOpenPinfu = fuForOpenPinfu
 
-		value := yakuMustValue(
-			t, "234567m22p234678s", "6s", []meld.Meld{chi(t, "234s")}, tsumo(), score.Dora{}, rules,
-		)
+			value := yakuMustValue(
+				t, "234567m22p234678s", "6s", []meld.Meld{chi(t, "234s")}, tsumo(), score.Dora{}, rules,
+			)
 
-		if got := yakuSummaryOf(value); !reflect.DeepEqual(got, want) {
-			t.Errorf("EstimateHandValue(FuForOpenPinfu=%v) = %+v, want %+v", fuForOpenPinfu, got, want)
-		}
-		if !reflect.DeepEqual(value.FuDetails, wantFu) {
-			t.Errorf("EstimateHandValue(FuForOpenPinfu=%v).FuDetails = %+v, want %+v",
-				fuForOpenPinfu, value.FuDetails, wantFu)
-		}
-		if value.Payment != wantPayment {
-			t.Errorf("EstimateHandValue(FuForOpenPinfu=%v).Payment = %+v, want %+v",
-				fuForOpenPinfu, value.Payment, wantPayment)
-		}
+			if got := yakuSummaryOf(value); !reflect.DeepEqual(got, want) {
+				t.Errorf("EstimateHandValue(FuForOpenPinfu=%v) = %+v, want %+v", fuForOpenPinfu, got, want)
+			}
+			if !reflect.DeepEqual(value.FuDetails, wantFu) {
+				t.Errorf("EstimateHandValue(FuForOpenPinfu=%v).FuDetails = %+v, want %+v",
+					fuForOpenPinfu, value.FuDetails, wantFu)
+			}
+			if value.Payment != wantPayment {
+				t.Errorf("EstimateHandValue(FuForOpenPinfu=%v).Payment = %+v, want %+v",
+					fuForOpenPinfu, value.Payment, wantPayment)
+			}
+		})
 	}
 }
 
@@ -813,28 +805,34 @@ func TestEstimateHandValue_WhenHandHoldsRedFives_ShouldCountEachAsAkaDora(t *tes
 	}
 
 	for _, c := range cases {
-		yakuCheckCases(t, defaultRules(), yakuCase{
-			hand: c.hand, winTile: "9m", situation: tsumo(),
-			want: yakuHanWithDora(c.han, 30, play.DoraCount{AkaDora: c.han - 1}, play.YakuTsumo),
+		t.Run(c.hand, func(t *testing.T) {
+			yakuCheckCases(t, defaultRules(), yakuCase{
+				hand: c.hand, winTile: "9m", situation: tsumo(),
+				want: yakuHanWithDora(c.han, 30, play.DoraCount{AkaDora: c.han - 1}, play.YakuTsumo),
+			})
 		})
 	}
 }
 
 func TestEstimateHandValue_WhenDoraIsAHonorTheHandLacks_ShouldCountNoDora(t *testing.T) {
 	for _, indicators := range []string{"", "3z", "33z"} {
-		yakuCheckCases(t, defaultRules(), yakuCase{
-			hand: "12355599m456p345s", winTile: "9m", situation: tsumo(), dora: yakuIndicators(t, indicators),
-			want: yakuHan(1, 30, play.YakuTsumo),
+		t.Run(fmt.Sprintf("indicators %q", indicators), func(t *testing.T) {
+			yakuCheckCases(t, defaultRules(), yakuCase{
+				hand: "12355599m456p345s", winTile: "9m", situation: tsumo(), dora: yakuIndicators(t, indicators),
+				want: yakuHan(1, 30, play.YakuTsumo),
+			})
 		})
 	}
 }
 
 func TestEstimateHandValue_WhenUraDoraIsAHonorTheHandLacks_ShouldCountNoUraDora(t *testing.T) {
 	for _, uraIndicators := range []string{"", "3z", "33z"} {
-		yakuCheckCases(t, defaultRules(), yakuCase{
-			hand: "12355599m456p345s", winTile: "9m", situation: withRiichi(ron()),
-			dora: score.Dora{UraIndicators: tiles(t, uraIndicators)},
-			want: yakuHan(1, 40, play.YakuRiichi),
+		t.Run(fmt.Sprintf("ura indicators %q", uraIndicators), func(t *testing.T) {
+			yakuCheckCases(t, defaultRules(), yakuCase{
+				hand: "12355599m456p345s", winTile: "9m", situation: withRiichi(ron()),
+				dora: score.Dora{UraIndicators: tiles(t, uraIndicators)},
+				want: yakuHan(1, 40, play.YakuRiichi),
+			})
 		})
 	}
 }

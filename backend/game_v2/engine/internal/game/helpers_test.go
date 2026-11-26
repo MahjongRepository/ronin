@@ -21,6 +21,7 @@ func id(t *testing.T, n int) tile.TileID {
 	if !ok {
 		t.Fatalf("NewTileID(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -30,6 +31,7 @@ func ids(t *testing.T, ns ...int) []tile.TileID {
 	for i, n := range ns {
 		got[i] = id(t, n)
 	}
+
 	return got
 }
 
@@ -39,6 +41,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -48,6 +51,7 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 	if err != nil {
 		t.Fatalf("Copies(%d, %q) error = %v", first, mpsz, err)
 	}
+
 	return got
 }
 
@@ -57,6 +61,7 @@ func tileOf(t *testing.T, first int, mpsz string) tile.TileID {
 	if len(got) != 1 {
 		t.Fatalf("%q holds %d tiles, want 1", mpsz, len(got))
 	}
+
 	return got[0]
 }
 
@@ -71,6 +76,7 @@ func junk(t *testing.T, first int) []tile.TileID {
 	if err != nil {
 		t.Fatalf("Junk(%d) error = %v", first, err)
 	}
+
 	return got
 }
 
@@ -80,6 +86,7 @@ func notenWall(t *testing.T) testkit.StartWall {
 	if err != nil {
 		t.Fatalf("NotenWall error = %v", err)
 	}
+
 	return w
 }
 
@@ -93,6 +100,7 @@ func wallTiles(t *testing.T, w testkit.StartWall, dealer tile.Seat) [tile.TileID
 	if err != nil {
 		t.Fatalf("Tiles error = %v", err)
 	}
+
 	return tiles
 }
 
@@ -106,6 +114,7 @@ func newGame(t *testing.T, source play.WallSource, start play.Option[play.StartP
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}
+
 	g, drew, _ := g.Begin()
 	return g, append(dealt, drew...)
 }
@@ -116,10 +125,12 @@ func dealNextRound(t *testing.T, g game.Game) game.Game {
 	if refused.OK {
 		t.Fatalf("DealNextRound refusal = %+v", refused.Value)
 	}
+
 	g, _, refused = g.Begin()
 	if refused.OK {
 		t.Fatalf("Begin refusal = %+v", refused.Value)
 	}
+
 	return g
 }
 
@@ -129,6 +140,7 @@ func begun(t *testing.T, w testkit.StartWall, start play.Option[play.StartPositi
 	if err != nil {
 		t.Fatalf("BegunGame error = %v", err)
 	}
+
 	return g
 }
 
@@ -142,6 +154,7 @@ func script(t *testing.T, g game.Game, actions ...testkit.SeatAction) (game.Game
 	if err != nil {
 		t.Fatalf("Script error = %v", err)
 	}
+
 	return next, events
 }
 
@@ -151,6 +164,7 @@ func discardDrawn(t *testing.T, g game.Game, turns int) (game.Game, []play.Emitt
 	if err != nil {
 		t.Fatalf("DiscardDrawn error = %v", err)
 	}
+
 	return next, events
 }
 
@@ -160,6 +174,7 @@ func playDefaultsWhileLiveTilesExceed(t *testing.T, g game.Game, liveTiles int) 
 	if err != nil {
 		t.Fatalf("PlayDefaultsWhileLiveTilesExceed error = %v", err)
 	}
+
 	return next
 }
 
@@ -169,6 +184,7 @@ func firstPon(t *testing.T, g game.Game, s tile.Seat) play.Action {
 	if err != nil {
 		t.Fatalf("FirstPon error = %v", err)
 	}
+
 	return pon
 }
 
@@ -178,6 +194,7 @@ func roundResult(t *testing.T, events []play.Emitted) play.RoundResult {
 	if !ok {
 		t.Fatal("the events end no round")
 	}
+
 	return result
 }
 
@@ -187,6 +204,7 @@ func firstWin(t *testing.T, events []play.Emitted) play.WinResult {
 	if !ok {
 		t.Fatal("the round did not end in a win")
 	}
+
 	return win
 }
 
@@ -196,6 +214,7 @@ func turnContext(t *testing.T, g game.Game) play.DecisionContext {
 	if !ok {
 		t.Fatal("no turn is awaited")
 	}
+
 	decision, _ := g.Decision(s)
 	return decision.Context
 }
@@ -225,6 +244,7 @@ func assertRefused(t *testing.T, build func() game.Game, s tile.Seat, action pla
 	if !refusal.OK || refusal.Value != want {
 		t.Errorf("Act(%d, %v) refusal = %+v, want %+v", s.Index(), action, refusal, want)
 	}
+
 	if len(events) != 0 {
 		t.Errorf("refused Act events = %v, want none", events)
 	}
@@ -245,6 +265,7 @@ func discards(held []tile.TileID) []play.Action {
 	for i, h := range held {
 		actions[i] = play.DiscardAction(h)
 	}
+
 	return actions
 }
 
@@ -262,6 +283,7 @@ func turnSeat(t *testing.T, g game.Game) tile.Seat {
 	if !ok {
 		t.Fatal("no turn is awaited")
 	}
+
 	return s
 }
 
@@ -295,6 +317,7 @@ func sticksPaidScores(riichiSticks int) [tile.SeatCount]int {
 	for i := range riichiSticks {
 		scores[i%tile.SeatCount] -= rules.RiichiStickValue
 	}
+
 	return scores
 }
 
@@ -310,6 +333,7 @@ func roundEnded(t *testing.T, events []play.Emitted) play.RoundEnded {
 			return ended
 		}
 	}
+
 	t.Fatal("the events end no round")
 	return play.RoundEnded{}
 }

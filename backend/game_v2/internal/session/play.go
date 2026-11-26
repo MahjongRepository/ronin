@@ -40,6 +40,7 @@ func waitOf(awaiting play.Awaiting) wait {
 		return wait{kind: waitRoundOver}
 	case play.AwaitingGameOver:
 	}
+
 	return wait{kind: waitGameOver}
 }
 
@@ -51,11 +52,13 @@ func opensNewWait(previous, awaiting wait, actor play.Option[tile.Seat]) bool {
 	if previous.kind != awaiting.kind {
 		return true
 	}
+
 	for _, seat := range awaiting.seats {
 		if !previous.awaits(seat) || (actor.OK && actor.Value == seat) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -75,6 +78,7 @@ func (g *game) requireAct(seat tile.Seat, action play.Action) ([]play.Emitted, e
 	if refusal.OK {
 		return nil, fmt.Errorf("session call refused: %s: %s", refusal.Value.Kind, refusal.Value.Code)
 	}
+
 	g.engine = next
 	return events, nil
 }
@@ -91,9 +95,11 @@ func (g *game) followEngine(events []play.Emitted, actor play.Option[tile.Seat])
 	if err != nil {
 		return err
 	}
+
 	if holds {
 		return g.holdUpdate(shown, kept, actor)
 	}
+
 	return g.showUpdate(events, actor)
 }
 
@@ -102,6 +108,7 @@ func (g *game) showUpdate(events []play.Emitted, actor play.Option[tile.Seat]) e
 	if err != nil {
 		return err
 	}
+
 	g.playAIPlayers()
 	return nil
 }
@@ -121,6 +128,7 @@ func (g *game) applyUpdate(events []play.Emitted, actor play.Option[tile.Seat]) 
 		if err != nil {
 			return err
 		}
+
 		openings, err = g.openings(awaiting)
 		if err != nil {
 			return err
@@ -137,10 +145,12 @@ func (g *game) applyUpdate(events []play.Emitted, actor play.Option[tile.Seat]) 
 	if err != nil {
 		return err
 	}
+
 	g.published = g.engine
 	if opened && g.lifecycle == lifecyclePlaying {
 		g.startWaitTimers()
 	}
+
 	return nil
 }
 
@@ -148,17 +158,20 @@ func (g *game) closeDisplacedCalls(actor play.Option[tile.Seat], outcomeHeld boo
 	if !g.hasWait || g.wait.kind != waitCall {
 		return nil
 	}
+
 	awaiting := waitOf(g.engine.Awaiting())
 	for _, seat := range g.wait.seats {
 		p := g.atSeat(seat)
 		if awaiting.awaits(seat) || (actor.OK && actor.Value == seat) || p == nil {
 			continue
 		}
+
 		err := closeCallOf(p, p.decisionID, outcomeHeld)
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -167,6 +180,7 @@ func closeCallOf(p *participant, waitID int, promptStaysUp bool) error {
 	if !promptStaysUp || p.conn == nil {
 		return nil
 	}
+
 	return send(p.conn, messaging.CallClosed())
 }
 
@@ -174,12 +188,14 @@ func (g *game) openWait(events []play.Emitted, awaiting wait) error {
 	for _, p := range g.participants {
 		p.timer.stop()
 	}
+
 	g.aiTurn.cancel()
 	if holdsDeal(events) {
 		for _, p := range g.participants {
 			p.timer.resetBank()
 		}
 	}
+
 	if awaiting.kind == waitRoundOver {
 		err := g.openRoundOverPause(events)
 		if err != nil {
@@ -192,6 +208,7 @@ func (g *game) openWait(events []play.Emitted, awaiting wait) error {
 			p.decisionID++
 		}
 	}
+
 	return nil
 }
 
@@ -199,6 +216,7 @@ func (g *game) owesDecision(seat tile.Seat) bool {
 	if g.pause != nil {
 		return g.pause.owes(seat)
 	}
+
 	return g.wait.awaits(seat)
 }
 
@@ -214,9 +232,11 @@ func (g *game) openRoundOverPause(events []play.Emitted) error {
 	for p := range g.connected() {
 		opened.owing[p.seat.Index()] = true
 	}
+
 	if !opened.anyOwing() {
 		return errNoConnected
 	}
+
 	for _, e := range events {
 		if ended, ok := e.Event.(play.RoundEnded); ok {
 			if ron, isRon := ended.Result.(play.Ron); isRon {
@@ -224,6 +244,7 @@ func (g *game) openRoundOverPause(events []play.Emitted) error {
 			}
 		}
 	}
+
 	g.pause = &opened
 	return nil
 }
@@ -234,12 +255,15 @@ func (g *game) openings(awaiting wait) ([]messaging.Opening, error) {
 		if g.isAISeat(seat) {
 			continue
 		}
+
 		decision, ok := g.engine.Decision(seat)
 		if !ok {
 			return nil, errNoDecision
 		}
+
 		openings = append(openings, messaging.BuildOpening(decision))
 	}
+
 	return openings, nil
 }
 
@@ -251,6 +275,7 @@ func (g *game) lazyTable() func() messaging.Table {
 			table = messaging.Table{Roster: g.roster, Record: g.engine.View(tile.Seats()[0]).Record}
 			computed = true
 		}
+
 		return table
 	}
 }
@@ -261,6 +286,7 @@ func (g *game) broadcastEvents(events []play.Emitted, openings []messaging.Openi
 	if err != nil {
 		return err
 	}
+
 	if g.wait.kind != waitGameOver {
 		return nil
 	}
@@ -269,6 +295,7 @@ func (g *game) broadcastEvents(events []play.Emitted, openings []messaging.Openi
 	if !ok {
 		return errGameOverNoEnd
 	}
+
 	g.endGame(endCompleted, play.Some(result))
 	return nil
 }
@@ -279,11 +306,13 @@ func gameResult(events []play.Emitted, table func() messaging.Table) (store.Resu
 		if !ok {
 			continue
 		}
+
 		seats := tile.Seats()
 		ordered := seats[:]
 		slices.SortFunc(ordered, func(a, b tile.Seat) int {
 			return ended.Standings.Placements[a.Index()] - ended.Standings.Placements[b.Index()]
 		})
+
 		result := store.Result{RoundsPlayed: int(table().Record.Header.RoundNumber) + 1}
 		for _, s := range ordered {
 			result.Placements = append(result.Placements, store.Placement{
@@ -292,8 +321,10 @@ func gameResult(events []play.Emitted, table func() messaging.Table) (store.Resu
 				FinalScore: ended.Standings.Points[s.Index()],
 			})
 		}
+
 		return result, true
 	}
+
 	return store.Result{}, false
 }
 
@@ -301,10 +332,12 @@ func (g *game) recordReplay(events []play.Emitted) error {
 	if g.replay == nil {
 		return nil
 	}
+
 	err := g.replay.Collect(events, g.lazyTable())
 	if err != nil {
 		return err
 	}
+
 	g.observed.follow(g.replay, g.clock.Now())
 	return nil
 }
@@ -321,6 +354,7 @@ func (g *game) sendEvents(events []play.Emitted, openings []messaging.Opening, t
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -329,6 +363,7 @@ func (g *game) sendOpening(opening messaging.Opening) error {
 	if p == nil || p.conn == nil {
 		return nil
 	}
+
 	return send(p.conn, messaging.StampOpening(opening.Payload, p.decisionID, seconds(p.timer.bank), play.Option[float64]{}))
 }
 
@@ -336,6 +371,7 @@ func (g *game) sendEvent(emitted play.Emitted, table func() messaging.Table) err
 	if started, ok := emitted.Event.(play.GameStarted); ok {
 		return g.sendGameStarted(started)
 	}
+
 	if notice, ok := emitted.Event.(play.DrewNotice); ok {
 		if seat, single := emitted.To.Seat(); single {
 			return g.sendDrawNoticeCachedByDrawingSeat(notice, seat, table)
@@ -346,17 +382,21 @@ func (g *game) sendEvent(emitted play.Emitted, table func() messaging.Table) err
 	if err != nil {
 		return err
 	}
+
 	if emitted.To.All() {
 		return g.broadcastEvent(payload, emitted)
 	}
+
 	seat, single := emitted.To.Seat()
 	if !single {
 		return fmt.Errorf("%T event has no audience", emitted.Event)
 	}
+
 	p := g.atSeat(seat)
 	if p == nil {
 		return nil
 	}
+
 	return g.sendEventTo(p, payload, emitted)
 }
 
@@ -365,17 +405,20 @@ func (g *game) sendDrawNoticeCachedByDrawingSeat(notice play.DrewNotice, to tile
 	if p == nil || p.conn == nil {
 		return nil
 	}
+
 	frame := &g.drawNoticeFrameByDrawingSeat[notice.Seat.Index()]
 	if *frame == nil {
 		payload, err := messaging.EventPayload(notice, table)
 		if err != nil {
 			return err
 		}
+
 		*frame, err = wire.Encode(payload)
 		if err != nil {
 			return err
 		}
 	}
+
 	p.conn.Send(*frame)
 	return nil
 }
@@ -385,6 +428,7 @@ func (g *game) sendGameStarted(started play.GameStarted) error {
 	if err != nil {
 		return err
 	}
+
 	for p := range g.connected() {
 		stamped := messaging.StampViewerSeat(payload, p.seat)
 		err = send(p.conn, messaging.StampTimerSettings(stamped, g.timerSettings(p)))
@@ -392,6 +436,7 @@ func (g *game) sendGameStarted(started play.GameStarted) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -399,12 +444,14 @@ func (g *game) broadcastEvent(payload wire.Map, emitted play.Emitted) error {
 	if !g.opensPause(emitted) {
 		return g.broadcast(payload)
 	}
+
 	for p := range g.connected() {
 		err := g.sendEventTo(p, payload, emitted)
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -412,9 +459,11 @@ func (g *game) sendEventTo(p *participant, payload wire.Map, emitted play.Emitte
 	if p.conn == nil {
 		return nil
 	}
+
 	if g.opensPause(emitted) {
 		payload = messaging.StampPause(payload, p.decisionID, seconds(g.pauseTimeout()))
 	}
+
 	return send(p.conn, payload)
 }
 
@@ -422,11 +471,13 @@ func (g *game) opensPause(emitted play.Emitted) bool {
 	if g.pause == nil {
 		return false
 	}
+
 	if g.pause.startsGame {
 		_, dealt := emitted.Event.(play.RoundStarted)
 		seat, single := emitted.To.Seat()
 		return dealt && single && g.pause.owes(seat)
 	}
+
 	_, ended := emitted.Event.(play.RoundEnded)
 	return ended
 }
@@ -445,8 +496,10 @@ func (g *game) broadcastTo(recipients iter.Seq[*participant], m wire.Map) error 
 				return err
 			}
 		}
+
 		p.conn.Send(data)
 	}
+
 	return nil
 }
 

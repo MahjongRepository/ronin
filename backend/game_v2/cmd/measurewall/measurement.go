@@ -27,6 +27,7 @@ func diceSumProbabilities() []float64 {
 	for total := lowestSum; total <= highestSum; total++ {
 		probabilities = append(probabilities, float64(dieFaces-abs(total-dieFaces-1))/diceOutcomes)
 	}
+
 	return probabilities
 }
 
@@ -43,6 +44,7 @@ func firstDealerProbabilities() []float64 {
 			counts[(temporary+second-1)%tile.SeatCount] += sums[first-lowestSum] * sums[second-lowestSum]
 		}
 	}
+
 	return counts
 }
 
@@ -54,6 +56,7 @@ func seatPermutationIndex(seats [tile.SeatCount]int) int {
 		index = index*(tile.SeatCount-i) + position
 		remaining = slices.Delete(remaining, position, position+1)
 	}
+
 	return index
 }
 
@@ -62,6 +65,7 @@ func shantenLabels(lowest int) []string {
 	for value := lowest; value <= shantenMax; value++ {
 		labels = append(labels, strconv.Itoa(value))
 	}
+
 	return labels
 }
 
@@ -70,6 +74,7 @@ func seatShantenStats() []*meanStat {
 	for offset := range stats {
 		stats[offset] = newMeanStat("mean shanten of 13-tile hands, seat " + strconv.Itoa(offset) + " after the dealer")
 	}
+
 	return stats
 }
 
@@ -183,6 +188,7 @@ func (m *measurement) observeEngine(game gameSample) error {
 		if err != nil {
 			return err
 		}
+
 		m.observeDice(sample)
 	}
 
@@ -200,15 +206,19 @@ func (m *measurement) observeControl(rounds []controlRound) error {
 			if err != nil {
 				return err
 			}
+
 			bySeat[seat] = append(bySeat[seat], value)
 		}
+
 		all = append(all, bySeat[seat]...)
 	}
+
 	for _, sample := range rounds {
 		value, err := controlShanten(sample.dealerHand)
 		if err != nil {
 			return err
 		}
+
 		shanten14 = append(shanten14, value)
 	}
 
@@ -217,6 +227,7 @@ func (m *measurement) observeControl(rounds []controlRound) error {
 	for seat, stat := range m.controlSeatShanten {
 		stat.add(average(bySeat[seat]))
 	}
+
 	return nil
 }
 
@@ -225,6 +236,7 @@ func controlShanten(ids []int) (int, error) {
 	for _, id := range ids {
 		counts[id/tile.CopiesPerKind]++
 	}
+
 	return shantenOf(counts)
 }
 
@@ -233,10 +245,12 @@ func shantenOf(counts [tile.KindCount]uint8) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("count a hand: %w", err)
 	}
+
 	value, err := engine.Shanten(hand)
 	if err != nil {
 		return 0, fmt.Errorf("shanten of a hand: %w", err)
 	}
+
 	return value, nil
 }
 
@@ -245,9 +259,11 @@ func (m *measurement) verifyRegeneration(game gameSample) error {
 	if err != nil {
 		return err
 	}
+
 	if !reflect.DeepEqual(again, game) {
 		m.errors = append(m.errors, fmt.Sprintf("seed %s... regenerated differently", game.seed[:16]))
 	}
+
 	return nil
 }
 
@@ -267,9 +283,11 @@ func (m *measurement) report(meta metadata) report {
 	for _, family := range m.cellFamilies() {
 		r.families = append(r.families, family.summary())
 	}
+
 	for _, stat := range means {
 		r.means = append(r.means, stat.summary())
 	}
+
 	return r
 }
 
@@ -279,6 +297,7 @@ func (m *measurement) familyJSON() []familyJSON {
 	for i, family := range families {
 		out[i] = family.json()
 	}
+
 	return out
 }
 
@@ -306,6 +325,7 @@ func (m *measurement) comparisons() []comparison {
 	for seat := range tile.SeatCount {
 		out = append(out, compare(m.engineSeatShanten[seat].summary(), m.controlSeatShanten[seat].summary(), threshold))
 	}
+
 	return out
 }
 
@@ -321,6 +341,7 @@ func (m *measurement) observeSeating(game gameSample) {
 	for row, face := range []int{game.firstRoll.First, game.firstRoll.Second, game.secondRoll.First, game.secondRoll.Second} {
 		m.dealerFaces.add(row, face-1)
 	}
+
 	m.dealerFaces.trials++
 }
 
@@ -333,6 +354,7 @@ func (m *measurement) observePositions(sample roundSample, acc *gameAccumulator)
 			adjacent++
 		}
 	}
+
 	m.tileByPosition.trials++
 	m.typeByPosition.trials++
 	acc.adjacent = append(acc.adjacent, adjacent)
@@ -355,18 +377,21 @@ func (m *measurement) observeHands(sample roundSample, acc *gameAccumulator) err
 		if err != nil {
 			return err
 		}
+
 		acc.pairs = append(acc.pairs, pairs)
 		acc.honors = append(acc.honors, honors)
 		acc.reds = append(acc.reds, redFiveCount(hand))
 		acc.shanten13 = append(acc.shanten13, value)
 		acc.seatShanten[offset] = append(acc.seatShanten[offset], value)
 	}
+
 	m.dealtTypeBySeat.trials += handSize
 
 	value, err := m.shanten(kindCounts(sample.dealerHand()), -1)
 	if err != nil {
 		return err
 	}
+
 	acc.shanten14 = append(acc.shanten14, value)
 	m.doraType.add(0, int(sample.deal.DoraIndicator.Kind()))
 	m.doraType.trials++
@@ -378,6 +403,7 @@ func kindCounts(hand []tile.TileID) [tile.KindCount]uint8 {
 	for _, id := range hand {
 		counts[id.Kind()]++
 	}
+
 	return counts
 }
 
@@ -388,6 +414,7 @@ func redFiveCount(hand []tile.TileID) int {
 			reds++
 		}
 	}
+
 	return reds
 }
 
@@ -413,10 +440,12 @@ func (m *measurement) observeConsecutiveRounds(game gameSample, acc *gameAccumul
 			if earlier[position] == later[position] {
 				sameID++
 			}
+
 			if earlier[position]/tile.CopiesPerKind == later[position]/tile.CopiesPerKind {
 				sameType++
 			}
 		}
+
 		acc.sameID = append(acc.sameID, sameID)
 		acc.sameType = append(acc.sameType, sameType)
 		if earlier == later {
@@ -445,6 +474,7 @@ func (m *measurement) fold(acc *gameAccumulator) {
 	if len(acc.shanten13) == 0 {
 		return
 	}
+
 	m.engineShanten13.addGame(acc.shanten13, 0)
 	m.engineShanten14.addGame(acc.shanten14, 1)
 	for seat, stat := range m.engineSeatShanten {
@@ -457,9 +487,11 @@ func (m *measurement) shanten(counts [tile.KindCount]uint8, lowest int) (int, er
 	if err != nil {
 		return 0, err
 	}
+
 	if value < lowest || value > shantenMax {
 		return 0, fmt.Errorf("shanten %d outside [%d, %d]", value, lowest, shantenMax)
 	}
+
 	return value, nil
 }
 
@@ -468,5 +500,6 @@ func average(values []int) float64 {
 	for _, value := range values {
 		sum += value
 	}
+
 	return float64(sum) / float64(len(values))
 }

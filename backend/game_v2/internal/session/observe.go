@@ -59,6 +59,7 @@ func seedless(record wire.Map) wire.Map {
 	if _, seeded := record.Get(wire.KeySeed); !seeded {
 		return record
 	}
+
 	return slices.DeleteFunc(slices.Clone(record), func(f wire.Field) bool { return f.Key == wire.KeySeed })
 }
 
@@ -79,12 +80,14 @@ func (t *observerTimeline) observe(from int, now time.Time, delay time.Duration)
 	for last < len(t.entries) && !t.entries[last].stamp.After(cutoff) {
 		last++
 	}
+
 	var records []wire.Map
 	var stamps []time.Duration
 	for _, entry := range t.entries[first:last] {
 		records = append(records, entry.record)
 		stamps = append(stamps, entry.stamp.Sub(t.started.StartedAt))
 	}
+
 	next := max(from, last)
 	sinceStart := cutoff.Sub(t.started.StartedAt)
 	return Observation{
@@ -104,6 +107,7 @@ func (m *Manager) Observe(gameID string, from int) (Observation, bool) {
 	if t == nil {
 		return Observation{}, false
 	}
+
 	return t.observe(from, now, m.cfg.ObserveDelay), true
 }
 
@@ -115,6 +119,7 @@ func (m *Manager) observedTimeline(gameID string, now time.Time) *observerTimeli
 	if entry := m.observed[gameID]; entry != nil {
 		return entry.timeline
 	}
+
 	return nil
 }
 

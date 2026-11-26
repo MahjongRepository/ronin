@@ -50,6 +50,7 @@ func Run(setup engine.Setup, actions []SeatAction) ([]Step, error) {
 	if err != nil {
 		return nil, fmt.Errorf("start the replayed game: %w", err)
 	}
+
 	g, events, err = begun(g, events)
 	if err != nil {
 		return nil, err
@@ -61,6 +62,7 @@ func Run(setup engine.Setup, actions []SeatAction) ([]Step, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		err = r.play(i, action)
 		if err != nil {
 			return nil, err
@@ -71,10 +73,12 @@ func Run(setup engine.Setup, actions []SeatAction) ([]Step, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	err = r.deal()
 	if err != nil {
 		return nil, err
 	}
+
 	return r.steps, nil
 }
 
@@ -96,10 +100,12 @@ func (r *runner) prepare(index int, actions []SeatAction) error {
 	if err != nil {
 		return err
 	}
+
 	err = r.pass(index, answering(r.game.Awaiting(), actions[index:]))
 	if err != nil {
 		return err
 	}
+
 	err = r.deal()
 	if err != nil {
 		return err
@@ -108,6 +114,7 @@ func (r *runner) prepare(index int, actions []SeatAction) error {
 	if r.isOver() {
 		return ActionAfterGameEndError{Index: index}
 	}
+
 	return nil
 }
 
@@ -123,12 +130,15 @@ func answering(awaiting play.Awaiting, actions []SeatAction) []tile.Seat {
 	if next.Action.Kind() != play.ActionRon {
 		return seats
 	}
+
 	for _, later := range actions[1:] {
 		if later.Action.Kind() != play.ActionRon {
 			break
 		}
+
 		seats = append(seats, later.Seat)
 	}
+
 	return seats
 }
 
@@ -142,14 +152,17 @@ func (r *runner) pass(index int, answered []tile.Seat) error {
 		if slices.Contains(answered, s) {
 			continue
 		}
+
 		if _, still := r.game.Awaiting().(play.AwaitingCall); !still {
 			return nil
 		}
+
 		err := r.play(index, SeatAction{Seat: s, Action: play.PassAction()})
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -158,6 +171,7 @@ func (r *runner) play(index int, action SeatAction) error {
 	if refusal.OK {
 		return RefusedError{Index: index, Played: action, Refusal: refusal.Value}
 	}
+
 	r.game = g
 	r.steps = append(r.steps, Step{Events: events, Game: g})
 	return nil
@@ -167,14 +181,17 @@ func (r *runner) deal() error {
 	if _, over := r.game.Awaiting().(play.AwaitingRoundOver); !over {
 		return nil
 	}
+
 	g, events, refusal := r.game.DealNextRound()
 	if refusal.OK {
 		return errDealRefused
 	}
+
 	g, events, err := begun(g, events)
 	if err != nil {
 		return err
 	}
+
 	r.game = g
 	r.steps = append(r.steps, Step{Events: events, Game: g})
 	return nil
@@ -184,10 +201,12 @@ func begun(g engine.Game, events []play.Emitted) (engine.Game, []play.Emitted, e
 	if _, dealt := g.Awaiting().(play.AwaitingDealt); !dealt {
 		return g, events, nil
 	}
+
 	next, drew, refusal := g.Begin()
 	if refusal.OK {
 		return g, nil, errBeginRefused
 	}
+
 	return next, append(events, drew...), nil
 }
 

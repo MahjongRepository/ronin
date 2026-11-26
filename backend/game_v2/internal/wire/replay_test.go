@@ -25,6 +25,7 @@ func ints(values ...int) Array {
 	for _, n := range values {
 		array = append(array, Int(n))
 	}
+
 	return array
 }
 
@@ -36,11 +37,14 @@ func with(m Map, k Key, v Value) Map {
 			f.Value = v
 			replaced = true
 		}
+
 		out = append(out, f)
 	}
+
 	if !replaced {
 		out = append(out, field(k, v))
 	}
+
 	return out
 }
 
@@ -51,15 +55,16 @@ func without(m Map, k Key) Map {
 			out = append(out, f)
 		}
 	}
+
 	return out
 }
 
 func evenScores() StrMap {
-	return StrMap{{"0", Int(250)}, {"1", Int(250)}, {"2", Int(250)}, {"3", Int(250)}}
+	return StrMap{{Key: "0", Value: Int(250)}, {Key: "1", Value: Int(250)}, {Key: "2", Value: Int(250)}, {Key: "3", Value: Int(250)}}
 }
 
 func ronScoreChanges() StrMap {
-	return StrMap{{"0", Int(0)}, {"1", Int(-120)}, {"2", Int(120)}, {"3", Int(0)}}
+	return StrMap{{Key: "0", Value: Int(0)}, {Key: "1", Value: Int(-120)}, {Key: "2", Value: Int(120)}, {Key: "3", Value: Int(0)}}
 }
 
 func gameStartedRecord() Map {
@@ -182,6 +187,7 @@ func TestEncodeReplay_WhenEveryRecordShapeIsRecorded_ShouldDecodeTheSameRecords(
 	if err != nil {
 		t.Fatalf("EncodeReplay: %v", err)
 	}
+
 	decoded, err := DecodeReplay(content)
 	if err != nil || !reflect.DeepEqual(decoded, records) {
 		t.Errorf("DecodeReplay(EncodeReplay(r)) = %v, %v; want %v", decoded, err, records)
@@ -211,11 +217,11 @@ func TestEncodeReplay_WhenARecordBreaksTheFormat_ShouldRefuseItAtItsPosition(t *
 		{"short seed", with(gameStarted, KeySeed, Bin(make([]byte, ReplaySeedBytes-1)))},
 		{"hexadecimal seed", with(gameStarted, KeySeed, Str(strings.Repeat("00", ReplaySeedBytes)))},
 		{"rules envelope of an integer", with(gameStarted, KeyGameSettings, Int(1))},
-		{"rules envelope without overrides", with(gameStarted, KeyGameSettings, StrMap{{"id", Int(RulesProfileID)}})},
-		{"unknown rules profile", with(gameStarted, KeyGameSettings, StrMap{{"id", Int(3)}, {"overrides", StrMap{}}})},
-		{"rules profile of a boolean", with(gameStarted, KeyGameSettings, StrMap{{"id", Bool(true)}, {"overrides", StrMap{}}})},
-		{"rules overrides", with(gameStarted, KeyGameSettings, StrMap{{"id", Int(RulesProfileID)}, {"overrides", StrMap{{"has_akadora", Bool(false)}}}})},
-		{"rules overrides of an integer", with(gameStarted, KeyGameSettings, StrMap{{"id", Int(RulesProfileID)}, {"overrides", Int(0)}})},
+		{"rules envelope without overrides", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(RulesProfileID)}})},
+		{"unknown rules profile", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(3)}, {Key: "overrides", Value: StrMap{}}})},
+		{"rules profile of a boolean", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Bool(true)}, {Key: "overrides", Value: StrMap{}}})},
+		{"rules overrides", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(RulesProfileID)}, {Key: "overrides", Value: StrMap{{Key: "has_akadora", Value: Bool(false)}}}})},
+		{"rules overrides of an integer", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(RulesProfileID)}, {Key: "overrides", Value: Int(0)}})},
 		{"dealer dice of an integer", with(gameStarted, KeyDealerDice, Int(2))},
 		{"one roll of dealer dice", with(gameStarted, KeyDealerDice, Array{ints(1, 2)})},
 		{"dealer roll of an integer", with(gameStarted, KeyDealerDice, Array{Int(1), ints(1, 2)})},
@@ -246,11 +252,15 @@ func TestEncodeReplay_WhenARecordBreaksTheFormat_ShouldRefuseItAtItsPosition(t *
 	}
 	versionBytes := len(appendValue(nil, VersionRecord()))
 	for _, tc := range tests {
-		content, err := EncodeReplay([]Map{VersionRecord(), tc.record})
-		replayErr, isType := errors.AsType[ReplayError](err)
-		if !isType || replayErr.Record != 2 || replayErr.Offset != versionBytes || replayErr.Incomplete {
-			t.Errorf("EncodeReplay(%s) = %x, %v; want a ReplayError at record 2, byte %d", tc.name, content, err, versionBytes)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) {
+				content, err := EncodeReplay([]Map{VersionRecord(), tc.record})
+				replayErr, isType := errors.AsType[ReplayError](err)
+				if !isType || replayErr.Record != 2 || replayErr.Offset != versionBytes || replayErr.Incomplete {
+					t.Errorf("EncodeReplay(%s) = %x, %v; want a ReplayError at record 2, byte %d", tc.name, content, err, versionBytes)
+				}
+			})
+		})
 	}
 }
 
@@ -264,20 +274,23 @@ func TestEncodeReplay_WhenThereIsNoRecord_ShouldRefuseWithErrNoVersionRecord(t *
 
 func TestEncodeReplay_WhenTheFirstRecordIsNotThisVersion_ShouldRefuseWithAnUnsupportedVersionError(t *testing.T) {
 	tests := []struct {
+		name    string
 		first   Map
 		version Value
 		message string
 	}{
-		{record(field(KeyReplayVersion, Str("0.4-dev"))), Str("0.4-dev"), `unsupported replay version "0.4-dev"`},
-		{gameStartedRecord(), nil, "the first record is no version record"},
-		{with(VersionRecord(), KeyEventType, Int(EventGameStarted)), Str(ReplayVersion), "unsupported replay version"},
+		{"old version", record(field(KeyReplayVersion, Str("0.4-dev"))), Str("0.4-dev"), `unsupported replay version "0.4-dev"`},
+		{"no version record", gameStartedRecord(), nil, "the first record is no version record"},
+		{"version record with an event type", with(VersionRecord(), KeyEventType, Int(EventGameStarted)), Str(ReplayVersion), "unsupported replay version"},
 	}
 	for _, tc := range tests {
-		_, err := EncodeReplay([]Map{tc.first})
-		versionErr, isType := errors.AsType[UnsupportedVersionError](err)
-		if !isType || versionErr.Version != tc.version || !strings.Contains(err.Error(), tc.message) {
-			t.Errorf("EncodeReplay(%v) = %v; want an UnsupportedVersionError of %v saying %q", tc.first, err, tc.version, tc.message)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := EncodeReplay([]Map{tc.first})
+			versionErr, isType := errors.AsType[UnsupportedVersionError](err)
+			if !isType || versionErr.Version != tc.version || !strings.Contains(err.Error(), tc.message) {
+				t.Errorf("EncodeReplay(%v) = %v; want an UnsupportedVersionError of %v saying %q", tc.first, err, tc.version, tc.message)
+			}
+		})
 	}
 }
 
@@ -302,6 +315,7 @@ func TestDecodeReplay_WhenTheContentEndsInsideARecord_ShouldReportItIncompleteWh
 	if err != nil {
 		t.Fatalf("EncodeReplay: %v", err)
 	}
+
 	for _, tail := range [][]byte{{0x81}, {0x81, 0x01}, {0x81, 0x01, 0xdb, 0, 0, 0, 5, 'a'}} {
 		_, err = DecodeReplay(append(bytes.Clone(complete), tail...))
 
@@ -325,6 +339,7 @@ func TestDecodeRecords_WhenTheReplayIsOfVersion04Dev_ShouldReadEveryRecord(t *te
 	if err != nil || len(records) != 15 || !reflect.DeepEqual(records[0], Map{{Key: KeyReplayVersion, Value: Str("0.4-dev")}}) {
 		t.Fatalf("DecodeRecords(legacy) = %d records, first %v, error %v; want 15 from the 0.4-dev version record", len(records), records[:1], err)
 	}
+
 	if got := appendRecords(records); !bytes.Equal(got, content) {
 		t.Errorf("records re-encode to %x, want the file's bytes %x", got, content)
 	}
@@ -350,6 +365,7 @@ func appendRecords(records []Map) []byte {
 	for _, record := range records {
 		content = appendValue(content, record)
 	}
+
 	return content
 }
 
@@ -373,30 +389,37 @@ func TestDecodeReplay_WhenARecordIsMalformed_ShouldReportItsPosition(t *testing.
 		{"seed of 96 hexa", appendValue(nil, with(gameStartedRecord(), KeySeed, Str(strings.Repeat("0", 2*ReplaySeedBytes)))), ""},
 	}
 	for _, tc := range tests {
-		_, err := DecodeReplay(append(bytes.Clone(version), tc.malformed...))
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := DecodeReplay(append(bytes.Clone(version), tc.malformed...))
 
-		replayErr, isType := errors.AsType[ReplayError](err)
-		if !isType || replayErr.Incomplete || replayErr.Record != 2 || replayErr.Offset != len(version) ||
-			!strings.HasPrefix(err.Error(), "replay record 2 at byte "+strconv.Itoa(len(version))+": ") ||
-			!strings.Contains(err.Error(), tc.message) {
-			t.Errorf("DecodeReplay(version + %s) = %v; want record 2 refused at byte %d", tc.name, err, len(version))
-		}
+				replayErr, isType := errors.AsType[ReplayError](err)
+				if !isType || replayErr.Incomplete || replayErr.Record != 2 || replayErr.Offset != len(version) ||
+					!strings.HasPrefix(err.Error(), "replay record 2 at byte "+strconv.Itoa(len(version))+": ") ||
+					!strings.Contains(err.Error(), tc.message) {
+					t.Errorf("DecodeReplay(version + %s) = %v; want record 2 refused at byte %d", tc.name, err, len(version))
+				}
+			})
+		})
 	}
 }
 
 func TestDecodeReplay_WhenTheContentIsEmptyOrTooLarge_ShouldRefuseIt(t *testing.T) {
 	tests := []struct {
+		name    string
 		content []byte
 		want    error
 	}{
-		{nil, ErrNoVersionRecord},
-		{make([]byte, MaxReplayBytes+1), ErrReplayTooLarge},
+		{"empty", nil, ErrNoVersionRecord},
+		{"too large", make([]byte, MaxReplayBytes+1), ErrReplayTooLarge},
 	}
 	for _, tc := range tests {
-		_, err := DecodeReplay(tc.content)
-		if !errors.Is(err, tc.want) {
-			t.Errorf("DecodeReplay(%d bytes) = %v, want %v", len(tc.content), err, tc.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := DecodeReplay(tc.content)
+			if !errors.Is(err, tc.want) {
+				t.Errorf("DecodeReplay(%d bytes) = %v, want %v", len(tc.content), err, tc.want)
+			}
+		})
 	}
 }
 

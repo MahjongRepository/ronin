@@ -12,6 +12,7 @@ func TestCountsFromTiles_ShouldCountARedFiveAsItsKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CountsFromTiles error = %v", err)
 	}
+
 	for mpsz, want := range map[string]int{"1m": 2, "5m": 2, "0m": 2, "1p": 1, "2m": 0} {
 		if got := counts.Count(mustTile(t, mpsz)); got != want {
 			t.Errorf("Count(%s) = %d, want %d", mpsz, got, want)
@@ -26,6 +27,7 @@ func TestCountsFromArray_WhenAKindHasFiveTiles_ShouldNameTheLowest(t *testing.T)
 	if !errors.Is(err, tile.TooManyCopiesError{Kind: 27}) {
 		t.Fatalf("CountsFromArray error = %v, want kind 27 too many", err)
 	}
+
 	if got, want := err.Error(), "kind 27 has more than 4 tiles"; got != want {
 		t.Errorf("error message = %q, want %q", got, want)
 	}
@@ -47,10 +49,10 @@ func TestCountsWithoutOne_WhenTheKindIsHeld_ShouldTakeOneTileOut(t *testing.T) {
 	}
 
 	rest, ok := counts.WithoutOne(0)
-
 	if !ok || rest.Count(mustTile(t, "1m")) != 1 || rest.Count(mustTile(t, "2m")) != 1 {
 		t.Errorf("WithoutOne(1m) = %v, %v; want one 1m and one 2m left", rest.Array(), ok)
 	}
+
 	if counts.Count(mustTile(t, "1m")) != 2 {
 		t.Errorf("WithoutOne changed its receiver to %v", counts.Array())
 	}

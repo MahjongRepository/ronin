@@ -40,9 +40,11 @@ func Copies(first int, mpsz string) ([]tile.TileID, error) {
 		if !ok || first < 0 || first+seen[kind] >= tile.CopiesPerKind {
 			return nil, CopyOutOfRangeError{Notation: mpsz}
 		}
+
 		ids = append(ids, id)
 		seen[kind]++
 	}
+
 	return ids, nil
 }
 
@@ -87,6 +89,7 @@ func (w StartWall) UnplacedTiles() []tile.TileID {
 			free = append(free, id)
 		}
 	}
+
 	return free
 }
 
@@ -95,11 +98,13 @@ func (w StartWall) placedTiles() []tile.TileID {
 	for _, held := range w.Hands {
 		placed = append(placed, held...)
 	}
+
 	placed = append(placed, w.Draws...)
 	placed = append(placed, w.Rinshan...)
 	if w.Dora.OK {
 		placed = append(placed, w.Dora.Value)
 	}
+
 	placed = append(placed, w.KanDora...)
 	return append(placed, w.Ura...)
 }
@@ -137,12 +142,14 @@ func (w StartWall) Tiles(dealer tile.Seat) ([tile.TileIDCount]tile.TileID, error
 	for _, p := range w.placements(dealer) {
 		tiles[p.slot], filled[p.slot] = p.id, true
 	}
+
 	free := w.UnplacedTiles()
 	for slot := range tiles {
 		if !filled[slot] {
 			tiles[slot], free = free[0], free[1:]
 		}
 	}
+
 	return tiles, nil
 }
 
@@ -153,21 +160,27 @@ func (w StartWall) placements(dealer tile.Seat) []placement {
 			placements = append(placements, placement{dealSlot(seat.DistanceFrom(dealer), i), id})
 		}
 	}
+
 	for i, id := range w.Draws {
 		placements = append(placements, placement{firstDrawSlot + i, id})
 	}
+
 	for i, id := range w.Rinshan {
 		placements = append(placements, placement{deadWallStart + rinshanSlots()[i], id})
 	}
+
 	if w.Dora.OK {
 		placements = append(placements, placement{deadWallStart + doraSlot, w.Dora.Value})
 	}
+
 	for i, id := range w.KanDora {
 		placements = append(placements, placement{deadWallStart + firstKanDoraSlot + i, id})
 	}
+
 	for i, id := range w.Ura {
 		placements = append(placements, placement{deadWallStart + firstUraSlot + i, id})
 	}
+
 	return placements
 }
 
@@ -179,6 +192,7 @@ func dealSlot(offset, i int) int {
 	if block := i / dealBlockSize; block < dealBlocks {
 		return block*dealRoundSize + offset*dealBlockSize + i%dealBlockSize
 	}
+
 	return finalDealStart + offset
 }
 
@@ -187,6 +201,7 @@ func longest(hands [tile.SeatCount][]tile.TileID) int {
 	for _, held := range hands {
 		most = max(most, len(held))
 	}
+
 	return most
 }
 
@@ -206,6 +221,7 @@ func FixedSetup(w StartWall, start play.Option[play.StartPosition]) (play.WallSo
 	if start.OK {
 		dealer = start.Value.Dealer
 	}
+
 	tiles, err := w.Tiles(dealer)
 	return play.Fixed{Walls: [][tile.TileIDCount]tile.TileID{tiles}}, err
 }
@@ -221,6 +237,7 @@ func BegunGame(w StartWall, start play.Option[play.StartPosition]) (game.Game, e
 	if err != nil {
 		return game.Game{}, err
 	}
+
 	g, _, _ = g.Begin()
 	return g, nil
 }
@@ -251,8 +268,10 @@ func Script(g game.Game, actions ...SeatAction) (game.Game, []play.Emitted, erro
 		if refusal.OK {
 			return g, events, RefusedError{SeatAction: a, Refusal: refusal.Value}
 		}
+
 		g, events = next, append(events, batch...)
 	}
+
 	return g, events, nil
 }
 
@@ -290,9 +309,10 @@ func DiscardDrawn(g game.Game, turns int) (game.Game, []play.Emitted, error) {
 		}
 
 		var batch []play.Emitted
-		g, batch, err = Script(g, SeatAction{seat, play.DiscardAction(drawn)})
+		g, batch, err = Script(g, SeatAction{Seat: seat, Action: play.DiscardAction(drawn)})
 		events = append(events, batch...)
 	}
+
 	return g, events, err
 }
 
@@ -316,10 +336,12 @@ func PlayDefaultsWhileLiveTilesExceed(g game.Game, liveTiles int) (game.Game, er
 		actions := make([]SeatAction, 0, len(seats))
 		for _, seat := range seats {
 			action, _ := g.DefaultAction(seat)
-			actions = append(actions, SeatAction{seat, action})
+			actions = append(actions, SeatAction{Seat: seat, Action: action})
 		}
+
 		g, _, err = Script(g, actions...)
 	}
+
 	return g, err
 }
 
@@ -331,6 +353,7 @@ func awaitedSeats(awaiting play.Awaiting) []tile.Seat {
 		return a.Seats
 	case play.AwaitingDealt, play.AwaitingRoundOver, play.AwaitingGameOver:
 	}
+
 	return nil
 }
 
@@ -351,5 +374,6 @@ func FirstPon(g game.Game, seat tile.Seat) (play.Action, error) {
 	if !ok || len(held) < 2 {
 		return play.Action{}, NoPonError{}
 	}
+
 	return play.PonAction([2]tile.TileID{held[0], held[1]}), nil
 }

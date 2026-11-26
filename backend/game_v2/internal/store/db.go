@@ -47,9 +47,10 @@ func Open(ctx context.Context, path string, logger *slog.Logger) (*DB, error) {
 		return nil, fmt.Errorf("open database %s: %w", path, ErrDatabasePath)
 	}
 
-	err := os.MkdirAll(filepath.Dir(path), databaseDirMode)
+	dir := filepath.Dir(path)
+	err := os.MkdirAll(dir, databaseDirMode)
 	if err != nil {
-		return nil, fmt.Errorf("create database directory: %w", err)
+		return nil, fmt.Errorf("create database directory %s: %w", dir, err)
 	}
 
 	dsn := fmt.Sprintf("%s?_busy_timeout=%d&_journal_mode=WAL&_foreign_keys=1", path, busyTimeout.Milliseconds())
@@ -57,6 +58,7 @@ func Open(ctx context.Context, path string, logger *slog.Logger) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open database %s: %w", path, err)
 	}
+
 	conn.SetMaxOpenConns(1)
 
 	_, err = conn.ExecContext(ctx, schemaSQL)
@@ -65,6 +67,7 @@ func Open(ctx context.Context, path string, logger *slog.Logger) (*DB, error) {
 	}
 
 	hardenPermissions(path, logger)
+
 	return &DB{conn: conn, logger: logger}, nil
 }
 

@@ -26,6 +26,7 @@ func (tsumogiri) decide(decision play.Decision) (play.Action, error) {
 			return win, nil
 		}
 	}
+
 	return decision.Default, nil
 }
 
@@ -37,6 +38,7 @@ func newRandomLegal(seed uint64) *randomLegal {
 	if seed == 0 {
 		return &randomLegal{state: xorshiftNonzeroState}
 	}
+
 	return &randomLegal{state: seed}
 }
 
@@ -67,6 +69,7 @@ func TestTsumogiri_WhenOfferedAWin_ShouldTakeItAndElsePlayTheDefault(t *testing.
 	if !ok {
 		t.Fatal("seat 0 is not prompted")
 	}
+
 	quietTurn := turn
 	quietTurn.Legal = []play.Action{play.DiscardAction(held)}
 

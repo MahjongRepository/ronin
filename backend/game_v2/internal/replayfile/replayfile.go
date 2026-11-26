@@ -47,12 +47,14 @@ func IsValidGameID(id string) bool {
 	if len(id) < minGameIDLength || len(id) > maxGameIDLength {
 		return false
 	}
+
 	for _, c := range []byte(id) {
 		isWordByte := c == '-' || c == '_' || ('0' <= c && c <= '9') || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
 		if !isWordByte {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -83,6 +85,7 @@ func (r Dir) Save(gameID string, content []byte) (err error) {
 	if err != nil {
 		return fmt.Errorf("save replay %s: %w", gameID, err)
 	}
+
 	return nil
 }
 
@@ -107,9 +110,11 @@ func (r Dir) Read(gameID string) (data []byte, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("read replay %s: %w", gameID, err)
 	}
+
 	if len(data) > MaxFileSize {
 		return nil, fmt.Errorf("read replay %s: %w", gameID, ErrTooLarge)
 	}
+
 	return data, nil
 }
 
@@ -118,14 +123,17 @@ func Decompress(compressed []byte, limit int) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decompress replay: %w", err)
 	}
+
 	content, err := io.ReadAll(io.LimitReader(reader, int64(limit)+1))
 	if err != nil {
 		return nil, fmt.Errorf("decompress replay: %w", err)
 	}
+
 	err = reader.Close()
 	if err != nil {
 		return nil, fmt.Errorf("decompress replay: %w", err)
 	}
+
 	return content, nil
 }
 
@@ -155,11 +163,13 @@ func (r Dir) compressReplay(content []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	writer.Reset(io.Discard)
 	select {
 	case r.idleWriter <- writer:
 	default:
 	}
+
 	return compressed.Bytes(), nil
 }
 
@@ -192,13 +202,16 @@ func writeReplay(root *os.Root, gameID string, compressed []byte) error {
 	if err == nil {
 		err = root.Rename(temp, Path(gameID))
 	}
+
 	if err != nil {
 		removeErr := root.Remove(temp)
 		if errors.Is(removeErr, fs.ErrNotExist) {
 			removeErr = nil
 		}
+
 		return errors.Join(err, removeErr)
 	}
+
 	return nil
 }
 
@@ -212,8 +225,10 @@ func writeSynced(root *os.Root, name string, content []byte) error {
 	if err == nil {
 		err = file.Sync()
 	}
+
 	if err == nil {
 		err = file.Chmod(replayFileMode)
 	}
+
 	return errors.Join(err, file.Close())
 }

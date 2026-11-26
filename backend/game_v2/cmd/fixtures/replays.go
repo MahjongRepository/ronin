@@ -28,14 +28,17 @@ func (r recording) run() (engine.Game, error) {
 	if err != nil {
 		return engine.Game{}, fmt.Errorf("encode the replay: %w", err)
 	}
+
 	loaded, err := replay.Load(content)
 	if err != nil {
 		return engine.Game{}, fmt.Errorf("load the replay: %w", err)
 	}
+
 	steps, err := replay.Run(r.setup, loaded.Actions)
 	if err != nil {
 		return engine.Game{}, fmt.Errorf("run the replay: %w", err)
 	}
+
 	return steps[len(steps)-1].Game, nil
 }
 
@@ -44,9 +47,11 @@ func requireReproduces(name string, r recording, final engine.Game) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
+
 	if !reflect.DeepEqual(replayed, final) {
 		return fmt.Errorf("%s: the replay does not reproduce the game", name)
 	}
+
 	return nil
 }
 
@@ -73,10 +78,12 @@ func requireOutcome(name string, r recording, want outcome) error {
 	if err != nil {
 		return fmt.Errorf("%s: encode the replay: %w", name, err)
 	}
+
 	records, err := wire.DecodeReplay(content)
 	if err != nil {
 		return fmt.Errorf("%s: decode the replay: %w", name, err)
 	}
+
 	lines := records[1:]
 	last := -1
 	for i, line := range lines {
@@ -84,6 +91,7 @@ func requireOutcome(name string, r recording, want outcome) error {
 			last = i
 		}
 	}
+
 	if last < 0 {
 		return fmt.Errorf("%s: the replay has no round end", name)
 	}
@@ -92,6 +100,7 @@ func requireOutcome(name string, r recording, want outcome) error {
 	if !holds(roundEnd, want.roundEnd) {
 		return fmt.Errorf("%s: the last round end %v does not hold %v", name, roundEnd, want.roundEnd)
 	}
+
 	switch {
 	case !want.then.OK && len(after) > 0:
 		return fmt.Errorf("%s: the replay goes on after its last round end with %v", name, after[0])
@@ -101,6 +110,7 @@ func requireOutcome(name string, r recording, want outcome) error {
 		return fmt.Errorf("%s: the record after the last round end is not an event %d with %v",
 			name, want.then.Value.event, want.then.Value.fields)
 	}
+
 	return nil
 }
 
@@ -123,14 +133,17 @@ func holds(actual, expected wire.Value) bool {
 		if !ok || len(a) != len(e) {
 			return false
 		}
+
 		for i := range e {
 			if !holds(a[i], e[i]) {
 				return false
 			}
 		}
+
 		return true
 	case wire.Nil, wire.Bool, wire.Int, wire.Float, wire.Str, wire.Bin:
 	}
+
 	return reflect.DeepEqual(actual, expected)
 }
 
@@ -141,12 +154,15 @@ func cutAfter(name string, r recording, event wire.EventType, occurrence int) (r
 			matches = append(matches, i)
 		}
 	}
+
 	if occurrence < 0 {
 		occurrence += len(matches)
 	}
+
 	if occurrence < 0 || occurrence >= len(matches) {
 		return recording{}, fmt.Errorf("%s: no event %d at occurrence %d of %d", name, event, occurrence, len(matches))
 	}
+
 	at := slices.IndexFunc(r.callEnds, func(end int) bool { return end > matches[occurrence] })
 	if at < 0 {
 		return recording{}, fmt.Errorf("%s: event %d at record %d ends no call", name, event, matches[occurrence])
@@ -159,6 +175,7 @@ func cutAfter(name string, r recording, event wire.EventType, occurrence int) (r
 	if err != nil {
 		return recording{}, fmt.Errorf("%s: the cut replay: %w", name, err)
 	}
+
 	return cut, nil
 }
 
@@ -176,12 +193,15 @@ func generateReplayFixtures() (map[string][]byte, error) {
 			failures = append(failures, err)
 			continue
 		}
+
 		content, err := r.content()
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", fixture.name, err))
 			continue
 		}
+
 		generated[fixture.name] = content
 	}
+
 	return generated, errors.Join(failures...)
 }

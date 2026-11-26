@@ -10,7 +10,6 @@ func TestSuitReadingsOf_WhenSuitIsTheWidest_ShouldFillEveryReadingSlot(t *testin
 	widestSuit := suitCounts{3, 4, 4, 3, 0, 0, 0, 0, 0}
 
 	readings := suitReadingsOf(widestSuit, 0, 2)
-
 	if readings.len != maxSuitReadings {
 		t.Errorf("suitReadingsOf gave %d readings, want %d", readings.len, maxSuitReadings)
 	}
@@ -18,21 +17,24 @@ func TestSuitReadingsOf_WhenSuitIsTheWidest_ShouldFillEveryReadingSlot(t *testin
 
 func TestCheckedSub_WhenTheResultWouldGoBelowZero_ShouldRefuse(t *testing.T) {
 	tests := []struct {
+		name    string
 		kind, n tile.Kind
 		want    tile.Kind
 		wantOK  bool
 	}{
-		{0, 0, 0, true},
-		{0, 1, 0, false},
-		{1, 2, 0, false},
-		{1, 1, 0, true},
-		{2, 2, 0, true},
-		{33, 2, 31, true},
+		{name: "zero from zero", kind: 0, n: 0, want: 0, wantOK: true},
+		{name: "one below zero", kind: 0, n: 1, want: 0, wantOK: false},
+		{name: "two from one", kind: 1, n: 2, want: 0, wantOK: false},
+		{name: "one from one", kind: 1, n: 1, want: 0, wantOK: true},
+		{name: "two from two", kind: 2, n: 2, want: 0, wantOK: true},
+		{name: "two from the last honor", kind: 33, n: 2, want: 31, wantOK: true},
 	}
 	for _, tc := range tests {
-		got, ok := checkedSub(tc.kind, tc.n)
-		if got != tc.want || ok != tc.wantOK {
-			t.Errorf("checkedSub(%d, %d) = %d, %v; want %d, %v", tc.kind, tc.n, got, ok, tc.want, tc.wantOK)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := checkedSub(tc.kind, tc.n)
+			if got != tc.want || ok != tc.wantOK {
+				t.Errorf("checkedSub(%d, %d) = %d, %v; want %d, %v", tc.kind, tc.n, got, ok, tc.want, tc.wantOK)
+			}
+		})
 	}
 }

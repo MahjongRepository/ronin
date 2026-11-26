@@ -22,6 +22,7 @@ func offersRiichi(t *testing.T, hand []tile.TileID, melds []play.MeldView, inRii
 	if err != nil {
 		t.Fatalf("CheckedRiichiDiscards error = %v", err)
 	}
+
 	return len(discards) > 0
 }
 
@@ -43,6 +44,7 @@ func TestRiichiDiscards_WhenBelowTheRiichiCost_ShouldOfferNone(t *testing.T) {
 	if offersRiichi(t, hand, nil, false, 999, 70) {
 		t.Error("riichi offered at 999 points, want none")
 	}
+
 	if !offersRiichi(t, hand, nil, false, 1000, 70) {
 		t.Error("riichi not offered at 1000 points, want offered")
 	}
@@ -54,6 +56,7 @@ func TestRiichiDiscards_WhenFewerThanFourLiveTiles_ShouldOfferNone(t *testing.T)
 	if offersRiichi(t, hand, nil, false, 25000, 3) {
 		t.Error("riichi offered with 3 live tiles, want none")
 	}
+
 	if !offersRiichi(t, hand, nil, false, 25000, 4) {
 		t.Error("riichi not offered with 4 live tiles, want offered")
 	}
@@ -75,6 +78,7 @@ func TestRiichiDiscards_WhenBesideAClosedKanOrAnOpenMeld_ShouldOfferOnlyBesideTh
 	if want := copies(t, 0, "1z"); !slices.Equal(got, want) {
 		t.Errorf("RiichiDiscards beside a closed kan = %v, want %v", got, want)
 	}
+
 	if offersRiichi(t, hand, []play.MeldView{calledMeld(t, play.MeldPon, 0, "999m", seat(t, 1))}, false, 25000, 70) {
 		t.Error("riichi offered beside a pon, want none")
 	}
@@ -92,7 +96,6 @@ func TestRiichiDiscards_ShouldListOnlyTheTenpaiKeepingTilesInHandOrder(t *testin
 	hand := concat(copies(t, 0, "123456789m1p"), copies(t, 1, "1p"), copies(t, 0, "23p9s"))
 
 	got := offer.RiichiDiscards(hand, nil, false, 25000, 70)
-
 	if want := concat(copies(t, 0, "1p"), copies(t, 1, "1p"), copies(t, 0, "9s")); !slices.Equal(got, want) {
 		t.Errorf("RiichiDiscards = %v, want %v", got, want)
 	}

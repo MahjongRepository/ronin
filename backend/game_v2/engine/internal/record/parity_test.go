@@ -33,6 +33,7 @@ func paritySeed(gameNumber uint64) play.WallSource {
 	for i := range seed {
 		seed[i] = seedFill
 	}
+
 	binary.LittleEndian.PutUint64(seed[:8], gameNumber)
 	return play.Seeded{Seed: seed}
 }
@@ -85,9 +86,11 @@ func (p *player) decide(t *testing.T, decision play.Decision, hand []tile.TileID
 				return win
 			}
 		}
+
 		return decision.Default
 	case greedyPlayer:
 	}
+
 	return greedy(t, decision, hand, p.word.next())
 }
 
@@ -96,6 +99,7 @@ func firstOfKinds(legal []play.Action, kinds ...play.ActionKind) (play.Action, b
 	if at < 0 {
 		return play.Action{}, false
 	}
+
 	return legal[at], true
 }
 
@@ -105,12 +109,15 @@ func greedy(t *testing.T, decision play.Decision, hand []tile.TileID, word uint6
 	if win, ok := firstOfKinds(legal, play.ActionTsumo, play.ActionRon); ok {
 		return win
 	}
+
 	if riichi, ok := firstOfKinds(legal, play.ActionRiichi); ok {
 		return riichi
 	}
+
 	if kan, ok := firstOfKinds(legal, play.ActionKan, play.ActionKyuushu); ok && word%kanOdds == 0 {
 		return kan
 	}
+
 	if meld, ok := firstOfKinds(legal, play.ActionPon, play.ActionChi); ok && word%callOdds == 0 {
 		return meld
 	}
@@ -121,6 +128,7 @@ func greedy(t *testing.T, decision play.Decision, hand []tile.TileID, word uint6
 			discards = append(discards, id)
 		}
 	}
+
 	if len(discards) == 0 {
 		return decision.Default
 	}
@@ -133,6 +141,7 @@ func greedy(t *testing.T, decision play.Decision, hand []tile.TileID, word uint6
 			best, bestShanten = id, s
 		}
 	}
+
 	return play.DiscardAction(best)
 }
 
@@ -143,10 +152,12 @@ func shantenWithout(t *testing.T, hand []tile.TileID, discard tile.TileID) int {
 	if err != nil {
 		t.Fatalf("KindCounts error = %v", err)
 	}
+
 	lowest, err := shanten.Lowest(counts)
 	if err != nil {
 		t.Fatalf("Lowest error = %v", err)
 	}
+
 	return lowest
 }
 
@@ -198,14 +209,17 @@ func newFollower(t *testing.T, gameNumber uint64) *follower {
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}
+
 	f := &follower{gameNumber: gameNumber, game: g}
 	for _, s := range tile.Seats() {
 		r, ok := record.FromStart(s, initial)
 		if !ok {
 			t.Fatalf("game %d: FromStart found no start for seat %d", gameNumber, s.Index())
 		}
+
 		f.records = append(f.records, followedRecord{record: r})
 	}
+
 	f.assertRecordsAgree(t)
 	return f
 }
@@ -237,11 +251,13 @@ func (f *follower) assertRecordsAgree(t *testing.T) {
 	for _, s := range tile.Seats() {
 		views[s.Index()] = f.game.SeatView(s).Record
 	}
+
 	for _, r := range f.records {
 		view := views[r.record.Seat.Index()]
 		if reflect.DeepEqual(r.record, view) {
 			continue
 		}
+
 		if diff := cmp.Diff(view, r.record, everyField()); diff != "" {
 			t.Fatalf("game %d, batch %d, seat %d, record from the view of batch %d (%t) differs (-view +record):\n%s",
 				f.gameNumber, f.batches, r.record.Seat.Index(), r.fromViewAt, r.fromView, diff)
@@ -254,6 +270,7 @@ func (f *follower) countFacts(batch []play.Emitted) {
 		play.MeldChi: factChi, play.MeldPon: factPon, play.MeldOpenKan: factOpenKan,
 		play.MeldAddedKan: factAddedKan, play.MeldClosedKan: factClosedKan,
 	}
+
 	for _, e := range batch {
 		switch event := e.Event.(type) {
 		case play.Called:
@@ -290,6 +307,7 @@ func (f *follower) countResult(result play.RoundResult) {
 	case play.Abortive:
 		f.facts[factAbortive]++
 	}
+
 	for _, y := range []struct {
 		yaku play.YakuID
 		won  fact
@@ -306,6 +324,7 @@ func (f *follower) play(t *testing.T) {
 	for _, s := range tile.Seats() {
 		players[s.Index()] = seatedPlayer(f.gameNumber, s)
 	}
+
 	for range maxSteps {
 		var s tile.Seat
 		switch awaiting := f.game.Awaiting().(type) {
@@ -314,6 +333,7 @@ func (f *follower) play(t *testing.T) {
 			if refusal.OK {
 				t.Fatalf("game %d: DealNextRound refused: %+v", f.gameNumber, refusal.Value)
 			}
+
 			f.game = next
 			f.follow(t, batch)
 			continue
@@ -322,6 +342,7 @@ func (f *follower) play(t *testing.T) {
 			if refusal.OK {
 				t.Fatalf("game %d: Begin refused: %+v", f.gameNumber, refusal.Value)
 			}
+
 			f.game = next
 			f.follow(t, batch)
 			continue
@@ -337,14 +358,17 @@ func (f *follower) play(t *testing.T) {
 		if !ok {
 			t.Fatalf("game %d: awaited seat %d has no decision", f.gameNumber, s.Index())
 		}
+
 		action := players[s.Index()].decide(t, decision, f.game.Hand(s))
 		next, batch, refusal := f.game.Act(s, action)
 		if refusal.OK {
 			t.Fatalf("game %d: legal action %v refused: %+v", f.gameNumber, action, refusal.Value)
 		}
+
 		f.game = next
 		f.follow(t, batch)
 	}
+
 	t.Fatalf("game %d does not end within %d steps", f.gameNumber, maxSteps)
 }
 

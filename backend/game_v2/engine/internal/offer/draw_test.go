@@ -18,7 +18,6 @@ func TestNagashiSeats_ShouldListTheSeatsWhoseDiscardsAreAllTerminalsOrHonorsAndU
 	melds[3] = []play.MeldView{calledMeld(t, play.MeldPon, 1, "222z", seat(t, 1))}
 
 	got := offer.NagashiSeats(rivers, melds)
-
 	if want := []tile.Seat{seat(t, 0)}; !slices.Equal(got, want) {
 		t.Errorf("NagashiSeats = %v, want %v", got, want)
 	}

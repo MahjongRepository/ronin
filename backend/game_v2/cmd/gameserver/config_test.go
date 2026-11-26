@@ -60,11 +60,13 @@ func TestLoadConfig_WhenEnvironmentIsLocal_ShouldLoosenOnlyTheMessageBudgetAndHo
 	if cfg.discardHold != nil {
 		t.Error("the local environment holds discards, want none")
 	}
+
 	local := cfg.socket
 	if local.Rate <= prod.Rate || local.Burst <= prod.Burst {
 		t.Errorf("local rate, burst = %v, %d, want above production's %v, %d",
 			local.Rate, local.Burst, prod.Rate, prod.Burst)
 	}
+
 	local.Rate, local.Burst = prod.Rate, prod.Burst
 	if !cmp.Equal(local, prod) {
 		t.Errorf("local socket beyond its message budget = %+v, want production's %+v", local, prod)
@@ -103,7 +105,6 @@ func TestLoadConfig_WhenAVariableIsMissingOrInvalid_ShouldRefuseNamingIt(t *test
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := loadConfig(env(map[string]string{tc.variable: tc.value}))
-
 			if !errors.Is(err, tc.want) {
 				t.Errorf("loadConfig(%s=%q) error = %v, want %v", tc.variable, tc.value, err, tc.want)
 			}

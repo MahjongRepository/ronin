@@ -22,10 +22,12 @@ func withAll(m wire.Map, stamps ...wire.Field) wire.Map {
 				stamped[i].Value, replaced = stamp.Value, true
 			}
 		}
+
 		if !replaced {
 			stamped = append(stamped, stamp)
 		}
 	}
+
 	return stamped
 }
 
@@ -38,6 +40,7 @@ func seatsValue(seats []tile.Seat) wire.Array {
 	for _, s := range seats {
 		values = append(values, seatValue(s))
 	}
+
 	return values
 }
 
@@ -50,6 +53,7 @@ func tilesValue(ids []tile.TileID) wire.Array {
 	for _, id := range ids {
 		values = append(values, tileValue(id))
 	}
+
 	return values
 }
 
@@ -58,6 +62,7 @@ func kindsValue(kinds []tile.Kind) wire.Array {
 	for _, k := range kinds {
 		values = append(values, wire.Int(k))
 	}
+
 	return values
 }
 
@@ -70,6 +75,7 @@ func scoreMap(points [tile.SeatCount]int) wire.StrMap {
 	for _, s := range tile.Seats() {
 		scores = append(scores, wire.StrField{Key: strconv.Itoa(s.Index()), Value: scoreValue(points[s.Index()])})
 	}
+
 	return scores
 }
 
@@ -81,5 +87,6 @@ func optionField[T any](m wire.Map, k wire.Key, o play.Option[T], value func(T) 
 	if !o.OK {
 		return m
 	}
+
 	return append(m, wire.Field{Key: k, Value: value(o.Value)})
 }

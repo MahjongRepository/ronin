@@ -48,12 +48,14 @@ func (c *fakeConn) Send(data []byte) {
 	if err != nil {
 		panic("the session sent an undecodable message: " + err.Error())
 	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.broken > 0 {
 		c.broken--
 		panic("send on a broken connection")
 	}
+
 	if !c.closed {
 		c.sent = append(c.sent, m)
 	}
@@ -158,6 +160,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 	for _, apply := range options {
 		apply(&cfg)
 	}
+
 	m, err := session.New(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("session.New error = %v", err)
@@ -171,6 +174,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 		if shutdownErr != nil {
 			t.Errorf("Shutdown error = %v", shutdownErr)
 		}
+
 		closeErr := db.Close()
 		if closeErr != nil {
 			t.Errorf("db.Close error = %v", closeErr)
@@ -179,6 +183,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 			t.Errorf("the session logged an error:\n%s", logs.String())
 		}
 	})
+
 	return h
 }
 
@@ -188,9 +193,11 @@ func (h *harness) assertSeatLogged(t *testing.T, message string) {
 		if !strings.Contains(line, `msg="`+message+`"`) {
 			continue
 		}
+
 		if !strings.Contains(line, " game_id="+testGameID+" ") || !strings.Contains(line, " seat=") {
 			t.Errorf("log line %q names no game_id and seat", line)
 		}
+
 		return
 	}
 	t.Errorf("no %q in the logs", message)
@@ -201,6 +208,7 @@ func specs(names ...string) []session.PlayerSpec {
 	for _, name := range names {
 		players = append(players, session.PlayerSpec{Name: name, UserID: "user-" + name, Ticket: "ticket-" + name})
 	}
+
 	return players
 }
 
@@ -242,6 +250,7 @@ func (h *harness) start(names ...string) []*fakeConn {
 	for _, name := range names {
 		conns = append(conns, h.join(name))
 	}
+
 	return conns
 }
 
@@ -265,12 +274,14 @@ func (h *harness) openDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("sql.Open error = %v", err)
 	}
+
 	t.Cleanup(func() {
 		closeErr := db.Close()
 		if closeErr != nil {
 			t.Errorf("close the test's database handle: %v", closeErr)
 		}
 	})
+
 	return db
 }
 
@@ -281,6 +292,7 @@ func (h *harness) playedGame(t *testing.T) (endReason sql.NullString, data strin
 	if err != nil {
 		t.Fatalf("read played_games row error = %v", err)
 	}
+
 	return endReason, data
 }
 
@@ -291,6 +303,7 @@ func (h *harness) hasPlayedGame(t *testing.T) bool {
 	if err != nil {
 		t.Fatalf("count played_games error = %v", err)
 	}
+
 	return count > 0
 }
 
@@ -303,6 +316,7 @@ func (h *harness) playedGameRow(t *testing.T) [4]sql.NullString {
 	if err != nil {
 		t.Fatalf("read played_games row error = %v", err)
 	}
+
 	return row
 }
 
@@ -312,6 +326,7 @@ func (h *harness) replayBytes(t *testing.T) []byte {
 	if err != nil {
 		t.Fatalf("Replays.Read error = %v", err)
 	}
+
 	return content
 }
 
@@ -327,6 +342,7 @@ func intOf(t *testing.T, m wire.Map, k wire.Key) int {
 	if !ok || !isInt {
 		t.Fatalf("%v has no integer %v", m, k)
 	}
+
 	return int(n)
 }
 
@@ -349,6 +365,7 @@ func ofEvent(messages []wire.Map, event wire.EventType) []wire.Map {
 			found = append(found, m)
 		}
 	}
+
 	return found
 }
 
@@ -359,6 +376,7 @@ func ofSession(messages []wire.Map, typ string) []wire.Map {
 			found = append(found, m)
 		}
 	}
+
 	return found
 }
 
@@ -382,14 +400,17 @@ func decodeReplay(t *testing.T, compressed []byte) []wire.Map {
 	if err != nil {
 		t.Fatalf("gzip.NewReader error = %v", err)
 	}
+
 	content, err := io.ReadAll(reader)
 	if err != nil {
 		t.Fatalf("read replay error = %v", err)
 	}
+
 	records, err := wire.DecodeReplay(content)
 	if err != nil {
 		t.Fatalf("DecodeReplay error = %v", err)
 	}
+
 	return records
 }
 
@@ -399,6 +420,7 @@ func drawnTile(t *testing.T, opening wire.Map) tile.TileID {
 	if err != nil {
 		t.Fatalf("UnpackDraw error = %v", err)
 	}
+
 	return drawn
 }
 
@@ -418,6 +440,7 @@ func seedSeating(t *testing.T, seats ...int) engine.Seed {
 		for i, want := range seats {
 			matches = matches && permutation[i].Index() == want
 		}
+
 		if matches {
 			return seed
 		}

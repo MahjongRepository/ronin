@@ -49,6 +49,7 @@ func (p position) after(result play.RoundResult) position {
 		next.uniqueDealers++
 		next.wind = windOf(next.uniqueDealers)
 	}
+
 	return next
 }
 
@@ -56,6 +57,7 @@ func (p position) afterWins(wins []play.WinResult) (honba int, dealerStays bool)
 	if slices.ContainsFunc(wins, func(win play.WinResult) bool { return win.Winner == p.dealer }) {
 		return p.honba + 1, true
 	}
+
 	return 0, false
 }
 
@@ -86,6 +88,7 @@ func gameEndCause(
 	if ended.wind == tile.East || ended.wind == tile.South {
 		targetCause = play.EndLength
 	}
+
 	if rules.Agariyame && next.dealer == ended.dealer && next.uniqueDealers >= hanchanDealers {
 		_, isAbortive := result.(play.Abortive)
 		first := placementOrder(scores, firstDealer)[0]
@@ -94,6 +97,7 @@ func gameEndCause(
 		if isAbortive || !dealerFirstAtTarget {
 			return 0, false
 		}
+
 		return targetCause, true
 	}
 
@@ -103,9 +107,11 @@ func gameEndCause(
 	if next.uniqueDealers > hanchanDealers && hasWinner {
 		return targetCause, true
 	}
+
 	if next.uniqueDealers > extensionDealers {
 		return play.EndExtensionLimit, true
 	}
+
 	return 0, false
 }
 
@@ -122,6 +128,7 @@ func finalStandings(
 	for place, seat := range order {
 		scoresByPlace[place] = scores[seat.Index()]
 	}
+
 	pointsByPlace := finalPoints(scoresByPlace)
 
 	standings := play.Standings{Cause: cause, Scores: scores}
@@ -129,6 +136,7 @@ func finalStandings(
 		standings.Placements[seat.Index()] = place + 1
 		standings.Points[seat.Index()] = pointsByPlace[place]
 	}
+
 	return standings
 }
 
@@ -149,6 +157,7 @@ func finalPoints(scoresByPlace [tile.SeatCount]int) [tile.SeatCount]int {
 	for place, score := range scoresByPlace {
 		points[place] = (score-rules.TargetScore)/scorePerTenth + rules.Uma[place]*tenthsPerPoint
 	}
+
 	points[0] += oka
 	return points
 }

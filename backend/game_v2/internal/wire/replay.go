@@ -43,6 +43,7 @@ func (e ReplayError) Error() string {
 	if e.Incomplete {
 		return "incomplete " + position
 	}
+
 	return position + ": " + e.Err.Error()
 }
 
@@ -58,6 +59,7 @@ func (e UnsupportedVersionError) Error() string {
 	if s, ok := e.Version.(Str); ok {
 		return "unsupported replay version " + strconv.Quote(string(s))
 	}
+
 	return "the first record is no version record"
 }
 
@@ -80,23 +82,35 @@ func EncodeReplay(records []Map) ([]byte, error) {
 		if err != nil {
 			return nil, ReplayError{Record: i + 1, Offset: len(content), Err: err}
 		}
+
 		content = appendValue(content, record)
 	}
+
 	return content, nil
 }
 
-func EncodeObserverRecords(records []Map, withVersion bool) ([]byte, error) {
+type ObserverVersion bool
+
+const (
+	WithoutVersionRecord ObserverVersion = false
+	WithVersionRecord    ObserverVersion = true
+)
+
+func EncodeObserverRecords(records []Map, version ObserverVersion) ([]byte, error) {
 	var content []byte
-	if withVersion {
+	if version == WithVersionRecord {
 		content = appendValue(content, VersionRecord())
 	}
+
 	for i, record := range records {
 		err := validateObserverRecord(record)
 		if err != nil {
 			return nil, ReplayError{Record: i + 1, Offset: len(content), Err: err}
 		}
+
 		content = appendValue(content, record)
 	}
+
 	return content, nil
 }
 
@@ -111,14 +125,16 @@ func DecodeStrMap(content []byte) (StrMap, error) {
 		array: replayProfile.limits.array,
 		mapN:  replayProfile.limits.mapN,
 	}}
-	v, err := d.value(0, true)
+	v, err := d.value(0, strKeys)
 	if err != nil {
 		return nil, err
 	}
+
 	m, ok := v.(StrMap)
 	if !ok || d.pos != len(content) {
 		return nil, errors.New("expected one map with string keys")
 	}
+
 	return m, nil
 }
 
@@ -127,6 +143,7 @@ func DecodeReplay(content []byte) ([]Map, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return records, nil
 }
 
@@ -149,6 +166,7 @@ func decodeRecords(content []byte, check func(record Map, position int) error) (
 		if err == nil {
 			err = check(record, len(records)+1)
 		}
+
 		if err != nil {
 			return records, ReplayError{
 				Record:     len(records) + 1,
@@ -157,12 +175,14 @@ func decodeRecords(content []byte, check func(record Map, position int) error) (
 				Err:        err,
 			}
 		}
+
 		records = append(records, record)
 	}
 
 	if len(records) == 0 {
 		return nil, ErrNoVersionRecord
 	}
+
 	return records, nil
 }
 
@@ -175,6 +195,7 @@ func validateRecord(record Map, position int) error {
 	if err != nil {
 		return err
 	}
+
 	return validateReplayEvent(record, eventFields)
 }
 
@@ -182,10 +203,12 @@ func validateObserverRecord(record Map) error {
 	if _, seeded := record.Get(KeySeed); seeded {
 		return errors.New("an observer record holds no seed")
 	}
+
 	err := replayProfile.validate(record, 0)
 	if err != nil {
 		return err
 	}
+
 	return validateReplayEvent(record, observerEventFields)
 }
 
@@ -194,6 +217,7 @@ func validateVersionRecord(record Map) error {
 	if len(record) != 1 || version != Str(ReplayVersion) {
 		return UnsupportedVersionError{Version: version}
 	}
+
 	return nil
 }
 
@@ -202,6 +226,7 @@ func validateSeed(v Value) error {
 	if !ok || len(seed) != ReplaySeedBytes {
 		return fmt.Errorf("a seed must be %d bytes of binary data", ReplaySeedBytes)
 	}
+
 	return nil
 }
 
@@ -212,6 +237,7 @@ func validateSettings(v Value) error {
 	if !ok || len(settings) != 2 || !hasID || !hasOverrides {
 		return errors.New("the rules envelope must hold an id and its overrides, nothing else")
 	}
+
 	if id != Int(RulesProfileID) && id != Int(MigratedRulesProfileID) {
 		return errors.New("unknown rules profile")
 	}
@@ -220,5 +246,6 @@ func validateSettings(v Value) error {
 	if !ok || len(empty) != 0 {
 		return errors.New("unsupported rules overrides")
 	}
+
 	return nil
 }

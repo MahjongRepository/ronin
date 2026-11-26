@@ -18,18 +18,22 @@ func TestCompare_WhenTheWholeTenhouCorpusIsScored_ShouldAgreeWithTenhouOnEveryWi
 	if dir == "" {
 		t.Fatal("TENHOU_AGARI_DIR is not set, want the directory of the agari-*.jsonl shards")
 	}
+
 	maxLogs := 0
 	if limit := os.Getenv("TENHOU_MAX_LOGS"); limit != "" {
 		parsed, err := strconv.Atoi(limit)
 		if err != nil || parsed < 0 {
 			t.Fatalf("TENHOU_MAX_LOGS = %q, want a count of logs, 0 for all", limit)
 		}
+
 		maxLogs = parsed
 	}
+
 	shards, err := filepath.Glob(filepath.Join(dir, "agari-*.jsonl"))
 	if err != nil || len(shards) == 0 {
 		t.Fatalf("no agari shards in TENHOU_AGARI_DIR %s: %v", dir, err)
 	}
+
 	slices.Sort(shards)
 
 	corpus := corpusCheck{maxLogs: maxLogs, logs: map[string]bool{}, mismatches: map[tenhoulog.Check][]string{}}
@@ -37,6 +41,7 @@ func TestCompare_WhenTheWholeTenhouCorpusIsScored_ShouldAgreeWithTenhouOnEveryWi
 		if corpus.full() {
 			break
 		}
+
 		corpus.readShard(t, shard)
 	}
 
@@ -49,6 +54,7 @@ func TestCompare_WhenTheWholeTenhouCorpusIsScored_ShouldAgreeWithTenhouOnEveryWi
 			t.Error(mismatch)
 		}
 	}
+
 	t.Logf("%d logs, %d wins, %d mismatches", len(corpus.logs), corpus.wins, total)
 }
 
@@ -80,10 +86,12 @@ func (c *corpusCheck) readShard(t *testing.T, shard string) {
 		if readErr != nil {
 			t.Fatalf("read %s: %v", shard, readErr)
 		}
+
 		if !c.logs[round[0].LogID] {
 			if c.full() {
 				return
 			}
+
 			c.logs[round[0].LogID] = true
 		}
 

@@ -88,6 +88,7 @@ func ParseClientMessage(m wire.Map) (ClientMessage, error) {
 	case typ == int(ClientResync):
 		return ResyncMessage{}, nil
 	}
+
 	return nil, InvalidMessageError{Reason: "unknown message type"}
 }
 
@@ -102,9 +103,11 @@ func parseTicket(m wire.Map) (string, error) {
 	if !ok {
 		return "", InvalidMessageError{Reason: "no game ticket"}
 	}
+
 	if length := utf8.RuneCountInString(ticket); length == 0 || length > maxTicketLength {
 		return "", InvalidMessageError{Reason: "game ticket of the wrong length"}
 	}
+
 	return ticket, nil
 }
 
@@ -113,6 +116,7 @@ func parseGameAction(m wire.Map) (ClientMessage, error) {
 	if !ok || waitID < 0 {
 		return nil, InvalidMessageError{Reason: "no wait id"}
 	}
+
 	code, ok := m.Int(wire.KeyAction)
 	if !ok || code < int(GameActionDiscard) || code > int(GameActionConfirmRound) {
 		return nil, InvalidMessageError{Reason: "unknown game action"}
@@ -139,6 +143,7 @@ func parseAction(m wire.Map, message GameActionMessage) (ClientMessage, error) {
 	case GameActionKan:
 		return parseKan(m, message)
 	}
+
 	return message, nil
 }
 
@@ -147,10 +152,12 @@ func parseDiscard(m wire.Map, message GameActionMessage) (ClientMessage, error) 
 	if err != nil {
 		return nil, err
 	}
+
 	message.Play = play.Some(play.DiscardAction(id))
 	if message.Action == GameActionRiichi {
 		message.Play = play.Some(play.RiichiAction(id))
 	}
+
 	return message, nil
 }
 
@@ -159,6 +166,7 @@ func parseCall(m wire.Map, message GameActionMessage) (ClientMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	held, err := heldTiles(m)
 	if err != nil {
 		return nil, err
@@ -169,6 +177,7 @@ func parseCall(m wire.Map, message GameActionMessage) (ClientMessage, error) {
 	if message.Action == GameActionChi {
 		message.Play = play.Some(play.ChiAction(held))
 	}
+
 	return message, nil
 }
 
@@ -177,6 +186,7 @@ func tileOf(v wire.Value) (tile.TileID, bool) {
 	if !ok {
 		return tile.TileID{}, false
 	}
+
 	return tile.NewTileID(int(n))
 }
 
@@ -186,6 +196,7 @@ func tileField(m wire.Map) (tile.TileID, error) {
 	if !ok {
 		return tile.TileID{}, InvalidMessageError{Reason: "no tile id from 0 to 135"}
 	}
+
 	return id, nil
 }
 
@@ -196,12 +207,14 @@ func heldTiles(m wire.Map) ([2]tile.TileID, error) {
 	if !ok || len(tiles) != len(held) {
 		return held, InvalidMessageError{Reason: "no two held tiles"}
 	}
+
 	for i, t := range tiles {
 		held[i], ok = tileOf(t)
 		if !ok {
 			return held, InvalidMessageError{Reason: "a held tile is no tile id from 0 to 135"}
 		}
 	}
+
 	return held, nil
 }
 
@@ -210,6 +223,7 @@ func parseKan(m wire.Map, message GameActionMessage) (ClientMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	name, _ := m.Str(wire.KeyActionKanType)
 	kind, ok := kanKindOf(name)
 	if !ok {
@@ -220,6 +234,7 @@ func parseKan(m wire.Map, message GameActionMessage) (ClientMessage, error) {
 	if kind == play.KanOpen {
 		message.Called = play.Some(id)
 	}
+
 	return message, nil
 }
 
@@ -238,6 +253,7 @@ func kanKindOf(name string) (play.KanKind, bool) {
 	case kanAddedName:
 		return play.KanAdded, true
 	}
+
 	return play.KanOpen, false
 }
 
@@ -250,5 +266,6 @@ func kanName(kind play.KanKind) string {
 	case play.KanAdded:
 		return kanAddedName
 	}
+
 	return ""
 }

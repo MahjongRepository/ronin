@@ -25,7 +25,6 @@ func TestSocket_WhenGameIDInvalid_ShouldRefuseTheHandshake(t *testing.T) {
 	h := newHarness(t)
 
 	got := h.get("/ws/bad%20id!")
-
 	if got.status != http.StatusForbidden {
 		t.Errorf("GET /ws/bad id! status = %d, want 403 before any upgrade", got.status)
 	}
@@ -36,7 +35,6 @@ func TestSocket_WhenAForeignOriginDials_ShouldUpgrade(t *testing.T) {
 	ws := h.dial(testGameID, http.Header{"Origin": {"http://phone.local:5175"}})
 
 	send(t, ws, typed(messaging.ClientPing))
-
 	if got := readMessage(t, ws); sessionType(got) != "pong" {
 		t.Errorf("answer to a ping = %v, want pong", got)
 	}
@@ -60,7 +58,6 @@ func TestSocket_WhenJoinTicketInvalid_ShouldAnswerInvalidTicket(t *testing.T) {
 	ws := h.dial(testGameID, nil)
 
 	send(t, ws, joinMessage("not-a-valid-ticket"))
-
 	if got := readMessage(t, ws); errorCode(got) != string(messaging.SessionInvalidTicket) {
 		t.Errorf("answer to a forged ticket = %v, want invalid_ticket", got)
 	}
@@ -72,7 +69,6 @@ func TestSocket_WhenTicketNamesAnotherGame_ShouldAnswerInvalidTicket(t *testing.
 	ws := h.dial("game-0002", nil)
 
 	send(t, ws, joinMessage(ticketFor(testGameID, "alice")))
-
 	if got := readMessage(t, ws); errorCode(got) != string(messaging.SessionInvalidTicket) {
 		t.Errorf("answer to another game's ticket = %v, want invalid_ticket", got)
 	}
@@ -83,10 +79,10 @@ func TestSocket_WhenPingSent_ShouldPongWithoutRouting(t *testing.T) {
 	ws := h.dial(testGameID, nil)
 
 	send(t, ws, typed(messaging.ClientPing))
-
 	if got := readMessage(t, ws); !cmp.Equal(got, messaging.Pong()) {
 		t.Errorf("answer to a ping = %v, want %v", got, messaging.Pong())
 	}
+
 	status := h.status()
 	if got := []int{counter(t, status, "messages_in"), counter(t, status, "handled_messages")}; !cmp.Equal(got, []int{1, 0}) {
 		t.Errorf("/status messages_in, handled_messages = %v, want [1 0]", got)
@@ -98,7 +94,6 @@ func TestSocket_WhenMessageInvalid_ShouldAnswerInvalidMessageWithoutItsInput(t *
 	ws := h.dial(testGameID, nil)
 
 	send(t, ws, passOutsideAGame(wire.Str("secret-input")))
-
 	want := messaging.SessionError(messaging.SessionInvalidMessage, "Invalid message", noWaitID())
 	if got := readMessage(t, ws); !cmp.Equal(got, want) {
 		t.Errorf("answer to an invalid message = %v, want %v", got, want)
@@ -122,6 +117,7 @@ func TestSocket_WhenFramesUndecodable_ShouldAnswerInvalidMessageAndKeepTheConnec
 	if err != nil {
 		t.Fatalf("write text frame: %v", err)
 	}
+
 	text := readMessage(t, ws)
 	send(t, ws, joinMessage(ticketFor(testGameID, "alice")))
 
@@ -148,6 +144,7 @@ func TestSocket_WhenDecodeErrorsHitTheLimit_ShouldCloseWith4004(t *testing.T) {
 	if closed.Code != 4004 || closed.Reason != "too_many_decode_errors" {
 		t.Errorf("close = %d %q, want 4004 too_many_decode_errors", closed.Code, closed.Reason)
 	}
+
 	eventually(t, func() bool { return counter(t, h.status(), "closes_4004") == 1 })
 }
 
@@ -163,6 +160,7 @@ func TestSocket_WhenAValidMessageFollowsDecodeErrors_ShouldResetTheStrikes(t *te
 		}
 		readMessage(t, ws)
 	}
+
 	send(t, ws, typed(messaging.ClientPing))
 
 	if got := readMessage(t, ws); sessionType(got) != "pong" {
@@ -208,6 +206,7 @@ func TestSocket_WhenUndecodableFramesArriveOverBudget_ShouldDropTheirRepliesAndC
 	if closed := readClose(t, ws); closed.Code != 4004 {
 		t.Errorf("the first frame after the budget = close %d, want no reply and 4004", closed.Code)
 	}
+
 	status := h.status()
 	if got := []int{counter(t, status, "malformed_messages"), counter(t, status, "rate_limited_messages")}; !cmp.Equal(got, []int{4, 4}) {
 		t.Errorf("/status malformed, rate_limited = %v, want [4 4]", got)
@@ -221,7 +220,6 @@ func TestSocket_WhenTheResyncBudgetIsSpent_ShouldAnswerRateLimited(t *testing.T)
 	first := readMessage(t, ws)
 
 	send(t, ws, typed(messaging.ClientResync))
-
 	want := messaging.SessionError(messaging.SessionRateLimited, "Too many resync requests", noWaitID())
 	if errorCode(first) != string(messaging.SessionNotInGame) {
 		t.Errorf("answer to the first resync = %v, want not_in_game from the session", first)
@@ -236,7 +234,6 @@ func TestSocket_WhenAFrameIsOversized_ShouldCloseWith1009(t *testing.T) {
 	ws := h.dial(testGameID, nil)
 
 	sendRaw(t, ws, bytes.Repeat([]byte{0}, wire.MaxMessageBytes+1))
-
 	if closed := readClose(t, ws); closed.Code != websocket.StatusMessageTooBig {
 		t.Errorf("close = %d, want %d", closed.Code, websocket.StatusMessageTooBig)
 	}

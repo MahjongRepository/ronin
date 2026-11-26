@@ -50,6 +50,7 @@ func NewGame(setup Setup) (Game, []play.Emitted, error) {
 	if err != nil {
 		return Game{}, nil, err
 	}
+
 	return Game{game: g}, detachFreshEvents(events), nil
 }
 
@@ -184,6 +185,7 @@ func detachFreshEvents(freshEvents []play.Emitted) []play.Emitted {
 	for i := range freshEvents {
 		freshEvents[i].Event = cloneEvent(freshEvents[i].Event)
 	}
+
 	return freshEvents
 }
 
@@ -198,6 +200,7 @@ func cloneEvent(event play.Event) play.Event {
 	case play.GameStarted, play.RoundStarted, play.Drew, play.DrewNotice, play.Discarded, play.RiichiDeposited,
 		play.FuritenChanged, play.PaoAssigned, play.DoraRevealed, play.GameEnded:
 	}
+
 	return event
 }
 
@@ -257,6 +260,7 @@ func DealRound(seed Seed, roundNumber uint32, dealer tile.Seat) play.RoundDeal {
 	for i := range hands {
 		deal.Hands[i] = slices.Clone(hands[i][:])
 	}
+
 	deal.DealerDraw, _ = w.Draw()
 	return deal
 }

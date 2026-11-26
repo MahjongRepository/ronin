@@ -25,5 +25,6 @@ func WindFromKind(kind Kind) (Wind, bool) {
 	if kind < KindEast || kind > KindNorth {
 		return East, false
 	}
+
 	return Wind(kind - KindEast), true
 }

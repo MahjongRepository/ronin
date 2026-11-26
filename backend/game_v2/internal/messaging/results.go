@@ -22,6 +22,7 @@ func roundEndFields(
 	if result == nil {
 		return nil, errors.New("no round result to shape")
 	}
+
 	var before [tile.SeatCount]int
 	for i, change := range result.TotalScoreChanges() {
 		before[i] = scores[i] - change
@@ -45,6 +46,7 @@ func roundEndFields(
 		code = wire.ResultAbortiveDraw
 		fields, err = abortiveFields(r.Kind, before)
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -86,10 +88,12 @@ func ronFields(ron play.Ron, scores [tile.SeatCount]int, honba int) (wire.Map, e
 		if i == 0 {
 			bonus = honba * engine.HonbaRonBonus
 		}
+
 		shaped, err := ronWin(win, bonus)
 		if err != nil {
 			return nil, err
 		}
+
 		wins = append(wins, shaped)
 		winTile = win.WinTile
 	}
@@ -104,6 +108,7 @@ func ronFields(ron play.Ron, scores [tile.SeatCount]int, honba int) (wire.Map, e
 	if len(ron.HeadBumped) > 0 {
 		m = append(m, wire.Field{Key: wire.KeyHeadBumpedSeats, Value: seatsValue(ron.HeadBumped)})
 	}
+
 	return m, nil
 }
 
@@ -131,9 +136,11 @@ func winExtras(m wire.Map, win play.WinResult, bonus int) wire.Map {
 			wire.Field{Key: wire.KeyPaoSeat, Value: seatValue(win.Pao.Value)},
 			wire.Field{Key: wire.KeyPaoLiability, Value: paoLiability(win, bonus)})
 	}
+
 	if len(win.UraIndicators) > 0 {
 		m = append(m, wire.Field{Key: wire.KeyUraDora, Value: tilesValue(win.UraIndicators)})
 	}
+
 	return m
 }
 
@@ -142,6 +149,7 @@ func collectedSticks(win play.WinResult) int {
 	for _, change := range win.ScoreChanges {
 		moved += change
 	}
+
 	return moved / engine.RiichiStickValue
 }
 
@@ -152,10 +160,12 @@ func paoLiability(win play.WinResult, bonus int) wire.Map {
 			yaku = append(yaku, wire.Int(id))
 		}
 	}
+
 	share := paoShareAll
 	if win.Loser.OK && win.Loser.Value != win.Pao.Value {
 		share = paoShareHalf
 	}
+
 	return wire.Map{
 		{Key: wire.KeyYaku, Value: yaku},
 		{Key: wire.KeyPaoShare, Value: wire.Str(share)},
@@ -190,47 +200,78 @@ func limitName(win play.WinResult) string {
 	if !win.Limit.OK {
 		return wire.HandLimitNone
 	}
+
 	if _, counted := win.Value.(play.Han); counted && win.Limit.Value == play.LimitYakuman {
 		return wire.HandLimitKazoeYakuman
 	}
+
 	return win.Limit.Value.String()
 }
 
 func yakuList(win play.WinResult) wire.Array {
-	open := false
+	hand := closedHand
 	for _, meld := range win.Melds {
-		open = open || meld.Kind != play.MeldClosedKan
+		if meld.Kind != play.MeldClosedKan {
+			hand = openHand
+		}
 	}
 
 	doraIDs := [...]int{wire.YakuIDDora, wire.YakuIDAkaDora, wire.YakuIDUraDora}
 	counts := [len(doraIDs)]int{win.Dora.Dora, win.Dora.AkaDora, win.Dora.UraDora}
 	list := make(wire.Array, 0, len(win.Yaku)+len(doraIDs))
 	for _, id := range win.Yaku {
-		list = append(list, yakuEntry(int(id), yakuHan(id, open), id.IsYakuman()))
+		list = append(list, yakuEntry(int(id), yakuHan(id, hand), yakuClassOf(id)))
 	}
+
 	for i, id := range doraIDs {
 		if counts[i] > 0 {
-			list = append(list, yakuEntry(id, counts[i], false))
+			list = append(list, yakuEntry(id, counts[i], plainYaku))
 		}
 	}
+
 	return list
 }
 
-func yakuHan(id play.YakuID, open bool) int {
+type handOpenness bool
+
+const (
+	closedHand handOpenness = false
+	openHand   handOpenness = true
+)
+
+type yakuClass bool
+
+const (
+	plainYaku   yakuClass = false
+	yakumanYaku yakuClass = true
+)
+
+func yakuClassOf(id play.YakuID) yakuClass {
+	if id.IsYakuman() {
+		return yakumanYaku
+	}
+
+	return plainYaku
+}
+
+func yakuHan(id play.YakuID, hand handOpenness) int {
 	if id.IsYakuman() {
 		return yakumanHan
 	}
-	if han, ok := id.HanOpen(); open && ok {
+
+	if han, ok := id.HanOpen(); hand == openHand && ok {
 		return han
 	}
+
 	return id.HanClosed()
 }
 
-func yakuEntry(id, han int, yakuman bool) wire.Map {
+func yakuEntry(id, han int, class yakuClass) wire.Map {
 	count := 0
-	if yakuman {
+	if class == yakumanYaku {
 		count = 1
 	}
+
 	return wire.Map{
 		{Key: wire.KeyYakuID, Value: wire.Int(id)},
 		{Key: wire.KeyHan, Value: wire.Int(han)},
@@ -249,12 +290,14 @@ func shownHands(hands []play.ShownHand) (wire.Array, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		shown = append(shown, wire.Map{
 			{Key: wire.KeySeat, Value: seatValue(hand.Seat)},
 			{Key: wire.KeyClosedTiles, Value: shownTilesValue(hand.Hand)},
 			{Key: wire.KeyMelds, Value: melds},
 		})
 	}
+
 	return shown, nil
 }
 
@@ -267,6 +310,7 @@ func riverValue(river []play.RiverTile) wire.Array {
 			{Key: wire.KeyRiichiDiscard, Value: wire.Bool(discard.Riichi)},
 		})
 	}
+
 	return discards
 }
 
@@ -287,6 +331,7 @@ func exhaustiveDrawFields(draw play.ExhaustiveDraw, scores [tile.SeatCount]int) 
 				{Key: wire.KeyDiscards, Value: riverValue(nagashi.River)},
 			})
 		}
+
 		m = wire.Map{
 			{Key: wire.KeyQualifyingSeats, Value: seatsValue(seats)},
 			{Key: wire.KeyQualifyingRivers, Value: rivers},
@@ -308,6 +353,7 @@ func tenpaiSeats(draw play.ExhaustiveDraw) (tenpai, noten []tile.Seat) {
 	for _, hand := range draw.Tenpai {
 		isTenpai[hand.Seat.Index()] = true
 	}
+
 	for _, s := range tile.Seats() {
 		if isTenpai[s.Index()] {
 			tenpai = append(tenpai, s)
@@ -315,6 +361,7 @@ func tenpaiSeats(draw play.ExhaustiveDraw) (tenpai, noten []tile.Seat) {
 			noten = append(noten, s)
 		}
 	}
+
 	return tenpai, noten
 }
 
@@ -331,6 +378,7 @@ func abortReason(kind play.AbortKind) (wire.AbortReason, bool) {
 	case play.TripleRon:
 		return wire.AbortTripleRon, true
 	}
+
 	return "", false
 }
 
@@ -339,6 +387,7 @@ func abortiveFields(kind play.AbortKind, scores [tile.SeatCount]int) (wire.Map, 
 	if !ok {
 		return nil, errors.New("no abort kind to shape")
 	}
+
 	m := wire.Map{
 		{Key: wire.KeyAbortiveReason, Value: wire.Str(reason)},
 		{Key: wire.KeyScores, Value: scoreMap(scores)},
@@ -357,10 +406,12 @@ func abortiveFields(kind play.AbortKind, scores [tile.SeatCount]int) (wire.Map, 
 		for _, hand := range k.Hands {
 			callers = append(callers, hand.Seat)
 		}
+
 		m = append(m, wire.Field{Key: wire.KeyRonCallers, Value: seatsValue(callers)})
 		hands = k.Hands
 	case play.FourWinds, play.FourKans:
 	}
+
 	if len(hands) == 0 {
 		return m, nil
 	}
@@ -369,6 +420,7 @@ func abortiveFields(kind play.AbortKind, scores [tile.SeatCount]int) (wire.Map, 
 	if err != nil {
 		return nil, err
 	}
+
 	return append(m, wire.Field{Key: wire.KeyShownHands, Value: shown}), nil
 }
 
@@ -391,6 +443,7 @@ func historyEntry(round play.FinishedRound) wire.Map {
 		for _, win := range r.Wins {
 			winners = append(winners, win.Winner)
 		}
+
 		loser, pao = play.Some(r.Discarder), paoSeats(r.Wins)
 	case play.ExhaustiveDraw:
 		m = append(m, wire.Field{Key: wire.KeyResultType, Value: wire.Int(wire.ResultExhaustiveDraw)})
@@ -413,6 +466,7 @@ func historyEntry(round play.FinishedRound) wire.Map {
 	if round.Result != nil {
 		changes = round.Result.TotalScoreChanges()
 	}
+
 	return append(m, wire.Field{Key: wire.KeyScoreChanges, Value: scoreMap(changes)})
 }
 
@@ -423,11 +477,13 @@ func paoSeats(wins []play.WinResult) []tile.Seat {
 			liable[win.Pao.Value.Index()] = true
 		}
 	}
+
 	var seats []tile.Seat
 	for _, s := range tile.Seats() {
 		if liable[s.Index()] {
 			seats = append(seats, s)
 		}
 	}
+
 	return seats
 }

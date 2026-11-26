@@ -13,6 +13,7 @@ func nested(depth int) Value {
 	for range depth {
 		v = Array{v}
 	}
+
 	return v
 }
 
@@ -35,22 +36,28 @@ func TestDecode_WhenEveryKindOfValueIsSent_ShouldReadBackWhatEncodeWrote(t *test
 	if err != nil {
 		t.Fatalf("Encode(%v): %v", message, err)
 	}
+
 	decoded, err := Decode(content)
 	if err != nil {
 		t.Fatalf("Decode(Encode(m)): %v", err)
 	}
+
 	if !reflect.DeepEqual(decoded, message) {
 		t.Errorf("Decode(Encode(m)) = %v; want %v", decoded, message)
 	}
+
 	if n, ok := decoded.Int(KeyEventType); n != -5 || !ok {
 		t.Errorf("Int(KeyEventType) = %d, %v; want -5, true", n, ok)
 	}
+
 	if _, ok := decoded.Int(KeyWaitElapsed); ok {
 		t.Error("Int(KeyWaitElapsed) read a float as an integer")
 	}
+
 	if s, ok := decoded.Str(KeyGameTicket); s != strings.Repeat("t", 300) || !ok {
 		t.Errorf("Str(KeyGameTicket) = %q, %v; want the ticket, true", s, ok)
 	}
+
 	if _, ok := decoded.Str(KeyName); ok {
 		t.Error("Str(KeyName) read nil as a string")
 	}
@@ -111,11 +118,15 @@ func TestDecode_WhenTheBytesBreakTheMessageRules_ShouldRefuseWithADecodeError(t 
 		{"too large", append(hexBytes(t, "81dd"), make([]byte, MaxMessageBytes)...), ""},
 	}
 	for _, tc := range tests {
-		decoded, err := Decode(tc.content)
-		decodeErr, isType := errors.AsType[DecodeError](err)
-		if !isType || !strings.Contains(decodeErr.Error(), tc.message) {
-			t.Errorf("Decode(%s) = %v, %v; want a DecodeError", tc.name, decoded, err)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) {
+				decoded, err := Decode(tc.content)
+				decodeErr, isType := errors.AsType[DecodeError](err)
+				if !isType || !strings.Contains(decodeErr.Error(), tc.message) {
+					t.Errorf("Decode(%s) = %v, %v; want a DecodeError", tc.name, decoded, err)
+				}
+			})
+		})
 	}
 }
 
@@ -133,10 +144,16 @@ func TestEncode_WhenTheMessageBreaksTheMessageRules_ShouldRefuseIt(t *testing.T)
 		{"score map not a map", Map{{Key: KeyScores, Value: Map{}}}},
 	}
 	for _, tc := range tests {
-		content, err := Encode(tc.message)
-		if err == nil {
-			t.Errorf("Encode(%s) = %x, want an error", tc.name, content)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Run(tc.name, func(t *testing.T) {
+					content, err := Encode(tc.message)
+					if err == nil {
+						t.Errorf("Encode(%s) = %x, want an error", tc.name, content)
+					}
+				})
+			})
+		})
 	}
 }
 

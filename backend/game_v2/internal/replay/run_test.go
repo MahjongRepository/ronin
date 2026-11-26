@@ -24,10 +24,12 @@ func TestRun_WhenReplayingTheRecordsOfEachReferenceGame_ShouldRecordTheSameRepla
 			if loaded.Seed != traced.seed || loaded.Names != testRoster.Names {
 				t.Fatalf("Load read seed %x and names %v, want the recorded ones", loaded.Seed, loaded.Names)
 			}
+
 			setup := traced.setup
 			if _, seeded := setup.Walls.(play.Seeded); seeded {
 				setup = engine.Setup{Walls: play.Seeded{Seed: loaded.Seed}}
 			}
+
 			replayed, err := replay.Run(setup, loaded.Actions)
 			if err != nil {
 				t.Fatalf("Run error = %v", err)
@@ -36,6 +38,7 @@ func TestRun_WhenReplayingTheRecordsOfEachReferenceGame_ShouldRecordTheSameRepla
 			if diff := cmp.Diff(records, recordSteps(t, loaded.Seed, replayed)); diff != "" {
 				t.Errorf("the run records another replay (-recorded +replayed):\n%s", diff)
 			}
+
 			assertSameGame(t, "final game", replayed[len(replayed)-1].Game, played[len(played)-1].Game)
 		})
 	}
@@ -77,10 +80,12 @@ func BenchmarkRun_FullGame(b *testing.B) {
 	if err != nil {
 		b.Fatalf("read the full game replay: %v", err)
 	}
+
 	loaded, err := replay.Load(content)
 	if err != nil {
 		b.Fatalf("Load error = %v", err)
 	}
+
 	setup := engine.Setup{Walls: play.Seeded{Seed: loaded.Seed}}
 
 	steps := 0
@@ -89,7 +94,9 @@ func BenchmarkRun_FullGame(b *testing.B) {
 		if runErr != nil {
 			b.Fatalf("Run error = %v", runErr)
 		}
+
 		steps = len(run)
 	}
+
 	b.ReportMetric(float64(steps), "steps/op")
 }

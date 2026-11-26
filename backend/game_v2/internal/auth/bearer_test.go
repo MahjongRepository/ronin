@@ -21,8 +21,10 @@ func TestIsInternalBearer_WhenGivenAnAuthorizationHeader_ShouldMatchOnlyTheSecre
 		{"no header", "", "internal-secret", false},
 		{"no secret configured", "Bearer ", "", false},
 	} {
-		if got := auth.IsInternalBearer(c.authorization, c.secret); got != c.want {
-			t.Errorf("%s: IsInternalBearer(%q) = %v, want %v", c.name, c.authorization, got, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if got := auth.IsInternalBearer(c.authorization, c.secret); got != c.want {
+				t.Errorf("IsInternalBearer(%q) = %v, want %v", c.authorization, got, c.want)
+			}
+		})
 	}
 }

@@ -40,9 +40,11 @@ func Lowest(c tile.Counts) (int, error) {
 	for _, count := range counts {
 		total += int(count)
 	}
+
 	if total > tile.MaxConcealedTiles {
 		return 0, TooManyTilesError{Count: total}
 	}
+
 	if total%tilesPerSet == 0 {
 		return 0, InvalidTileCountError{Count: total}
 	}
@@ -52,6 +54,7 @@ func Lowest(c tile.Counts) (int, error) {
 	if sets >= fullHandSets {
 		lowest = min(lowest, Chiitoitsu(c), Kokushi(c))
 	}
+
 	return lowest, nil
 }
 
@@ -62,10 +65,12 @@ func Chiitoitsu(c tile.Counts) int {
 		if count >= 2 {
 			pairs++
 		}
+
 		if count >= 1 {
 			kinds++
 		}
 	}
+
 	return sevenPairs - 1 - pairs + max(0, sevenPairs-kinds)
 }
 
@@ -77,9 +82,11 @@ func Kokushi(c tile.Counts) int {
 		if counts[kind] >= 1 {
 			unique++
 		}
+
 		if counts[kind] >= 2 {
 			pair = 1
 		}
 	}
+
 	return kokushiKinds - unique - pair
 }

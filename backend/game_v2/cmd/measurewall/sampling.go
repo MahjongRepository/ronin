@@ -68,6 +68,7 @@ func sampleEngineGame(seedHex string, rounds int) (gameSample, error) {
 	for roundNumber := range rounds {
 		game.rounds = append(game.rounds, sampleRound(seed, roundNumber, (dealer.Index()+roundNumber)%tile.SeatCount))
 	}
+
 	return game, nil
 }
 
@@ -82,6 +83,7 @@ func sampleRound(seed engine.Seed, roundNumber, dealer int) roundSample {
 	for i, id := range shuffled {
 		sample.permutation[i] = id.Index()
 	}
+
 	return sample
 }
 
@@ -107,6 +109,7 @@ func checkRound(s roundSample) error {
 	if !slices.Equal(dealt, front) || len(s.deal.Live) <= dealtTiles || s.deal.DealerDraw != s.deal.Live[dealtTiles] {
 		return errors.New(where + ": the hands and the dealer's draw are not the front of the live wall")
 	}
+
 	return nil
 }
 
@@ -119,6 +122,7 @@ func indexes(ids []tile.TileID) []int {
 	for i, id := range ids {
 		out[i] = id.Index()
 	}
+
 	return out
 }
 
@@ -128,6 +132,7 @@ func engineSeeds(experimentSeed, games int) []string {
 	for i := range seeds {
 		seeds[i] = hex.EncodeToString(stream.randBytes(engine.SeedBytes))
 	}
+
 	return seeds
 }
 
@@ -140,8 +145,10 @@ func controlRounds(experimentSeed, count int) []controlRound {
 		for seat := range tile.SeatCount {
 			rounds[i].hands[seat] = tiles[seat*handSize : (seat+1)*handSize]
 		}
+
 		rounds[i].dealerHand = append(slices.Clone(rounds[i].hands[0]), tiles[dealtTiles])
 	}
+
 	return rounds
 }
 
@@ -150,5 +157,6 @@ func identity(n int) []int {
 	for i := range items {
 		items[i] = i
 	}
+
 	return items
 }

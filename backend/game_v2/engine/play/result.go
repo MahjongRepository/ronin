@@ -60,6 +60,7 @@ func (r Ron) TotalScoreChanges() [tile.SeatCount]int {
 			total[seat] += change
 		}
 	}
+
 	return total
 }
 

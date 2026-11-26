@@ -29,11 +29,13 @@ func (s PublicSeat) DeclaredRiichi() bool {
 	if s.Riichi.OK {
 		return true
 	}
+
 	for _, discard := range s.River {
 		if discard.Riichi {
 			return true
 		}
 	}
+
 	return false
 }
 

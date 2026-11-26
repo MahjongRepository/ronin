@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -123,29 +124,35 @@ func (c Config) validated() (Config, error) {
 	t := c.Timing
 	switch {
 	case c.DB == nil || c.Logger == nil:
-		return c, ErrConfig
+		return c, fmt.Errorf("%w: DB and Logger are required", ErrConfig)
 	case t.BaseTurn < 0 || t.GameStartConfirm < 0 || t.AITurnDelay < 0:
-		return c, ErrConfig
+		return c, fmt.Errorf("%w: BaseTurn, GameStartConfirm and AITurnDelay must not be negative", ErrConfig)
 	case t.InitialBank <= 0 || t.RoundAdvance <= 0 || t.PendingGame <= 0 || c.Capacity <= 0:
-		return c, ErrConfig
+		return c, fmt.Errorf("%w: InitialBank, RoundAdvance, PendingGame and Capacity must be positive", ErrConfig)
 	case c.ObserveDelay < 0:
-		return c, ErrConfig
+		return c, fmt.Errorf("%w: ObserveDelay must not be negative", ErrConfig)
 	}
+
 	if c.ObserveDelay == 0 {
 		c.ObserveDelay = DefaultObserveDelay
 	}
+
 	if c.Clock == nil {
 		c.Clock = SystemClock()
 	}
+
 	if c.Seeds == nil {
 		c.Seeds = randomSeed
 	}
+
 	if c.Setup == nil {
 		c.Setup = seededSetup
 	}
+
 	if c.Agent == nil {
 		c.Agent = defaultAgent{pick: c.Pick}
 	}
+
 	return c, nil
 }
 
@@ -168,9 +175,11 @@ func disguisedDefault(decision play.Decision, pick func(n int) int) play.Action 
 			discards = append(discards, action)
 		}
 	}
+
 	if len(discards) == 0 {
 		return decision.Default
 	}
+
 	return discards[pick(len(discards))]
 }
 
@@ -191,5 +200,6 @@ func New(ctx context.Context, cfg Config) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return newManager(ctx, cfg), nil
 }

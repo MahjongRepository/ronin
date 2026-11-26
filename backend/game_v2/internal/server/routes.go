@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -62,7 +63,7 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 		Status  string `json:"status"`
 		Version string `json:"version"`
 		Commit  string `json:"commit"`
-	}{statusOK, s.cfg.Version, s.cfg.Commit})
+	}{Status: statusOK, Version: s.cfg.Version, Commit: s.cfg.Commit})
 }
 
 type statusField struct {
@@ -109,6 +110,7 @@ func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 	for _, c := range s.stats.closeCounts() {
 		fields = append(fields, statusField{"closes_" + strconv.Itoa(c.code), c.count})
 	}
+
 	fields = append(fields, statusField{"loop_lag_max_ms", lagValue})
 	s.writeJSON(w, http.StatusOK, orderedObject(fields))
 }
@@ -121,14 +123,17 @@ func (o orderedObject) MarshalJSON() ([]byte, error) {
 		if i > 0 {
 			buf = append(buf, ',')
 		}
+
 		buf = strconv.AppendQuote(buf, f.name)
 		buf = append(buf, ':')
 		value, err := json.Marshal(f.value)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("marshal status field %s: %w", f.name, err)
 		}
+
 		buf = append(buf, value...)
 	}
+
 	return append(buf, '}'), nil
 }
 
@@ -142,9 +147,10 @@ func (s *Server) playerGame(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusNotFound, "Player is not in a game")
 		return
 	}
+
 	s.writeJSON(w, http.StatusOK, struct {
 		GameID string `json:"game_id"`
-	}{playing.GameID})
+	}{GameID: playing.GameID})
 }
 
 func (s *Server) playerGameSession(w http.ResponseWriter, r *http.Request) {
@@ -159,10 +165,11 @@ func (s *Server) playerGameSession(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusNotFound, "Player is not in a game")
 		return
 	}
+
 	s.writeJSON(w, http.StatusOK, struct {
 		GameID string `json:"game_id"`
 		Ticket string `json:"game_ticket"`
-	}{playing.GameID, playing.Ticket})
+	}{GameID: playing.GameID, Ticket: playing.Ticket})
 }
 
 type playingGameJSON struct {
@@ -189,9 +196,10 @@ func (s *Server) playingGames(w http.ResponseWriter, r *http.Request) {
 			Players:   g.Names[:],
 		})
 	}
+
 	s.writeJSON(w, http.StatusOK, struct {
 		Games []playingGameJSON `json:"games"`
-	}{games})
+	}{Games: games})
 }
 
 func (s *Server) observeGame(w http.ResponseWriter, r *http.Request) {
@@ -209,6 +217,7 @@ func (s *Server) observeGame(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, http.StatusBadRequest, "Invalid cursor")
 			return
 		}
+
 		from = n
 	}
 
@@ -218,7 +227,13 @@ func (s *Server) observeGame(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusNotFound, "Game not found")
 		return
 	}
-	records, err := wire.EncodeObserverRecords(seen.Records, from == 0 && len(seen.Records) > 0)
+
+	version := wire.WithoutVersionRecord
+	if from == 0 && len(seen.Records) > 0 {
+		version = wire.WithVersionRecord
+	}
+
+	records, err := wire.EncodeObserverRecords(seen.Records, version)
 	if err != nil {
 		s.log.Error(logObserveFailed, "game_id", gameID, "error", err)
 		s.writeError(w, http.StatusInternalServerError, "Internal server error")
@@ -229,10 +244,12 @@ func (s *Server) observeGame(w http.ResponseWriter, r *http.Request) {
 	for _, name := range seen.Game.Names {
 		players = append(players, wire.Str(name))
 	}
+
 	stamps := make(wire.Array, 0, len(seen.Stamps))
 	for _, stamp := range seen.Stamps {
 		stamps = append(stamps, wire.Int(stamp.Milliseconds()))
 	}
+
 	body := wire.EncodeStrMap(wire.StrMap{
 		{Key: "started_at", Value: wire.Int(seen.Game.StartedAt.UnixMilli())},
 		{Key: "game_type", Value: wire.Str(seen.Game.GameType)},
@@ -257,15 +274,18 @@ func (s *Server) withdrawGame(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
+
 	gameID := r.PathValue("game_id")
 	if !replayfile.IsValidGameID(gameID) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+
 	if !s.cfg.Session.WithdrawGame(gameID) {
 		s.writeError(w, http.StatusConflict, "Game already joined")
 		return
 	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -281,6 +301,7 @@ func (s *Server) tenhouReplay(w http.ResponseWriter, r *http.Request) {
 		if !errors.Is(err, replayfile.ErrInvalidGameID) && !errors.Is(err, fs.ErrNotExist) {
 			s.log.Warn(logReplayUnread, "game_id", gameID, "error", err)
 		}
+
 		s.writeError(w, http.StatusNotFound, "Replay not found")
 		return
 	}
@@ -290,6 +311,7 @@ func (s *Server) tenhouReplay(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusUnprocessableEntity, "Replay has no game end")
 		return
 	}
+
 	if err != nil {
 		s.log.Error(logTenhouFailed, "game_id", gameID, "error", err)
 		s.writeError(w, http.StatusInternalServerError, "Internal server error")
@@ -309,6 +331,7 @@ func exportTenhou(compressed []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return tenhou.Convert(content)
 }
 
@@ -319,12 +342,14 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
+
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequestBody))
 	if err != nil {
 		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
 			s.writeError(w, http.StatusRequestEntityTooLarge, "Request body too large")
 			return
 		}
+
 		s.writeError(w, http.StatusBadRequest, "Client disconnected")
 		return
 	}
@@ -334,6 +359,7 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+
 	if ticketError := s.ticketError(request); ticketError != "" {
 		s.writeError(w, http.StatusBadRequest, ticketError)
 		return
@@ -345,13 +371,15 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 		if status == http.StatusInternalServerError {
 			s.log.Error(logCreateFailed, "game_id", request.gameID, "error", err)
 		}
+
 		s.writeError(w, status, message)
 		return
 	}
+
 	s.writeJSON(w, http.StatusCreated, struct {
 		GameID string `json:"game_id"`
 		Status string `json:"status"`
-	}{request.gameID, statusPending})
+	}{GameID: request.gameID, Status: statusPending})
 }
 
 func (s *Server) ticketError(request createGameRequest) string {
@@ -367,6 +395,7 @@ func (s *Server) ticketError(request createGameRequest) string {
 			return "Ticket identity mismatch"
 		}
 	}
+
 	return ""
 }
 
@@ -383,5 +412,6 @@ func creationRefusal(err error) (int, string) {
 	case errors.Is(err, session.ErrPlayerCount):
 		return http.StatusBadRequest, "Invalid request body"
 	}
+
 	return http.StatusInternalServerError, "Internal server error"
 }

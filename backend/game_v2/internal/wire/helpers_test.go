@@ -12,6 +12,7 @@ func seatOf(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("seat %d out of range", n)
 	}
+
 	return seat
 }
 
@@ -21,5 +22,6 @@ func tileIDOf(t *testing.T, n int) tile.TileID {
 	if !ok {
 		t.Fatalf("tile id %d out of range", n)
 	}
+
 	return id
 }

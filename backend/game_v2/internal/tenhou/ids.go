@@ -115,6 +115,7 @@ func YakuID(y play.YakuID) (int, bool) {
 	case play.YakuChiihou:
 		return 38, true
 	}
+
 	return 0, false
 }
 

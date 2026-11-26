@@ -24,10 +24,10 @@ func TestCreatePendingGame_WhenItCannotRegister_ShouldRefuseWithItsReason(t *tes
 			players []session.PlayerSpec
 			want    error
 		}{
-			{"taken id", testGameID, specs("Bob"), session.ErrGameExists},
-			{"player already playing", "game-0002", specs("Alice"), session.ErrPlayerPlaying},
-			{"no player", "game-0002", nil, session.ErrPlayerCount},
-			{"five players", "game-0002", specs("A", "B", "C", "D", "E"), session.ErrPlayerCount},
+			{name: "taken id", gameID: testGameID, players: specs("Bob"), want: session.ErrGameExists},
+			{name: "player already playing", gameID: "game-0002", players: specs("Alice"), want: session.ErrPlayerPlaying},
+			{name: "no player", gameID: "game-0002", players: nil, want: session.ErrPlayerCount},
+			{name: "five players", gameID: "game-0002", players: specs("A", "B", "C", "D", "E"), want: session.ErrPlayerCount},
 		}
 		for _, tc := range cases {
 			err := h.m.CreatePendingGame(tc.gameID, tc.players, session.SeatingShuffled)
@@ -40,6 +40,7 @@ func TestCreatePendingGame_WhenItCannotRegister_ShouldRefuseWithItsReason(t *tes
 		if err != nil {
 			t.Fatalf("CreatePendingGame error = %v", err)
 		}
+
 		err = h.m.CreatePendingGame("game-0003", specs("Carol"), session.SeatingShuffled)
 		if !errors.Is(err, session.ErrAtCapacity) {
 			t.Errorf("CreatePendingGame at capacity error = %v, want ErrAtCapacity", err)
@@ -55,11 +56,12 @@ func TestWithdrawGame_WhenNobodyJoined_ShouldAbandonItAndRefuseItsIDAfterwards(t
 		if !h.m.WithdrawGame(testGameID) {
 			t.Fatal("WithdrawGame = false, want true")
 		}
-		synctest.Wait()
 
+		synctest.Wait()
 		if _, playing := h.m.PlayingGame("user-Alice"); playing {
 			t.Error("Alice still plays the withdrawn game")
 		}
+
 		err := h.m.CreatePendingGame(testGameID, specs("Alice"), session.SeatingShuffled)
 		if !errors.Is(err, session.ErrGameWithdrawn) {
 			t.Errorf("CreatePendingGame after withdrawal error = %v, want ErrGameWithdrawn", err)
@@ -77,12 +79,13 @@ func TestWithdrawGame_WhenItsCreationArrivesLater_ShouldRefuseTheCreationForADay
 		if !h.m.WithdrawGame(testGameID) {
 			t.Fatal("WithdrawGame of an unknown game = false, want true")
 		}
+
 		err := h.m.CreatePendingGame(testGameID, specs("Alice"), session.SeatingShuffled)
 		if !errors.Is(err, session.ErrGameWithdrawn) {
 			t.Errorf("CreatePendingGame error = %v, want ErrGameWithdrawn", err)
 		}
 
-		time.Sleep(24 * time.Hour)
+		sleep(24 * time.Hour)
 		err = h.m.CreatePendingGame(testGameID, specs("Alice"), session.SeatingShuffled)
 		if err != nil {
 			t.Errorf("CreatePendingGame a day later error = %v", err)
@@ -111,7 +114,6 @@ func TestPendingGameTimeout_WhenNobodyConnected_ShouldAbandonTheGameWithNoRecord
 		h.create("Alice")
 
 		sleep(session.DefaultTiming().PendingGame)
-
 		if got := h.m.GameCounts(); got != (session.GameCounts{}) {
 			t.Errorf("GameCounts = %+v, want none", got)
 		}
@@ -165,9 +167,9 @@ func TestJoin_WhenItCannotBind_ShouldAnswerWhy(t *testing.T) {
 			conn *fakeConn
 			want messaging.SessionErrorCode
 		}{
-			{alice, messaging.SessionAlreadyInGame},
-			{stranger, messaging.SessionJoinGameNoSession},
-			{lost, messaging.SessionJoinGameNotFound},
+			{conn: alice, want: messaging.SessionAlreadyInGame},
+			{conn: stranger, want: messaging.SessionJoinGameNoSession},
+			{conn: lost, want: messaging.SessionJoinGameNotFound},
 		} {
 			errs := ofSession(tc.conn.messages(), "session_error")
 			if len(errs) != 1 {
@@ -208,13 +210,13 @@ func TestAuthTimeout_WhenAConnectionNeverAuthenticates_ShouldCloseIt4001(t *test
 		joined := h.join("Alice")
 
 		sleep(10 * time.Second)
-
 		if code, closed := idle.closeCode(); !closed || code != session.CloseAuthTimeout {
 			t.Errorf("idle connection close = %v, %v, want 4001", code, closed)
 		}
 		if _, closed := joined.closeCode(); closed {
 			t.Error("the joined connection was closed")
 		}
+
 		h.m.Join(idle, "ticket-Bob")
 		synctest.Wait()
 		if got := len(idle.messages()); got != 0 {
@@ -238,8 +240,8 @@ func TestGameAction_WhenTheGameIsPendingOrTheConnectionJoinedNone_ShouldAnswerWh
 			conn *fakeConn
 			want messaging.SessionErrorCode
 		}{
-			{alice, messaging.SessionGameNotStarted},
-			{stranger, messaging.SessionNotInGame},
+			{conn: alice, want: messaging.SessionGameNotStarted},
+			{conn: stranger, want: messaging.SessionNotInGame},
 		} {
 			errs := ofSession(tc.conn.messages(), "session_error")
 			if len(errs) != 1 {

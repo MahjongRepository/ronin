@@ -36,33 +36,46 @@ func TestTsumoScoreChanges_WhenALiableSeat_ShouldChargeItEveryShareAndTheWholeHo
 	payment := play.TsumoPayment{Dealer: 16000, NonDealer: 8000}
 
 	got := offer.TsumoScoreChanges(seat(t, 1), seat(t, 0), payment, 1, 1, play.Some(seat(t, 2)))
-
 	if want := [4]int{0, 33300, -32300, 0}; got != want {
 		t.Errorf("TsumoScoreChanges = %v, want %v", got, want)
 	}
 }
 
 func TestTsumoScoreChanges_WhenThePaymentDoesNotFitTheWinner_ShouldPanicWithAnEngineFault(t *testing.T) {
-	for _, c := range []struct {
+	tests := []struct {
 		name    string
 		winner  tile.Seat
 		payment play.Payment
 		named   string
 	}{
-		{"dealer's payment to a non-dealer", seat(t, 1), play.DealerTsumoPayment{NonDealer: 2000}, "play.DealerTsumoPayment"},
-		{"non-dealer's payment to the dealer", seat(t, 0), play.TsumoPayment{Dealer: 2000, NonDealer: 1000}, "play.TsumoPayment"},
-		{"ron payment", seat(t, 1), play.RonPayment{Discarder: 8000}, "play.RonPayment"},
-	} {
-		fault := faultOf(t, func() {
-			offer.TsumoScoreChanges(c.winner, seat(t, 0), c.payment, 1, 0, play.Option[tile.Seat]{})
-		})
+		{
+			name:    "dealer's payment to a non-dealer",
+			winner:  seat(t, 1),
+			payment: play.DealerTsumoPayment{NonDealer: 2000},
+			named:   "play.DealerTsumoPayment",
+		},
+		{
+			name:    "non-dealer's payment to the dealer",
+			winner:  seat(t, 0),
+			payment: play.TsumoPayment{Dealer: 2000, NonDealer: 1000},
+			named:   "play.TsumoPayment",
+		},
+		{name: "ron payment", winner: seat(t, 1), payment: play.RonPayment{Discarder: 8000}, named: "play.RonPayment"},
+	}
+	for _, c := range tests {
+		t.Run(c.name, func(t *testing.T) {
+			fault := faultOf(t, func() {
+				offer.TsumoScoreChanges(c.winner, seat(t, 0), c.payment, 1, 0, play.Option[tile.Seat]{})
+			})
 
-		if want := (offer.MisfitPaymentError{Payment: c.payment}); !errors.Is(fault, want) {
-			t.Errorf("%s: TsumoScoreChanges fault = %v, want %v", c.name, fault, want)
-		}
-		if !strings.Contains(fault.Error(), c.named) {
-			t.Errorf("%s: TsumoScoreChanges fault text = %q, want it to name %s", c.name, fault.Error(), c.named)
-		}
+			if want := (offer.MisfitPaymentError{Payment: c.payment}); !errors.Is(fault, want) {
+				t.Errorf("TsumoScoreChanges fault = %v, want %v", fault, want)
+			}
+
+			if !strings.Contains(fault.Error(), c.named) {
+				t.Errorf("TsumoScoreChanges fault text = %q, want it to name %s", fault.Error(), c.named)
+			}
+		})
 	}
 }
 
@@ -75,6 +88,7 @@ func TestRonScoreChanges_ShouldChargeTheDiscarderAndGiveTheTableOnlyWhenTaken(t 
 	if want := [4]int{0, -8600, 10600, 0}; taken != want {
 		t.Errorf("RonScoreChanges taking the table = %v, want %v", taken, want)
 	}
+
 	if want := [4]int{0, -8000, 8000, 0}; left != want {
 		t.Errorf("RonScoreChanges leaving the table = %v, want %v", left, want)
 	}
@@ -101,6 +115,7 @@ func TestRonScoreChanges_WhenALiableSeat_ShouldSplitTheHandWithItAndChargeItTheH
 	if want := [4]int{0, 32300, -16000, -16300}; liableBeside != want {
 		t.Errorf("RonScoreChanges with another liable seat = %v, want %v", liableBeside, want)
 	}
+
 	if want := [4]int{0, 32300, 0, -32300}; liableDiscarder != want {
 		t.Errorf("RonScoreChanges with the discarder liable = %v, want %v", liableDiscarder, want)
 	}
@@ -113,9 +128,11 @@ func TestCompletes_WhenTheTileCompletesOrAKindIsHeldFiveTimes_ShouldReportOnlyTh
 	if !offer.Completes(hand, copyOf(t, 1, "8s")) {
 		t.Error("Completes on the wait = false, want true")
 	}
+
 	if offer.Completes(hand, copyOf(t, 1, "1m")) {
 		t.Error("Completes off the waits = true, want false")
 	}
+
 	if offer.Completes(fiveOnes, fiveOnes[0]) {
 		t.Error("Completes with a fifth copy = true, want false")
 	}
@@ -147,18 +164,22 @@ func TestSettledValue_WhenTheHandHasNoYaku_ShouldPanicWithAnEngineFault(t *testi
 }
 
 func TestRonWin_ShouldBeHouteiOnTheLastDiscardAndChankanOnAKansTile(t *testing.T) {
-	for _, c := range []struct {
+	tests := []struct {
+		name      string
 		source    play.CallSource
 		liveTiles int
 		want      score.Win
 	}{
-		{play.SourceDiscard, 1, score.WinRon},
-		{play.SourceDiscard, 0, score.WinHoutei},
-		{play.SourceAddedKan, 0, score.WinChankan},
-		{play.SourceClosedKan, 1, score.WinChankan},
-	} {
-		if got := offer.RonWin(c.source, c.liveTiles); got != c.want {
-			t.Errorf("RonWin(%v, %d) = %v, want %v", c.source, c.liveTiles, got, c.want)
-		}
+		{name: "discard with live tiles", source: play.SourceDiscard, liveTiles: 1, want: score.WinRon},
+		{name: "discard on the last tile", source: play.SourceDiscard, liveTiles: 0, want: score.WinHoutei},
+		{name: "added kan", source: play.SourceAddedKan, liveTiles: 0, want: score.WinChankan},
+		{name: "closed kan with live tiles", source: play.SourceClosedKan, liveTiles: 1, want: score.WinChankan},
+	}
+	for _, c := range tests {
+		t.Run(c.name, func(t *testing.T) {
+			if got := offer.RonWin(c.source, c.liveTiles); got != c.want {
+				t.Errorf("RonWin(%v, %d) = %v, want %v", c.source, c.liveTiles, got, c.want)
+			}
+		})
 	}
 }

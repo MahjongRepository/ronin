@@ -25,6 +25,7 @@ func threePinWithTwoRonCallers(t *testing.T) game.Game {
 	if err != nil {
 		t.Fatalf("ThreePinWithTwoRonCallers error = %v", err)
 	}
+
 	return g
 }
 
@@ -37,10 +38,11 @@ func dealerPonFromSeatThree(
 	if err != nil {
 		t.Fatalf("DealerPonFromSeatThree error = %v", err)
 	}
+
 	return g
 }
 
-func dealerPassedThreePin(t *testing.T, riichi bool) game.Game {
+func dealerPassedThreePin(t *testing.T, discardAs func(tile.TileID) play.Action) game.Game {
 	t.Helper()
 	chun := func(first int) tile.TileID { return tileOf(t, first, "7z") }
 	w := testkit.StartWall{
@@ -49,11 +51,7 @@ func dealerPassedThreePin(t *testing.T, riichi bool) game.Game {
 		},
 		Draws: []tile.TileID{chun(0), tileOf(t, 0, "3p"), chun(1), chun(2), tileOf(t, 1, "3p")},
 	}
-	first := play.DiscardAction(chun(0))
-	if riichi {
-		first = play.RiichiAction(chun(0))
-	}
-	g, _ := script(t, begun(t, w, noStart()), act(seat(t, 0), first))
+	g, _ := script(t, begun(t, w, noStart()), act(seat(t, 0), discardAs(chun(0))))
 	g, _ = discardDrawn(t, g, 1)
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 0)))
 
@@ -64,18 +62,25 @@ func dealerPassedThreePin(t *testing.T, riichi bool) game.Game {
 }
 
 func TestTsumo_WhenTemporaryOrRiichiFuriten_ShouldStillBeAllowed(t *testing.T) {
-	for _, riichi := range []bool{false, true} {
-		g := dealerPassedThreePin(t, riichi)
-		assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 0)))
-		if !containsAction(g.LegalActions(seat(t, 0)), play.TsumoAction()) {
-			t.Errorf("riichi %t: tsumo is not offered", riichi)
-		}
+	for _, c := range []struct {
+		name      string
+		discardAs func(tile.TileID) play.Action
+	}{
+		{name: "temporary furiten", discardAs: play.DiscardAction},
+		{name: "riichi furiten", discardAs: play.RiichiAction},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			g := dealerPassedThreePin(t, c.discardAs)
+			assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 0)))
+			if !containsAction(g.LegalActions(seat(t, 0)), play.TsumoAction()) {
+				t.Error("tsumo is not offered")
+			}
 
-		_, events := script(t, g, act(seat(t, 0), play.TsumoAction()))
-
-		if tsumo, ok := roundResult(t, events).(play.Tsumo); !ok || tsumo.Win.Winner != seat(t, 0) {
-			t.Errorf("riichi %t: result = %+v, want seat 0's tsumo", riichi, roundResult(t, events))
-		}
+			_, events := script(t, g, act(seat(t, 0), play.TsumoAction()))
+			if tsumo, ok := roundResult(t, events).(play.Tsumo); !ok || tsumo.Win.Winner != seat(t, 0) {
+				t.Errorf("result = %+v, want seat 0's tsumo", roundResult(t, events))
+			}
+		})
 	}
 }
 
@@ -121,18 +126,21 @@ func TestRonCallers_WhenTwoSeatsMayRon_ShouldPromptBothAndRankThemByDistanceFrom
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 0), seat(t, 3)))
 	oneTwoPin := [2]tile.TileID{tileOf(t, 1, "1p"), tileOf(t, 1, "2p")}
 	for _, c := range []struct {
+		name   string
 		caller tile.Seat
 		legal  []play.Action
 	}{
-		{seat(t, 0), []play.Action{play.RonAction(), play.PassAction()}},
-		{seat(t, 3), []play.Action{play.RonAction(), play.ChiAction(oneTwoPin), play.PassAction()}},
+		{name: "nearer ron caller", caller: seat(t, 0), legal: []play.Action{play.RonAction(), play.PassAction()}},
+		{name: "farther ron caller", caller: seat(t, 3), legal: []play.Action{play.RonAction(), play.ChiAction(oneTwoPin), play.PassAction()}},
 	} {
-		decision, _ := g.Decision(c.caller)
-		assertEqual(t, "decision", decision, play.Decision{
-			Seat:    c.caller,
-			Context: play.Call{Tile: tileOf(t, 3, "3p"), From: seat(t, 2), Source: play.SourceDiscard},
-			Legal:   c.legal,
-			Default: play.PassAction(),
+		t.Run(c.name, func(t *testing.T) {
+			decision, _ := g.Decision(c.caller)
+			assertEqual(t, "decision", decision, play.Decision{
+				Seat:    c.caller,
+				Context: play.Call{Tile: tileOf(t, 3, "3p"), From: seat(t, 2), Source: play.SourceDiscard},
+				Legal:   c.legal,
+				Default: play.PassAction(),
+			})
 		})
 	}
 
@@ -149,7 +157,6 @@ func TestRonCallers_WhenTwoSeatsMayRon_ShouldPromptBothAndRankThemByDistanceFrom
 
 func TestRon_WhenOtherCallersArePending_ShouldRecordTheAnswerAndWait(t *testing.T) {
 	g, events := script(t, threePinWithTwoRonCallers(t), act(seat(t, 3), play.RonAction()))
-
 	assertEqual(t, "events", events, []play.Emitted(nil))
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 0)))
 	if _, ok := g.Decision(seat(t, 3)); ok || len(g.LegalActions(seat(t, 3))) != 0 {
@@ -182,18 +189,21 @@ func TestTurnAction_WhenAPromptIsPending_ShouldBeNotAwaitedAndChangeNothing(t *t
 	own := g.Hand(seat(t, 2))[0]
 
 	for _, c := range []struct {
+		name   string
 		caller tile.Seat
 		action play.Action
 	}{
-		{seat(t, 2), play.DiscardAction(own)},
-		{seat(t, 2), play.RiichiAction(own)},
-		{seat(t, 2), play.TsumoAction()},
-		{seat(t, 2), play.KyuushuAction()},
-		{seat(t, 2), play.KanAction(play.KanClosed, own)},
-		{seat(t, 2), play.KanAction(play.KanAdded, own)},
-		{seat(t, 0), play.DiscardAction(g.Hand(seat(t, 0))[0])},
+		{name: "discard", caller: seat(t, 2), action: play.DiscardAction(own)},
+		{name: "riichi", caller: seat(t, 2), action: play.RiichiAction(own)},
+		{name: "tsumo", caller: seat(t, 2), action: play.TsumoAction()},
+		{name: "kyuushu", caller: seat(t, 2), action: play.KyuushuAction()},
+		{name: "closed kan", caller: seat(t, 2), action: play.KanAction(play.KanClosed, own)},
+		{name: "added kan", caller: seat(t, 2), action: play.KanAction(play.KanAdded, own)},
+		{name: "discard by a prompted seat", caller: seat(t, 0), action: play.DiscardAction(g.Hand(seat(t, 0))[0])},
 	} {
-		assertRefused(t, build, c.caller, c.action, seatNotAwaitedRefusal())
+		t.Run(c.name, func(t *testing.T) {
+			assertRefused(t, build, c.caller, c.action, seatNotAwaitedRefusal())
+		})
 	}
 }
 
@@ -216,6 +226,7 @@ func TestRon_WhenValid_ShouldEndTheRoundWithARon(t *testing.T) {
 	if !ok || len(ron.Wins) != 1 || ron.Wins[0].Winner != seat(t, 0) {
 		t.Errorf("result = %+v, want seat 0's ron alone", roundResult(t, events))
 	}
+
 	if _, ok := events[len(events)-1].Event.(play.RoundEnded); !ok {
 		t.Errorf("last event = %+v, want RoundEnded", events[len(events)-1].Event)
 	}
@@ -249,22 +260,25 @@ func TestTsumo_WhenAnOpenPonAndTheDrawnHandComplete_ShouldWin(t *testing.T) {
 
 func TestWaits_WhenTheHandHasAnOpenPon_ShouldMakeADiscardedWaitFuriten(t *testing.T) {
 	for _, c := range []struct {
+		name   string
 		drawn  tile.TileID
 		isWait bool
 	}{
-		{tileOf(t, 0, "1s"), true},
-		{tileOf(t, 0, "4s"), true},
-		{tileOf(t, 1, "9m"), false},
+		{name: "one sou wait", drawn: tileOf(t, 0, "1s"), isWait: true},
+		{name: "four sou wait", drawn: tileOf(t, 0, "4s"), isWait: true},
+		{name: "not a wait", drawn: tileOf(t, 1, "9m"), isWait: false},
 	} {
-		g := dealerWithEightSouPon(t, copies(t, 0, "234567m2355s"), []tile.TileID{c.drawn})
+		t.Run(c.name, func(t *testing.T) {
+			g := dealerWithEightSouPon(t, copies(t, 0, "234567m2355s"), []tile.TileID{c.drawn})
 
-		_, discarded := script(t, g, act(seat(t, 0), play.DiscardAction(c.drawn)))
+			_, discarded := script(t, g, act(seat(t, 0), play.DiscardAction(c.drawn)))
 
-		var want []play.FuritenChanged
-		if c.isWait {
-			want = []play.FuritenChanged{{Seat: seat(t, 0), Furiten: true}}
-		}
-		assertEqual(t, "furiten", testkit.FuritenChanges(discarded), want)
+			var want []play.FuritenChanged
+			if c.isWait {
+				want = []play.FuritenChanged{{Seat: seat(t, 0), Furiten: true}}
+			}
+			assertEqual(t, "furiten", testkit.FuritenChanges(discarded), want)
+		})
 	}
 }
 
@@ -283,7 +297,6 @@ func TestFuriten_WhenAWaitWasDiscardedTurnsAgoAndClaimed_ShouldBlockTheRon(t *te
 	g, _ = script(t, g, act(seat(t, 1), firstPon(t, g, seat(t, 1))), act(seat(t, 1), play.DiscardAction(tileOf(t, 3, "7z"))))
 
 	g, discarded := script(t, g, act(seat(t, 2), play.DiscardAction(sixPin)))
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 3)))
 	if slices.Contains(testkit.EventKinds(discarded), "round_ended") {
 		t.Error("the round ended on the furiten wait")
@@ -320,7 +333,6 @@ func TestShibari_WhenAnOpenHandHasOnlyDora_ShouldRejectTheRon(t *testing.T) {
 	g, _ = discardDrawn(t, g, 2)
 
 	g, discarded := discardDrawn(t, g, 1)
-
 	if containsAction(g.LegalActions(seat(t, 0)), play.RonAction()) {
 		t.Error("ron is offered on a yakuless hand")
 	}
@@ -375,7 +387,6 @@ func TestChiihou_WhenTheDealerMadeAClosedKan_ShouldNotBeScored(t *testing.T) {
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 
 	_, events := script(t, g, act(seat(t, 1), play.TsumoAction()))
-
 	assertEqual(t, "yaku", firstWin(t, events).Yaku, []play.YakuID{play.YakuTsumo, play.YakuIttsu})
 }
 
@@ -399,6 +410,5 @@ func TestRon_WhenOnTheFirstTurnAfterAClosedKan_ShouldScoreNoFirstTurnYaku(t *tes
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 1)))
 
 	_, events := script(t, g, act(seat(t, 1), play.RonAction()))
-
 	assertEqual(t, "yaku", firstWin(t, events).Yaku, []play.YakuID{play.YakuIttsu})
 }

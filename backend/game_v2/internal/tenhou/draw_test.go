@@ -40,6 +40,7 @@ func fourRiichiGame(t *testing.T) (stagedWall, []replay.SeatAction) {
 	for s, wind := range winds {
 		actions = append(actions, act(t, s, play.RiichiAction(wind)))
 	}
+
 	return wall, actions
 }
 
@@ -117,10 +118,11 @@ func TestConvert_WhenARoundAborts_ShouldRevealTheHandsTenhouShows(t *testing.T) 
 			wall, actions := tc.game(t)
 			xml := converted(t, playedReplay(t, stagedSetup(t, wall, play.Option[play.StartPosition]{}), actions))
 
-			if got := tags(xml, `<RYUUKYOKU [^>]*/>`); len(got) != 1 || !strings.HasPrefix(got[0], tc.draw+` owari="`) {
+			if got := tags(xml, ryuukyokuTags); len(got) != 1 || !strings.HasPrefix(got[0], tc.draw+` owari="`) {
 				t.Errorf("RYUUKYOKU = %q, want %q and the owari", got, tc.draw)
 			}
-			if got := tags(xml, `<REACH [^>]*step="2"/>`); !slices.Equal(got, tc.riichis) {
+
+			if got := tags(xml, reachDepositTags); !slices.Equal(got, tc.riichis) {
 				t.Errorf("riichi deposits = %q, want %q", got, tc.riichis)
 			}
 		})
@@ -146,8 +148,10 @@ func nagashiWall(t *testing.T) stagedWall {
 		for i := s; len(w.hands[s]) < handSize; i += tile.SeatCount {
 			w.hands[s] = append(w.hands[s], simples[i])
 		}
+
 		dealt = append(dealt, w.hands[s]...)
 	}
+
 	others := slices.DeleteFunc(slices.Clone(simples), func(id tile.TileID) bool { return slices.Contains(dealt, id) })
 	reversed := slices.Clone(terminals)
 	slices.Reverse(reversed)
@@ -160,6 +164,7 @@ func nagashiWall(t *testing.T) stagedWall {
 			w.draws, others = append(w.draws, others[0]), others[1:]
 		}
 	}
+
 	return w
 }
 
@@ -169,15 +174,15 @@ func TestConvert_WhenTobiFollowsANagashiMangan_ShouldWriteAnNMRyuukyokuCarryingT
 	for i, drawn := range wall.draws {
 		actions = append(actions, act(t, i%tile.SeatCount, play.DiscardAction(drawn)))
 	}
-	start := play.Some(play.StartPosition{Scores: [tile.SeatCount]int{1000, 97000, 1000, 1000}})
 
+	start := play.Some(play.StartPosition{Scores: [tile.SeatCount]int{1000, 97000, 1000, 1000}})
 	xml := converted(t, playedReplay(t, stagedSetup(t, wall, start), actions))
 
 	want := `<RYUUKYOKU type="nm" ba="0,0" sc="10,-40,970,80,10,-20,10,-20"` +
 		` hai0="4,8,12,16,20,24,28,40,44,48,52,56,60" hai1="5,9,13,17,21,25,29,41,45,49,53,57,61"` +
 		` hai2="6,10,14,18,22,26,30,42,46,50,54,58,62" hai3="7,11,15,19,23,27,31,43,47,51,55,59,63"` +
 		` owari="-30,-53.0,1050,115.0,-10,-21.0,-10,-41.0" />`
-	if got := tags(xml, `<RYUUKYOKU [^>]*/>`); !slices.Equal(got, []string{want}) {
+	if got := tags(xml, ryuukyokuTags); !slices.Equal(got, []string{want}) {
 		t.Errorf("RYUUKYOKU = %q, want %q", got, want)
 	}
 }

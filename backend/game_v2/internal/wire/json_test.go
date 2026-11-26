@@ -24,6 +24,7 @@ func (o jsonObject) get(key string) any {
 			return e.Value
 		}
 	}
+
 	return nil
 }
 
@@ -33,8 +34,10 @@ func (o jsonObject) with(key string, value any) jsonObject {
 		if e.Key == key {
 			e.Value = value
 		}
+
 		out = append(out, e)
 	}
+
 	return out
 }
 
@@ -45,18 +48,22 @@ func (o jsonObject) MarshalJSON() ([]byte, error) {
 		if i > 0 {
 			b.WriteByte(',')
 		}
+
 		key, err := json.Marshal(e.Key)
 		if err != nil {
 			return nil, err
 		}
+
 		value, err := json.Marshal(e.Value)
 		if err != nil {
 			return nil, err
 		}
+
 		b.Write(key)
 		b.WriteByte(':')
 		b.Write(value)
 	}
+
 	b.WriteByte('}')
 	return b.Bytes(), nil
 }
@@ -67,16 +74,19 @@ func readJSONFile(tb testing.TB, path string) jsonObject {
 	if err != nil {
 		tb.Fatalf("read %s: %v", path, err)
 	}
+
 	decoder := json.NewDecoder(bytes.NewReader(content))
 	decoder.UseNumber()
 	root, err := readJSON(decoder)
 	if err != nil {
 		tb.Fatalf("parse %s: %v", path, err)
 	}
+
 	object, ok := root.(jsonObject)
 	if !ok {
 		tb.Fatalf("%s holds no object", path)
 	}
+
 	return object
 }
 
@@ -86,11 +96,13 @@ func writeJSONFile(t *testing.T, path string, root jsonObject) {
 	if err != nil {
 		t.Fatalf("marshal %s: %v", path, err)
 	}
+
 	var indented bytes.Buffer
 	err = json.Indent(&indented, compact, "", "  ")
 	if err != nil {
 		t.Fatalf("indent %s: %v", path, err)
 	}
+
 	indented.WriteByte('\n')
 	err = os.WriteFile(path, indented.Bytes(), 0o600)
 	if err != nil {
@@ -103,6 +115,7 @@ func readJSON(decoder *json.Decoder) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	delimiter, isDelimiter := token.(json.Delim)
 	if !isDelimiter {
 		return token, nil
@@ -116,12 +129,15 @@ func readJSON(decoder *json.Decoder) (any, error) {
 			if keyErr != nil {
 				return nil, keyErr
 			}
+
 			value, valueErr := readJSON(decoder)
 			if valueErr != nil {
 				return nil, valueErr
 			}
+
 			object = append(object, jsonEntry{Key: keyToken.(string), Value: value})
 		}
+
 		_, err = decoder.Token()
 		return object, err
 	case '[':
@@ -131,8 +147,10 @@ func readJSON(decoder *json.Decoder) (any, error) {
 			if valueErr != nil {
 				return nil, valueErr
 			}
+
 			array = append(array, value)
 		}
+
 		_, err = decoder.Token()
 		return array, err
 	default:
@@ -153,12 +171,15 @@ func wireValueOf(t *testing.T, node any, field Key, stringKeys bool) Value {
 			if err != nil {
 				t.Fatalf("float %s: %v", node, err)
 			}
+
 			return Float(f)
 		}
+
 		n, err := node.Int64()
 		if err != nil {
 			t.Fatalf("integer %s: %v", node, err)
 		}
+
 		return Int(n)
 	case string:
 		if field == KeySeed && !stringKeys {
@@ -166,17 +187,20 @@ func wireValueOf(t *testing.T, node any, field Key, stringKeys bool) Value {
 			if err != nil {
 				t.Fatalf("seed %q: %v", node, err)
 			}
+
 			return Bin(seed)
 		}
+
 		return Str(node)
 	case []any:
 		array := Array{}
 		for _, item := range node {
 			array = append(array, wireValueOf(t, item, noField, stringKeys))
 		}
+
 		return array
 	case jsonObject:
-		return wireMapOf(t, node, stringKeys || stringKeyed(field))
+		return wireMapOf(t, node, stringKeys || keyModeOf(field) == strKeys)
 	default:
 		t.Fatalf("unexpected JSON node %T", node)
 		return nil
@@ -192,17 +216,21 @@ func wireMapOf(t *testing.T, object jsonObject, stringKeys bool) Value {
 		for _, e := range object {
 			m = append(m, StrField{Key: e.Key, Value: wireValueOf(t, e.Value, noField, true)})
 		}
+
 		return m
 	}
+
 	m := Map{}
 	for _, e := range object {
 		n, err := strconv.Atoi(e.Key)
 		if err != nil {
 			t.Fatalf("metadata key %q: %v", e.Key, err)
 		}
+
 		key := Key(n)
 		m = append(m, Field{Key: key, Value: wireValueOf(t, e.Value, key, false)})
 	}
+
 	return m
 }
 
@@ -212,6 +240,7 @@ func wireRecordOf(t *testing.T, node any) Map {
 	if !ok {
 		t.Fatalf("record %v is no object", node)
 	}
+
 	m, _ := wireMapOf(t, object, false).(Map)
 	return m
 }
@@ -232,8 +261,10 @@ func namedKeys(includes *[keyCount]bool) jsonObject {
 			names = append(names, jsonEntry{Key: name, Value: json.Number(strconv.Itoa(k))})
 		}
 	}
+
 	for _, alias := range keyAliases {
 		names = append(names, jsonEntry{Key: alias.name, Value: json.Number(strconv.Itoa(int(alias.key)))})
 	}
+
 	return names
 }

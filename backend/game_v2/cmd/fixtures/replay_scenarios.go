@@ -78,11 +78,14 @@ func playStaged(s *staging, r stagedReplay, want outcome, script func(g *stagedG
 		if s.err != nil {
 			return recording{}, fmt.Errorf("%s: %w", r.id, s.err)
 		}
+
 		if fillersMatch([]stagedWall{r.wall}, r.start, dealers, g.dealt) {
 			return played, err
 		}
+
 		dealers = g.dealt
 	}
+
 	return recording{}, fmt.Errorf("%s: the seed's later rounds found no dealers in %d passes", r.id, maxDealerPasses)
 }
 
@@ -99,6 +102,7 @@ func tileValues(ids ...tile.TileID) wire.Array {
 	for _, id := range ids {
 		values = append(values, n(id.Index()))
 	}
+
 	return values
 }
 
@@ -107,6 +111,7 @@ func ints(values ...int) wire.Array {
 	for _, v := range values {
 		array = append(array, n(v))
 	}
+
 	return array
 }
 
@@ -119,6 +124,7 @@ func ronResult(loser int, winners ...wire.Map) wire.Map {
 	for _, w := range winners {
 		array = append(array, w)
 	}
+
 	return result(wire.ResultRon, field(wire.KeyLoserSeat, n(loser)), field(wire.KeyWinners, array))
 }
 
@@ -161,10 +167,12 @@ func riichiFixture() (recording, error) {
 		g.tsumogiri(1)
 		g.tsumogiri(2)
 		g.tsumogiri(3)
+
 		g.discard(0, s.id(3, "8m"))
 		g.riichi(1)
 		g.pon(2)
 		g.discard(2, s.id(2, "2z"))
+
 		g.riichiOn(3, secondRiichiTile)
 		g.tsumogiriUntil(1)
 		g.tsumogiri(1)
@@ -198,23 +206,28 @@ func kansFixture() (recording, error) {
 		g.discard(0, openKanTile)
 		g.kan(2, openKanTile, play.KanOpen)
 		g.tsumogiri(2)
+
 		g.discard(3, ponnedTile)
 		g.pon(1)
 		g.discard(1, s.id(1, "4z"))
 		g.tsumogiriUntil(1)
+
 		g.kan(1, addedKanTile, play.KanAdded)
 		g.tsumogiri(1)
 		g.tsumogiriUntil(3)
+
 		g.kan(3, closedKanTile, play.KanClosed)
 		g.tsumo(3)
 	})
 }
 
 func fullGameFixture() (recording, error) {
-	seed, err := engine.ParseSeed(strings.Repeat(fullGameSeedHex, seedHexLength))
+	seedHex := strings.Repeat(fullGameSeedHex, seedHexLength)
+	seed, err := engine.ParseSeed(seedHex)
 	if err != nil {
-		return recording{}, err
+		return recording{}, fmt.Errorf("full_game: parse seed %s: %w", seedHex, err)
 	}
+
 	roster := messaging.Roster{GameID: fullGameID, Names: [tile.SeatCount]string{"Wanjirou", "Ojisan", "Ichihime", "Akagi"}}
 	want := endsInGame(result(wire.ResultExhaustiveDraw))
 	return playPolicyGame("full_game", seed, roster, defaultPolicy, want)
@@ -321,6 +334,7 @@ func chankanAdded() (recording, error) {
 		g.discard(2, s.id(0, "9s"))
 		g.tsumogiri(3)
 		g.tsumogiri(0)
+
 		g.kan(1, addedKanTile, play.KanAdded)
 		g.ron(2)
 	})
@@ -339,6 +353,7 @@ func chankanAIReplacement() (recording, error) {
 		g.discard(2, s.id(0, "9s"))
 		g.discard(3, s.id(3, "1z"))
 		g.tsumogiri(0)
+
 		g.kan(1, addedKanTile, play.KanAdded)
 		g.leave(3)
 		g.ron(2)
@@ -393,13 +408,16 @@ func paoFixture() (recording, error) {
 		g.discard(0, firstDragon)
 		g.pon(1)
 		g.discard(1, s.id(0, "9p"))
+
 		g.discard(2, secondDragon)
 		g.pon(1)
 		g.discard(1, s.id(0, "1s"))
+
 		g.tsumogiriUntil(0)
 		g.discard(0, liableDragon)
 		g.pon(1)
 		g.discard(1, s.id(0, "9s"))
+
 		g.tsumogiriUntil(1)
 		g.tsumo(1)
 	})
@@ -487,23 +505,28 @@ func nagashiFixture() (recording, error) {
 			dealt[id.Index()] = true
 		}
 	}
+
 	drawSeats := make([]int, 0, liveWallSize-firstDrawSlot)
 	for i := range liveWallSize - firstDrawSlot {
 		drawSeats = append(drawSeats, i%tile.SeatCount)
 	}
+
 	var undealt, qualifying, others []tile.TileID
 	for _, id := range tile.AllTileIDs() {
 		if !dealt[id.Index()] {
 			undealt = append(undealt, id)
 		}
 	}
+
 	for _, id := range undealt {
 		if id.Kind().IsTerminalOrHonor() && len(qualifying) < countOf(drawSeats, nagashiSeat) {
 			qualifying = append(qualifying, id)
 			continue
 		}
+
 		others = append(others, id)
 	}
+
 	if len(others) < len(drawSeats)-len(qualifying) {
 		return recording{}, errors.New("nagashi: the wall holds too few draws")
 	}
@@ -514,6 +537,7 @@ func nagashiFixture() (recording, error) {
 		if seat == nagashiSeat {
 			pool = &qualifying
 		}
+
 		draws = append(draws, s.draw(seat, (*pool)[0]))
 		*pool = (*pool)[1:]
 	}
@@ -531,6 +555,7 @@ func countOf(seats []int, seat int) int {
 			count++
 		}
 	}
+
 	return count
 }
 
@@ -565,6 +590,7 @@ func fourWindsRiichi() (recording, error) {
 		for seat := range tile.SeatCount - 1 {
 			wall.hands[seat] = slices.Concat(winds[seat:seat+1], s.ids(seat+1, "258m169p258s567z"))
 		}
+
 		wall.hands[tile.SeatCount-1] = slices.Concat(s.ids(0, "123456789m223p"), winds[tile.SeatCount-1:])
 	}
 
@@ -573,6 +599,7 @@ func fourWindsRiichi() (recording, error) {
 		for seat := range tile.SeatCount - 1 {
 			g.discard(seat, winds[seat])
 		}
+
 		g.riichiOn(tile.SeatCount-1, winds[tile.SeatCount-1])
 	})
 }
@@ -616,9 +643,11 @@ func fourKans() (recording, error) {
 		g.kan(0, s.id(0, "1m"), play.KanClosed)
 		g.kan(0, s.id(0, "2m"), play.KanClosed)
 		g.tsumogiri(0)
+
 		g.kan(1, s.id(0, "3p"), play.KanClosed)
 		g.tsumogiri(1)
 		g.tsumogiri(2)
+
 		g.kan(1, openKanTile, play.KanOpen)
 		g.tsumogiri(1)
 	})
@@ -644,10 +673,12 @@ func aiReplacements() (recording, error) {
 	return playStaged(&s, r, want, func(g *stagedGame) {
 		g.tsumogiri(0)
 		g.tsumogiri(1)
+
 		g.leave(2)
 		g.ron(1)
 		g.restoreHuman(3)
 		g.leave(0)
+
 		g.confirmRound()
 		g.restoreHuman(2)
 		g.tsumogiri(1)
@@ -710,10 +741,12 @@ func aiDealerAbsent() (recording, error) {
 }
 
 func eagerSeeded(id, seedPair string, want outcome) (recording, error) {
-	seed, err := engine.ParseSeed(strings.Repeat(seedPair, seedHexLength/len(seedPair)))
+	seedHex := strings.Repeat(seedPair, seedHexLength/len(seedPair))
+	seed, err := engine.ParseSeed(seedHex)
 	if err != nil {
-		return recording{}, err
+		return recording{}, fmt.Errorf("%s: parse seed %s: %w", id, seedHex, err)
 	}
+
 	roster, _ := session.SeatPlayers(id, atTheTable().players, seed, session.SeatingShuffled)
 	return playPolicyGame(id, seed, roster, eagerPolicy, want)
 }
@@ -724,6 +757,7 @@ func eagerGame() (recording, error) {
 	if err != nil {
 		return recording{}, err
 	}
+
 	return played, requireWinsOffSeatZero("eager-game", played)
 }
 
@@ -739,9 +773,11 @@ func requireWinsOffSeatZero(name string, r recording) error {
 			results = append(results, code)
 		}
 	}
+
 	if !slices.Contains(results, int(wire.ResultTsumo)) || !slices.Contains(results, int(wire.ResultRon)) {
 		return fmt.Errorf("%s: no tsumo and ron both in rounds dealt by a seat other than 0", name)
 	}
+
 	return nil
 }
 
@@ -756,6 +792,7 @@ func doubleRonOnHonba() (recording, error) {
 	if err != nil {
 		return recording{}, err
 	}
+
 	doubleRon := ronResult(0,
 		win(1, field(wire.KeyScoreChanges, wire.StrMap{{Key: "0", Value: n(-22)}, {Key: "1", Value: n(22)}})),
 		win(3, field(wire.KeyScoreChanges, wire.StrMap{{Key: "0", Value: n(-16)}, {Key: "3", Value: n(16)}})))
@@ -770,6 +807,7 @@ func doubleRonOnHonba() (recording, error) {
 	if err != nil {
 		return recording{}, err
 	}
+
 	return cut, requireOutcome(name, cut, endsAt(result(wire.ResultTsumo, field(wire.KeyWinnerSeat, n(2)))))
 }
 
@@ -778,6 +816,7 @@ func truncatedMidRound() (recording, error) {
 	if err != nil {
 		return recording{}, err
 	}
+
 	return cutAfter("truncated-mid-round", played, wire.EventDoraRevealed, -1)
 }
 
@@ -786,5 +825,6 @@ func truncatedAfterRound() (recording, error) {
 	if err != nil {
 		return recording{}, err
 	}
+
 	return cutAfter("truncated-after-round", played, wire.EventRoundEnd, 1)
 }

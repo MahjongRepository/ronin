@@ -2,6 +2,7 @@ package score_test
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -40,6 +41,7 @@ func handValue(
 	if err != nil {
 		tb.Fatalf("EstimateHandValue(%s, %s, %+v) error = %v", wholeHand, winTile, situation, err)
 	}
+
 	return value
 }
 
@@ -100,7 +102,6 @@ func TestEstimateHandValue_WhenRiichiWithOpenMeld_ShouldReturnOpenHandRiichiErro
 	melds := []meld.Meld{chi(t, "123s")}
 
 	_, err := handEstimate(t, handPlain, "4s", melds, withRiichi(ron()))
-
 	handWantErr(t, "EstimateHandValue(open riichi)", err, score.OpenHandRiichiError{})
 }
 
@@ -110,13 +111,11 @@ func TestEstimateHandValue_WhenDoubleRiichiWithOpenMeld_ShouldReturnOpenHandRiic
 	situation.Riichi = play.Some(play.Riichi{Double: true})
 
 	_, err := handEstimate(t, handPlain, "4s", melds, situation)
-
 	handWantErr(t, "EstimateHandValue(open double riichi)", err, score.OpenHandRiichiError{})
 }
 
 func TestEstimateHandValue_WhenTilesDoNotWin_ShouldReturnNotWinningError(t *testing.T) {
 	_, err := handEstimate(t, handNotWinning, "4s", nil, ron())
-
 	handWantErr(t, "EstimateHandValue("+handNotWinning+")", err, score.NotWinningError{})
 }
 
@@ -128,25 +127,26 @@ func TestEstimateHandValue_WhenExtraHonorsAdded_ShouldReturnWrongTileCountError(
 		{"1z", 14},
 		{"1111z", 17},
 	} {
-		wholeHand := "234567m23455p678s" + tc.honors
+		t.Run(tc.honors, func(t *testing.T) {
+			wholeHand := "234567m23455p678s" + tc.honors
 
-		_, err := handEstimate(t, wholeHand, "8s", nil, ron())
-
-		handWantErr(t, "EstimateHandValue("+wholeHand+")", err, score.WrongTileCountError{Concealed: tc.concealed})
+			_, err := handEstimate(t, wholeHand, "8s", nil, ron())
+			handWantErr(t, "EstimateHandValue("+wholeHand+")", err, score.WrongTileCountError{Concealed: tc.concealed})
+		})
 	}
 }
 
 func TestEstimateHandValue_WhenHonorsCannotBeDivided_ShouldReturnNotWinningError(t *testing.T) {
 	for _, wholeHand := range []string{"234567m2355p678s1z", "234567m5p678s1111z"} {
-		_, err := handEstimate(t, wholeHand, "8s", nil, ron())
-
-		handWantErr(t, "EstimateHandValue("+wholeHand+")", err, score.NotWinningError{})
+		t.Run(wholeHand, func(t *testing.T) {
+			_, err := handEstimate(t, wholeHand, "8s", nil, ron())
+			handWantErr(t, "EstimateHandValue("+wholeHand+")", err, score.NotWinningError{})
+		})
 	}
 }
 
 func TestEstimateHandValue_WhenOpenHandHasNoYaku_ShouldReturnNoYakuError(t *testing.T) {
 	_, err := handEstimate(t, handPlain, "4s", []meld.Meld{chi(t, "123s")}, ron())
-
 	handWantErr(t, "EstimateHandValue(open hand without yaku)", err, score.NoYakuError{})
 }
 
@@ -154,7 +154,6 @@ func TestEstimateHandValue_WhenHandHasOnlyDora_ShouldReturnNoYakuError(t *testin
 	dora := score.Dora{Indicators: tiles(t, "1m")}
 
 	_, err := valueOf(t, "123m234p340678s22z", "2m", nil, ron(), dora, defaultRules())
-
 	handWantErr(t, "EstimateHandValue(dora without yaku)", err, score.NoYakuError{})
 }
 
@@ -163,20 +162,17 @@ func TestEstimateHandValue_WhenRinshanWithoutKan_ShouldReturnRinshanWithoutKanEr
 
 	_, closedErr := handEstimatePlain(t, situation)
 	_, ponErr := handEstimate(t, handPlain, "1s", []meld.Meld{pon(t, "444s")}, situation)
-
 	handWantErr(t, "EstimateHandValue(closed rinshan)", closedErr, score.RinshanWithoutKanError{})
 	handWantErr(t, "EstimateHandValue(rinshan with pon)", ponErr, score.RinshanWithoutKanError{})
 }
 
 func TestEstimateHandValue_WhenIppatsuOnRinshan_ShouldReturnIppatsuWithRinshanError(t *testing.T) {
 	_, err := handEstimatePlainKan(t, handWithIppatsu(handWonBy(score.WinRinshan)))
-
 	handWantErr(t, "EstimateHandValue(ippatsu rinshan)", err, score.IppatsuWithRinshanError{})
 }
 
 func TestEstimateHandValue_WhenDealerWinsOnFirstTurnAfterKan_ShouldReturnFirstTurnWithMeldError(t *testing.T) {
 	_, err := handEstimatePlainKan(t, handOnFirstTurn(handDealerWonBy(score.WinRinshan)))
-
 	handWantErr(t, "EstimateHandValue(dealer first-turn rinshan)", err, score.FirstTurnWithMeldError{})
 }
 
@@ -197,36 +193,36 @@ func TestEstimateHandValue_WhenFirstTurnTsumo_ShouldScoreChiihouForNonDealerAndT
 			48000,
 		},
 	} {
-		got, err := handEstimatePlain(t, tc.situation)
-		if err != nil {
-			t.Fatalf("EstimateHandValue(%s) error = %v", tc.name, err)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := handEstimatePlain(t, tc.situation)
+			if err != nil {
+				t.Fatalf("EstimateHandValue(%s) error = %v", tc.name, err)
+			}
 
-		if ids := yakuIDs(got); !reflect.DeepEqual(ids, []play.YakuID{tc.yaku}) {
-			t.Errorf("EstimateHandValue(%s).Yaku = %v, want [%v]", tc.name, ids, tc.yaku)
-		}
-		if want := (play.Yakuman{Count: 1, Fu: play.Some(30)}); got.Value != want {
-			t.Errorf("EstimateHandValue(%s).Value = %+v, want %+v", tc.name, got.Value, want)
-		}
-		if want := play.Some(play.LimitYakuman); got.Limit != want {
-			t.Errorf("EstimateHandValue(%s).Limit = %+v, want %+v", tc.name, got.Limit, want)
-		}
-		if got.Payment != tc.payment || got.Total != tc.total {
-			t.Errorf("EstimateHandValue(%s) payment, total = %+v, %d, want %+v, %d",
-				tc.name, got.Payment, got.Total, tc.payment, tc.total)
-		}
+			if ids := yakuIDs(got); !reflect.DeepEqual(ids, []play.YakuID{tc.yaku}) {
+				t.Errorf("EstimateHandValue(%s).Yaku = %v, want [%v]", tc.name, ids, tc.yaku)
+			}
+			if want := (play.Yakuman{Count: 1, Fu: play.Some(30)}); got.Value != want {
+				t.Errorf("EstimateHandValue(%s).Value = %+v, want %+v", tc.name, got.Value, want)
+			}
+			if want := play.Some(play.LimitYakuman); got.Limit != want {
+				t.Errorf("EstimateHandValue(%s).Limit = %+v, want %+v", tc.name, got.Limit, want)
+			}
+			if got.Payment != tc.payment || got.Total != tc.total {
+				t.Errorf("EstimateHandValue(%s) payment, total = %+v, %d, want %+v, %d",
+					tc.name, got.Payment, got.Total, tc.payment, tc.total)
+			}
+		})
 	}
 }
 
 func TestEstimateHandValue_WhenNonDealerWinsOnFirstTurnAfterKan_ShouldReturnFirstTurnWithMeldError(t *testing.T) {
 	_, err := handEstimatePlainKan(t, handOnFirstTurn(handWonBy(score.WinRinshan)))
-
 	handWantErr(t, "EstimateHandValue(first-turn rinshan)", err, score.FirstTurnWithMeldError{})
 }
 
 func TestEstimateHandValue_WhenFirstTurnRonWithClosedKan_ShouldReturnFirstTurnWithMeldError(t *testing.T) {
 	_, err := handEstimatePlainKan(t, handOnFirstTurn(ron()))
-
 	handWantErr(t, "EstimateHandValue(first-turn ron with kan)", err, score.FirstTurnWithMeldError{})
 }
 
@@ -242,54 +238,57 @@ func TestEstimateHandValue_WhenFirstTurnWinAfterAnyCall_ShouldReturnFirstTurnWit
 		{"pon", handPlain, "1s", pon(t, "444s"), handOnFirstTurn(ron())},
 		{"open kan", handPlainKan, "1s", openKan(t, "4444s"), handOnFirstTurn(tsumo())},
 	} {
-		_, err := handEstimate(t, tc.wholeHand, tc.winTile, []meld.Meld{tc.meld}, tc.situation)
-
-		handWantErr(t, "EstimateHandValue(first turn after "+tc.name+")", err, score.FirstTurnWithMeldError{})
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := handEstimate(t, tc.wholeHand, tc.winTile, []meld.Meld{tc.meld}, tc.situation)
+			handWantErr(t, "EstimateHandValue(first turn after "+tc.name+")", err, score.FirstTurnWithMeldError{})
+		})
 	}
 }
 
 func TestEstimateHandValue_WhenFirstTurnWinWithRiichi_ShouldReturnFirstTurnWithRiichiError(t *testing.T) {
 	for _, riichi := range []play.Riichi{{}, {Double: true, Ippatsu: true}} {
-		for _, win := range []score.Win{score.WinRon, score.WinTsumo} {
-			situation := handOnFirstTurn(handWonBy(win))
-			situation.Riichi = play.Some(riichi)
+		t.Run(fmt.Sprintf("%+v", riichi), func(t *testing.T) {
+			for _, win := range []score.Win{score.WinRon, score.WinTsumo} {
+				situation := handOnFirstTurn(handWonBy(win))
+				situation.Riichi = play.Some(riichi)
 
-			_, err := handEstimatePlain(t, situation)
-
-			if !errors.Is(err, score.FirstTurnWithRiichiError{}) {
-				t.Errorf("EstimateHandValue(%+v, win %d) error = %v, want %v",
-					riichi, win, err, score.FirstTurnWithRiichiError{})
+				_, err := handEstimatePlain(t, situation)
+				if !errors.Is(err, score.FirstTurnWithRiichiError{}) {
+					t.Errorf("EstimateHandValue(%+v, win %d) error = %v, want %v",
+						riichi, win, err, score.FirstTurnWithRiichiError{})
+				}
 			}
-		}
+		})
 	}
 }
 
 func TestEstimateHandValue_WhenDealerRonsOnFirstTurn_ShouldReturnFirstTurnDealerRonError(t *testing.T) {
 	_, err := handEstimatePlain(t, handOnFirstTurn(handDealerWonBy(score.WinRon)))
-
 	handWantErr(t, "EstimateHandValue(dealer first-turn ron)", err, score.FirstTurnDealerRonError{})
 }
 
 func TestEstimateHandValue_WhenFirstTurnWinIsChankanHouteiOrHaitei_ShouldReturnFirstTurnSpecialWinError(t *testing.T) {
 	for _, win := range []score.Win{score.WinChankan, score.WinHoutei, score.WinHaitei} {
-		for _, situation := range []score.Situation{handWonBy(win), handDealerWonBy(win)} {
-			_, err := handEstimatePlain(t, handOnFirstTurn(situation))
-
-			if !errors.Is(err, score.FirstTurnSpecialWinError{}) {
-				t.Errorf("EstimateHandValue(first turn %+v) error = %v, want %v",
-					situation, err, score.FirstTurnSpecialWinError{})
+		t.Run(fmt.Sprint(win), func(t *testing.T) {
+			for _, situation := range []score.Situation{handWonBy(win), handDealerWonBy(win)} {
+				_, err := handEstimatePlain(t, handOnFirstTurn(situation))
+				if !errors.Is(err, score.FirstTurnSpecialWinError{}) {
+					t.Errorf("EstimateHandValue(first turn %+v) error = %v, want %v",
+						situation, err, score.FirstTurnSpecialWinError{})
+				}
 			}
-		}
+		})
 	}
 }
 
 func TestEstimateHandValue_WhenWinningTileCountedInMeld_ShouldReturnWrongTileCountError(t *testing.T) {
 	for _, m := range []meld.Meld{pon(t, "111m"), closedKan(t, "1111m")} {
-		_, err := handEstimateConcealed(t, "234m456p789s11z", "1m", []meld.Meld{m}, ron())
-
-		if want := (score.WrongTileCountError{Concealed: 11, Melds: 1}); !errors.Is(err, want) {
-			t.Errorf("EstimateHandValue(winning tile in %v) error = %v, want %v", m.Tiles(), err, want)
-		}
+		t.Run(m.String(), func(t *testing.T) {
+			_, err := handEstimateConcealed(t, "234m456p789s11z", "1m", []meld.Meld{m}, ron())
+			if want := (score.WrongTileCountError{Concealed: 11, Melds: 1}); !errors.Is(err, want) {
+				t.Errorf("EstimateHandValue(winning tile in %v) error = %v, want %v", m.Tiles(), err, want)
+			}
+		})
 	}
 }
 
@@ -297,7 +296,6 @@ func TestEstimateHandValue_WhenWinningTileMatchesPonKind_ShouldScoreHand(t *test
 	melds := []meld.Meld{pon(t, "111m")}
 
 	got := handValue(t, "111123m456p789s55z", "1m", melds, handWonBy(score.WinHoutei))
-
 	if want := (play.Han{Han: 1, Fu: 30}); got.Value != want {
 		t.Errorf("EstimateHandValue(fourth 1m beside a 1m pon).Value = %+v, want %+v", got.Value, want)
 	}
@@ -308,7 +306,6 @@ func TestEstimateHandValue_WhenSetsAndMeldsAreNotFourAndPair_ShouldReturnWrongTi
 
 	_, tooManySets := handEstimate(t, "123456789m11122p666s777s888s111z", "1m", fourPons, ron())
 	_, tooFewSets := handEstimate(t, "11z666s777s888s", "1z", fourPons[:3], ron())
-
 	handWantErr(t, "EstimateHandValue(too many sets)", tooManySets, score.WrongTileCountError{Concealed: 13, Melds: 4})
 	handWantErr(t, "EstimateHandValue(too few sets)", tooFewSets, score.WrongTileCountError{Concealed: 1, Melds: 3})
 }
@@ -326,15 +323,15 @@ func TestEstimateHandValue_WhenFiveTilesOfOneKind_ShouldReturnTooManyCopiesError
 		{"winning tile and kan", "234567p99s55z", "1m", []meld.Meld{closedKan(t, "1111m")}, 0},
 		{"red five", "0555p234567m999s", "5p", nil, 13},
 	} {
-		_, err := handEstimateConcealed(t, tc.concealed, tc.winTile, tc.melds, ron())
-
-		handWantErr(t, "EstimateHandValue("+tc.name+")", err, tile.TooManyCopiesError{Kind: tc.kind})
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := handEstimateConcealed(t, tc.concealed, tc.winTile, tc.melds, ron())
+			handWantErr(t, "EstimateHandValue("+tc.name+")", err, tile.TooManyCopiesError{Kind: tc.kind})
+		})
 	}
 }
 
 func TestEstimateHandValue_WhenWrongCountAndTooManyCopies_ShouldReturnWrongTileCountError(t *testing.T) {
 	_, err := handEstimateConcealed(t, "11111m", "1m", nil, ron())
-
 	handWantErr(t, "EstimateHandValue(11111m, 1m)", err, score.WrongTileCountError{Concealed: 5})
 }
 
@@ -342,7 +339,6 @@ func TestEstimateHandValue_WhenTooManyCopiesAndInvalidSituation_ShouldReturnTooM
 	situation := withRiichi(handWonBy(score.WinRinshan))
 
 	_, err := handEstimateConcealed(t, "11m234567p99s", "9s", []meld.Meld{pon(t, "111m")}, situation)
-
 	handWantErr(t, "EstimateHandValue(five 1m, open riichi rinshan)", err, tile.TooManyCopiesError{Kind: 0})
 }
 
@@ -355,7 +351,6 @@ func TestEstimateHandValue_WhenSeveralSituationChecksFail_ShouldReturnFirstInOrd
 	_, firstTurnRiichiWithKan := handEstimatePlainKan(t, handOnFirstTurn(withRiichi(handWonBy(score.WinRinshan))))
 	_, firstTurnRiichiHaitei := handEstimatePlain(t, handOnFirstTurn(withRiichi(handWonBy(score.WinHaitei))))
 	_, firstTurnDealerRiichiRon := handEstimatePlain(t, handOnFirstTurn(withRiichi(handDealerWonBy(score.WinRon))))
-
 	handWantErr(t, "EstimateHandValue(open riichi on rinshan)", openRiichiOnRinshan, score.OpenHandRiichiError{})
 	handWantErr(t, "EstimateHandValue(ippatsu rinshan without kan)", ippatsuRinshanWithoutKan,
 		score.RinshanWithoutKanError{})
@@ -371,13 +366,11 @@ func TestEstimateHandValue_WhenSeveralSituationChecksFail_ShouldReturnFirstInOrd
 
 func TestEstimateHandValue_WhenInvalidSituationAndNotWinning_ShouldReturnSituationError(t *testing.T) {
 	_, err := handEstimate(t, handNotWinning, "4s", nil, handWonBy(score.WinRinshan))
-
 	handWantErr(t, "EstimateHandValue(non-winning rinshan without kan)", err, score.RinshanWithoutKanError{})
 }
 
 func TestEstimateHandValue_WhenOpenHandDoesNotWin_ShouldReturnNotWinningError(t *testing.T) {
 	_, err := handEstimate(t, handNotWinning, "4s", []meld.Meld{chi(t, "123s")}, ron())
-
 	handWantErr(t, "EstimateHandValue(open non-winning hand)", err, score.NotWinningError{})
 }
 
@@ -387,7 +380,6 @@ func TestEstimateHandValue_WhenNoHonbaOrSticks_ShouldTotalThePaymentAlone(t *tes
 	situation.RiichiSticks = 0
 
 	got := handValue(t, handTanyaoPinfu, "8s", nil, situation)
-
 	if got.Total != 2000 {
 		t.Errorf("EstimateHandValue(tanyao pinfu ron).Total = %d, want 2000", got.Total)
 	}
@@ -404,15 +396,16 @@ func TestEstimateHandValue_WhenHonba_ShouldAddHonbaToEveryPayment(t *testing.T) 
 		{tsumo(), play.TsumoPayment{Dealer: 1500, NonDealer: 900}, 3300},
 		{handDealerWonBy(score.WinTsumo), play.DealerTsumoPayment{NonDealer: 1500}, 4500},
 	} {
-		situation := tc.situation
-		situation.Honba = 2
+		t.Run(fmt.Sprint(tc.total), func(t *testing.T) {
+			situation := tc.situation
+			situation.Honba = 2
 
-		got := handValue(t, handTanyaoPinfu, "8s", nil, situation)
-
-		if got.Payment != tc.payment || got.Total != tc.total {
-			t.Errorf("EstimateHandValue(%+v) payment, total = %+v, %d, want %+v, %d",
-				situation, got.Payment, got.Total, tc.payment, tc.total)
-		}
+			got := handValue(t, handTanyaoPinfu, "8s", nil, situation)
+			if got.Payment != tc.payment || got.Total != tc.total {
+				t.Errorf("EstimateHandValue(%+v) payment, total = %+v, %d, want %+v, %d",
+					situation, got.Payment, got.Total, tc.payment, tc.total)
+			}
+		})
 	}
 }
 
@@ -421,7 +414,6 @@ func TestEstimateHandValue_WhenRiichiSticks_ShouldAddThemToTheTotalOnly(t *testi
 	situation.RiichiSticks = 2
 
 	got := handValue(t, handTanyaoPinfu, "8s", nil, situation)
-
 	if want := (play.Han{Han: 3, Fu: 30}); got.Value != want {
 		t.Errorf("EstimateHandValue(2 riichi sticks).Value = %+v, want %+v", got.Value, want)
 	}
@@ -433,41 +425,13 @@ func TestEstimateHandValue_WhenRiichiSticks_ShouldAddThemToTheTotalOnly(t *testi
 	}
 }
 
-func TestHandErrors_ShouldDescribeTheProblem(t *testing.T) {
-	for _, tc := range []struct {
-		err     error
-		message string
-	}{
-		{
-			score.WrongTileCountError{Concealed: 12},
-			"the hand has 12 concealed tiles with 0 melds, not 13 less 3 per meld",
-		},
-		{score.OpenHandRiichiError{}, "riichi needs a hand with no open meld"},
-		{score.RinshanWithoutKanError{}, "a rinshan win needs a kan among the melds"},
-		{score.IppatsuWithRinshanError{}, "ippatsu cannot come with a rinshan win, as the kan ends it"},
-		{score.FirstTurnWithMeldError{}, "a first-turn win cannot follow a call or a kan"},
-		{score.FirstTurnSpecialWinError{}, "a first-turn win must be a ron or a tsumo"},
-		{score.FirstTurnWithRiichiError{}, "a first-turn win cannot follow a riichi"},
-		{
-			score.FirstTurnDealerRonError{},
-			"the dealer cannot win by ron on the first turn, as the dealer discards first",
-		},
-		{score.NotWinningError{}, "the tiles do not make a winning hand"},
-		{score.NoYakuError{}, "the hand wins but has no yaku"},
-	} {
-		if got := tc.err.Error(); got != tc.message {
-			t.Errorf("%T.Error() = %q, want %q", tc.err, got, tc.message)
-		}
-	}
-}
-
 func TestHandValueString_WhenHanHand_ShouldShowHanAndFu(t *testing.T) {
 	plain, err := handEstimatePlain(t, withRiichi(ron()))
 	if err != nil {
 		t.Fatalf("EstimateHandValue(riichi ron) error = %v", err)
 	}
-	tanyaoPinfu := handValue(t, handTanyaoPinfu, "8s", nil, withRiichi(ron()))
 
+	tanyaoPinfu := handValue(t, handTanyaoPinfu, "8s", nil, withRiichi(ron()))
 	if got := plain.Value.String(); got != "1 han, 40 fu" {
 		t.Errorf("EstimateHandValue(riichi ron).Value.String() = %q, want %q", got, "1 han, 40 fu")
 	}
@@ -479,7 +443,6 @@ func TestHandValueString_WhenHanHand_ShouldShowHanAndFu(t *testing.T) {
 func TestHandValueString_WhenYakumanHand_ShouldShowYakumanCount(t *testing.T) {
 	single := handValue(t, handKokushi, "7z", nil, tsumo())
 	double := handValue(t, handKokushi, "1s", nil, ron())
-
 	if got := single.Value.String(); got != "yakuman" {
 		t.Errorf("EstimateHandValue(kokushi on 7z).Value.String() = %q, want %q", got, "yakuman")
 	}
@@ -490,11 +453,11 @@ func TestHandValueString_WhenYakumanHand_ShouldShowYakumanCount(t *testing.T) {
 
 func TestEstimateHandValue_WhenTsumoReadsAsPinfuOrTerminalPon_ShouldPickTerminalPonAt30Fu(t *testing.T) {
 	got := handValue(t, "234m11123456777s", "4s", nil, tsumo())
-
 	if han, ok := got.Value.(play.Han); !ok || han.Fu != 30 {
 		t.Errorf("EstimateHandValue(234m11123456777s, 4s).Value = %+v, want 30 fu", got.Value)
 	}
-	want := []score.FuDetail{{20, score.FuBase}, {8, score.FuClosedTerminalPon}, {2, score.FuTsumo}}
+
+	want := []score.FuDetail{{Fu: 20, Reason: score.FuBase}, {Fu: 8, Reason: score.FuClosedTerminalPon}, {Fu: 2, Reason: score.FuTsumo}}
 	if !reflect.DeepEqual(got.FuDetails, want) {
 		t.Errorf("EstimateHandValue(234m11123456777s, 4s).FuDetails = %+v, want %+v", got.FuDetails, want)
 	}
@@ -514,12 +477,12 @@ func TestEstimateHandValue_WhenFuDetailsTie_ShouldOrderWaitPairThenSetsByKind(t 
 		Total:   1300,
 		Yaku:    []score.Yaku{{ID: play.YakuRoundWindEast, Han: 1}},
 		FuDetails: []score.FuDetail{
-			{20, score.FuBase},
-			{4, score.FuClosedPon},
-			{4, score.FuOpenTerminalPon},
-			{2, score.FuKanchan},
-			{2, score.FuValuedPair},
-			{2, score.FuOpenPon},
+			{Fu: 20, Reason: score.FuBase},
+			{Fu: 4, Reason: score.FuClosedPon},
+			{Fu: 4, Reason: score.FuOpenTerminalPon},
+			{Fu: 2, Reason: score.FuKanchan},
+			{Fu: 2, Reason: score.FuValuedPair},
+			{Fu: 2, Reason: score.FuOpenPon},
 		},
 	})
 }
@@ -528,7 +491,6 @@ func TestEstimateHandValue_WhenOpenHandWinsOnPairOfSplitQuad_ShouldScore30Fu(t *
 	melds := []meld.Meld{chi(t, "123m")}
 
 	got := handValue(t, "11112233444m555p", "1m", melds, handWonBy(score.WinHoutei))
-
 	if han, ok := got.Value.(play.Han); !ok || han.Fu != 30 {
 		t.Errorf("EstimateHandValue(11112233444m555p, 1m).Value = %+v, want 30 fu", got.Value)
 	}
@@ -536,7 +498,6 @@ func TestEstimateHandValue_WhenOpenHandWinsOnPairOfSplitQuad_ShouldScore30Fu(t *
 
 func TestEstimateHandValue_WhenRiichiPinfuTsumo_ShouldScore3Han20Fu(t *testing.T) {
 	got := handValue(t, "234789m12345666p", "6p", nil, withRiichi(tsumo()))
-
 	handWantValue(t, "EstimateHandValue(234789m12345666p, 6p)", got, score.HandValue{
 		Value:   play.Han{Han: 3, Fu: 20},
 		Payment: play.TsumoPayment{Dealer: 1300, NonDealer: 700},
@@ -546,23 +507,22 @@ func TestEstimateHandValue_WhenRiichiPinfuTsumo_ShouldScore3Han20Fu(t *testing.T
 			{ID: play.YakuRiichi, Han: 1},
 			{ID: play.YakuPinfu, Han: 1},
 		},
-		FuDetails: []score.FuDetail{{20, score.FuBase}},
+		FuDetails: []score.FuDetail{{Fu: 20, Reason: score.FuBase}},
 	})
 }
 
 func TestEstimateHandValue_WhenClosedTanyaoRon_ShouldScore1Han40Fu(t *testing.T) {
 	got := handValue(t, "22444m333567p444s", "4s", nil, ron())
-
 	handWantValue(t, "EstimateHandValue(22444m333567p444s, 4s)", got, score.HandValue{
 		Value:   play.Han{Han: 1, Fu: 40},
 		Payment: play.RonPayment{Discarder: 1300},
 		Total:   1300,
 		Yaku:    []score.Yaku{{ID: play.YakuTanyao, Han: 1}},
 		FuDetails: []score.FuDetail{
-			{30, score.FuBase},
-			{4, score.FuClosedPon},
-			{4, score.FuClosedPon},
-			{2, score.FuOpenPon},
+			{Fu: 30, Reason: score.FuBase},
+			{Fu: 4, Reason: score.FuClosedPon},
+			{Fu: 4, Reason: score.FuClosedPon},
+			{Fu: 2, Reason: score.FuOpenPon},
 		},
 	})
 }
@@ -583,7 +543,7 @@ func TestEstimateHandValue_WhenOpenHandHoldsDoraAndAkaDora_ShouldScoreMangan(t *
 		Total:     8000,
 		Yaku:      []score.Yaku{{ID: play.YakuHaku, Han: 1}},
 		Dora:      play.DoraCount{Dora: 3, AkaDora: 1},
-		FuDetails: []score.FuDetail{{20, score.FuBase}, {4, score.FuOpenTerminalPon}},
+		FuDetails: []score.FuDetail{{Fu: 20, Reason: score.FuBase}, {Fu: 4, Reason: score.FuOpenTerminalPon}},
 	})
 }
 
@@ -594,12 +554,12 @@ func TestEstimateHandValue_WhenUraIndicatorsGiven_ShouldCountUraDoraOnlyWithRiic
 		if err != nil {
 			t.Fatalf("EstimateHandValue(%+v) error = %v", situation, err)
 		}
+
 		return value
 	}
 
 	riichi := estimateWith(withRiichi(ron()))
 	tsumoWin := estimateWith(tsumo())
-
 	if ids := yakuIDs(riichi); !reflect.DeepEqual(ids, []play.YakuID{play.YakuRiichi}) {
 		t.Errorf("EstimateHandValue(riichi ron).Yaku = %v, want [%v]", ids, play.YakuRiichi)
 	}
@@ -638,7 +598,6 @@ func TestEstimateHandValue_WhenUraIndicatorsGiven_ShouldCountUraDoraOnlyWithRiic
 func TestEstimateHandValue_WhenKokushi_ShouldScoreDoubleOnThirteenSidedWaitAndSingleOtherwise(t *testing.T) {
 	thirteenSided := handValue(t, handKokushi, "1s", nil, ron())
 	single := handValue(t, handKokushi, "7z", nil, handDealerWonBy(score.WinTsumo))
-
 	handWantValue(t, "EstimateHandValue(kokushi on 1s)", thirteenSided, score.HandValue{
 		Value:     play.Yakuman{Count: 2},
 		Limit:     play.Some(play.LimitYakuman),
@@ -661,7 +620,6 @@ func TestEstimateHandValue_WhenKokushi_ShouldScoreDoubleOnThirteenSidedWaitAndSi
 
 func TestEstimateHandValue_WhenKokushiRonOnFirstTurn_ShouldScoreDoubleKokushi(t *testing.T) {
 	got := handValue(t, handKokushi, "1s", nil, handOnFirstTurn(ron()))
-
 	if ids := yakuIDs(got); !reflect.DeepEqual(ids, []play.YakuID{play.YakuDaburuKokushiMusou}) {
 		t.Errorf("EstimateHandValue(first-turn kokushi).Yaku = %v, want [%v]", ids, play.YakuDaburuKokushiMusou)
 	}
@@ -706,13 +664,13 @@ func TestEstimateHandValue_WhenDoubleYakumanTurnedOff_ShouldScoreSingleYakuman(t
 		Total:   32000,
 		Yaku:    []score.Yaku{{ID: play.YakuSuuankouTanki, Han: 13}},
 		FuDetails: []score.FuDetail{
-			{20, score.FuBase},
-			{8, score.FuClosedTerminalPon},
-			{4, score.FuClosedPon},
-			{4, score.FuClosedPon},
-			{4, score.FuClosedPon},
-			{2, score.FuPairWait},
-			{2, score.FuTsumo},
+			{Fu: 20, Reason: score.FuBase},
+			{Fu: 8, Reason: score.FuClosedTerminalPon},
+			{Fu: 4, Reason: score.FuClosedPon},
+			{Fu: 4, Reason: score.FuClosedPon},
+			{Fu: 4, Reason: score.FuClosedPon},
+			{Fu: 2, Reason: score.FuPairWait},
+			{Fu: 2, Reason: score.FuTsumo},
 		},
 	})
 	if want := (play.Yakuman{Count: 1}); kokushi.Value != want {
@@ -726,7 +684,6 @@ func TestEstimateHandValue_WhenDoubleYakumanTurnedOff_ShouldScoreSingleYakuman(t
 
 func TestNagashiMangan_WhenDealer_ShouldTakeAManganTsumoFromEach(t *testing.T) {
 	got := score.NagashiMangan(tile.East)
-
 	if want := (play.DealerTsumoPayment{NonDealer: 4000}); got != want {
 		t.Errorf("NagashiMangan(East) = %+v, want %+v", got, want)
 	}
@@ -737,14 +694,15 @@ func TestNagashiMangan_WhenDealer_ShouldTakeAManganTsumoFromEach(t *testing.T) {
 
 func TestNagashiMangan_WhenNonDealer_ShouldTakeAManganTsumoFromEach(t *testing.T) {
 	for _, wind := range []tile.Wind{tile.South, tile.West, tile.North} {
-		got := score.NagashiMangan(wind)
-
-		if want := (play.TsumoPayment{Dealer: 4000, NonDealer: 2000}); got != want {
-			t.Errorf("NagashiMangan(%d) = %+v, want %+v", wind, got, want)
-		}
-		if got.Sum() != 8000 {
-			t.Errorf("NagashiMangan(%d).Sum() = %d, want 8000", wind, got.Sum())
-		}
+		t.Run(fmt.Sprint(wind), func(t *testing.T) {
+			got := score.NagashiMangan(wind)
+			if want := (play.TsumoPayment{Dealer: 4000, NonDealer: 2000}); got != want {
+				t.Errorf("NagashiMangan(%d) = %+v, want %+v", wind, got, want)
+			}
+			if got.Sum() != 8000 {
+				t.Errorf("NagashiMangan(%d).Sum() = %d, want 8000", wind, got.Sum())
+			}
+		})
 	}
 }
 
@@ -756,23 +714,21 @@ func handWantTsumo30FuWithWait(tb testing.TB, call string, got score.HandValue, 
 		Total:   1100,
 		Yaku:    []score.Yaku{{ID: play.YakuTsumo, Han: 1}},
 		FuDetails: []score.FuDetail{
-			{20, score.FuBase},
-			{4, score.FuClosedPon},
+			{Fu: 20, Reason: score.FuBase},
+			{Fu: 4, Reason: score.FuClosedPon},
 			{2, wait},
-			{2, score.FuTsumo},
+			{Fu: 2, Reason: score.FuTsumo},
 		},
 	})
 }
 
 func TestEstimateHandValue_WhenReadingsRoundToEqualFu_ShouldPickMoreUnroundedFu(t *testing.T) {
 	got := handValue(t, "23444m567p789p555s", "4m", nil, tsumo())
-
 	handWantTsumo30FuWithWait(t, "EstimateHandValue(23444m567p789p555s, 4m)", got, score.FuPairWait)
 }
 
 func TestEstimateHandValue_WhenReadingsFullyTie_ShouldPickFirstReading(t *testing.T) {
 	got := handValue(t, "34445m567p789p555s", "4m", nil, tsumo())
-
 	handWantTsumo30FuWithWait(t, "EstimateHandValue(34445m567p789p555s, 4m)", got, score.FuKanchan)
 }
 
@@ -784,8 +740,10 @@ func handTilesFrom136(tb testing.TB, ids []int, aka tile.AkaDora) []tile.Tile {
 		if !ok {
 			tb.Fatalf("NewTileID(%d) = false, want a tile id", n)
 		}
+
 		read = append(read, id.Tile(aka))
 	}
+
 	return read
 }
 

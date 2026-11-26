@@ -93,6 +93,7 @@ func (a Action) Tile() (tile.TileID, bool) {
 	if a.kind != ActionDiscard && a.kind != ActionRiichi && a.kind != ActionKan {
 		return tile.TileID{}, false
 	}
+
 	return a.tiles[0], true
 }
 
@@ -101,6 +102,7 @@ func (a Action) Held() ([2]tile.TileID, bool) {
 	if a.kind != ActionPon && a.kind != ActionChi {
 		return [2]tile.TileID{}, false
 	}
+
 	return a.tiles, true
 }
 
@@ -119,5 +121,6 @@ func (a Action) AnswersCall() bool {
 		return a.kan == KanOpen
 	case ActionDiscard, ActionRiichi, ActionTsumo, ActionKyuushu:
 	}
+
 	return false
 }

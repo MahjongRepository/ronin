@@ -20,6 +20,7 @@ func (c *converter) seatScores(m wire.Map, k wire.Key) [tile.SeatCount]int {
 		s, _ := tile.NewSeat(i)
 		moved[c.seat(s)] = score
 	}
+
 	return moved
 }
 
@@ -73,15 +74,18 @@ func (c *converter) win(win wire.Map, table winTable, before [tile.SeatCount]int
 	if melds := c.meldCodes(win); len(melds) > 0 {
 		tag.WriteString(` m="` + joinInts(melds) + `"`)
 	}
+
 	tag.WriteString(` machi="` + strconv.Itoa(table.tile) + `" ten="` + c.ten(hand) + `"` + c.yakuAttribute(hand) +
 		` doraHai="` + joinInts(table.dora) + `"`)
 	if ura := c.optionalInts(win, wire.KeyUraDora); len(ura) > 0 {
 		tag.WriteString(` doraHaiUra="` + joinInts(ura) + `"`)
 	}
+
 	tag.WriteString(` who="` + strconv.Itoa(winner) + `" fromWho="` + strconv.Itoa(table.from) + `"`)
 	if _, ok := win.Get(wire.KeyPaoSeat); ok {
 		tag.WriteString(` paoWho="` + strconv.Itoa(c.readSeat(win, wire.KeyPaoSeat)) + `"`)
 	}
+
 	tag.WriteString(` sc="` + scoreChanges(before, changes) + `"` + tagClose)
 	c.add(tag.String())
 
@@ -89,6 +93,7 @@ func (c *converter) win(win wire.Map, table winTable, before [tile.SeatCount]int
 	for s := range after {
 		after[s] = before[s] + changes[s]
 	}
+
 	return after
 }
 
@@ -96,6 +101,7 @@ func (c *converter) optionalInts(m wire.Map, k wire.Key) []int {
 	if _, ok := m.Get(k); !ok {
 		return nil
 	}
+
 	return c.r.ints(m, k)
 }
 
@@ -108,13 +114,16 @@ func (c *converter) meldCodes(win wire.Map) []int {
 			c.r.fail(err)
 			return nil
 		}
+
 		code, err := meldCode(meld)
 		if err != nil {
 			c.r.fail(err)
 			return nil
 		}
+
 		codes = append(codes, code)
 	}
+
 	return codes
 }
 
@@ -131,11 +140,13 @@ func (c *converter) limitCode(name string) int {
 	case wire.HandLimitKazoeYakuman:
 		return LimitCode(play.LimitYakuman)
 	}
+
 	for limit := play.LimitMangan; limit <= play.LimitYakuman; limit++ {
 		if limit.String() == name {
 			return LimitCode(limit)
 		}
 	}
+
 	c.r.fail(fmt.Errorf("no Tenhou limit for hand limit %q", name))
 	return 0
 }
@@ -154,6 +165,7 @@ func (c *converter) yakuAttribute(hand wire.Map) string {
 		if !ok {
 			c.r.fail(fmt.Errorf("yaku %d has no Tenhou id", id))
 		}
+
 		yaku = append(yaku, tenhouYaku{id: tenhouID, han: c.r.int(entry, wire.KeyHan), yakuman: yakuman})
 	}
 
@@ -162,6 +174,7 @@ func (c *converter) yakuAttribute(hand wire.Map) string {
 		for _, y := range yaku {
 			pairs = append(pairs, y.id, y.han)
 		}
+
 		return ` yaku="` + joinInts(pairs) + `"`
 	}
 
@@ -171,6 +184,7 @@ func (c *converter) yakuAttribute(hand wire.Map) string {
 			yakuman = append(yakuman, y.id)
 		}
 	}
+
 	return ` yakuman="` + joinInts(yakuman) + `"`
 }
 
@@ -183,12 +197,14 @@ func tenhouYakuID(id int) (tenhouID int, yakuman, ok bool) {
 	case wire.YakuIDUraDora:
 		return UraDoraID, false, true
 	}
+
 	for _, y := range play.AllYaku() {
 		if int(y) == id {
 			tenhouID, ok = YakuID(y)
 			return tenhouID, y.IsYakuman(), ok
 		}
 	}
+
 	return 0, false, false
 }
 
@@ -204,6 +220,7 @@ func (c *converter) exhaustiveDraw(event wire.Map, scores, changes [tile.SeatCou
 		s := c.readSeat(hand, wire.KeySeat)
 		shown[s], isShown[s] = c.r.ints(hand, wire.KeyClosedTiles), true
 	}
+
 	c.add(`<RYUUKYOKU` + kind + ` ba="` + strconv.Itoa(c.honba) + "," + strconv.Itoa(c.sticks()) + `" sc="` +
 		scoreChanges(scores, changes) + `"` + revealedHands(shown, isShown) + tagClose)
 }
@@ -229,6 +246,7 @@ func (c *converter) abortiveDraw(event wire.Map, scores, changes [tile.SeatCount
 				c.r.fail(errors.New("a ron caller is no seat"))
 				return
 			}
+
 			revealed = append(revealed, c.seat(s))
 		}
 	default:
@@ -241,6 +259,7 @@ func (c *converter) abortiveDraw(event wire.Map, scores, changes [tile.SeatCount
 	for _, s := range revealed {
 		shown[s], isShown[s] = c.hands[s], true
 	}
+
 	c.add(`<RYUUKYOKU type="` + code + `" ba="` + strconv.Itoa(c.honba) + "," + strconv.Itoa(c.sticks()) + `" sc="` +
 		scoreChanges(scores, changes) + `"` + revealedHands(shown, isShown) + tagClose)
 }
@@ -251,8 +270,10 @@ func revealedHands(hands [tile.SeatCount][]int, shown [tile.SeatCount]bool) stri
 		if !shown[s] {
 			continue
 		}
+
 		attributes.WriteString(` hai` + strconv.Itoa(s) + `="` + joinInts(slices.Sorted(slices.Values(hand))) + `"`)
 	}
+
 	return attributes.String()
 }
 
@@ -261,5 +282,6 @@ func scoreChanges(scores, changes [tile.SeatCount]int) string {
 	for s := range scores {
 		parts = append(parts, scores[s], changes[s])
 	}
+
 	return joinInts(parts)
 }

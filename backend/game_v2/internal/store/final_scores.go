@@ -52,6 +52,7 @@ func (db *DB) MigrateFinalScores(ctx context.Context, apply bool) (migration Sco
 	if err != nil {
 		return ScoreMigration{}, fmt.Errorf("migrate final scores: %w", err)
 	}
+
 	committed := false
 	defer func() {
 		if !committed {
@@ -63,8 +64,10 @@ func (db *DB) MigrateFinalScores(ctx context.Context, apply bool) (migration Sco
 	if err != nil {
 		return ScoreMigration{}, fmt.Errorf("migrate final scores: %w", err)
 	}
+
 	for _, row := range rows {
 		data, outcome, rowErr := migratedRow(row.data)
+
 		switch {
 		case rowErr != nil:
 			migration.Failed = append(migration.Failed, RowFailure{GameID: row.id, Err: rowErr})
@@ -84,11 +87,14 @@ func (db *DB) MigrateFinalScores(ctx context.Context, apply bool) (migration Sco
 	if !apply {
 		return migration, nil
 	}
+
 	err = tx.Commit()
 	if err != nil {
 		return ScoreMigration{}, fmt.Errorf("migrate final scores: %w", err)
 	}
+
 	committed = true
+
 	return migration, nil
 }
 
@@ -96,6 +102,7 @@ func ignoreDone(err error) error {
 	if errors.Is(err, sql.ErrTxDone) {
 		return nil
 	}
+
 	return err
 }
 
@@ -118,6 +125,7 @@ func storedRows(ctx context.Context, q rowQuerier, query string) (stored []store
 		}
 		stored = append(stored, row)
 	}
+
 	return stored, rows.Err()
 }
 
@@ -126,6 +134,7 @@ func migratedRow(data string) (string, rowOutcome, error) {
 	if err != nil {
 		return "", 0, err
 	}
+
 	switch game.FinalScoreUnit {
 	case FinalScoreUnit:
 		return "", rowInTenths, nil
@@ -146,6 +155,7 @@ func migratedRow(data string) (string, rowOutcome, error) {
 			scored = true
 		}
 	}
+
 	if !scored {
 		return "", rowUnscored, nil
 	}
@@ -158,13 +168,16 @@ func migratedRow(data string) (string, rowOutcome, error) {
 func decodeGame(data string) (playedGameJSON, error) {
 	decoder := json.NewDecoder(strings.NewReader(data))
 	decoder.DisallowUnknownFields()
+
 	var game playedGameJSON
 	err := decoder.Decode(&game)
 	if err != nil {
 		return playedGameJSON{}, fmt.Errorf("%w: %w", ErrRowData, err)
 	}
+
 	if decoder.Decode(&struct{}{}) != io.EOF {
 		return playedGameJSON{}, ErrRowData
 	}
+
 	return game, nil
 }

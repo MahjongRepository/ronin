@@ -27,7 +27,6 @@ func TestDiscardHold_WhenNobodyAnswersTheDiscard_ShouldShowItAtOnceAndTheNextDra
 		h.act(alice, turn)
 		h.act(alice, turn)
 		sleep(500*time.Millisecond - time.Millisecond)
-
 		if got := len(ofEvent(alice.messages(), wire.EventDiscard)); got != 1 {
 			t.Fatalf("discards shown during the hold = %d, want alice's own", got)
 		}
@@ -52,6 +51,7 @@ func heldCall(t *testing.T) (h *harness, bob, carol *fakeConn) {
 			noWaits(timing)
 			timing.BaseTurn = time.Second
 		}))
+
 	conns := h.start("Alice", "Bob", "Carol")
 	draw := lastDraw(t, conns[0])
 	h.act(conns[0], discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
@@ -91,6 +91,7 @@ func TestDiscardHold_WhenPonOutranksAnUnansweredChiAfterTheFloor_ShouldShowTheMe
 		if len(melds) != 1 {
 			t.Fatalf("melds at the pon response = %d, want Carol's pon", len(melds))
 		}
+
 		meld, err := wire.UnpackMeld(intOf(t, melds[0], wire.KeyPackedMeld))
 		if err != nil || meld.Kind != play.MeldPon {
 			t.Errorf("meld = %+v (%v), want pon", meld, err)
@@ -142,10 +143,12 @@ func TestDiscardHold_WhenEveryCallerPassesEarly_ShouldDrawAtTheFloorAndChargeNoS
 		if got, _ := lastDraw(t, bob).Get(wire.KeyBankSeconds); got != wire.Int(20) {
 			t.Errorf("bob's bank at his draw = %v, want the full 20 s", got)
 		}
+
 		sleep(21*time.Second - time.Millisecond)
 		if got := h.m.Stats().TurnTimeouts; got != 0 {
 			t.Fatalf("bob's turn timed out before a base turn and his bank passed from the deadline")
 		}
+
 		sleep(time.Millisecond)
 		if got := h.m.Stats().TurnTimeouts; got != 1 {
 			t.Errorf("TurnTimeouts a base turn and bob's bank after the deadline = %d, want 1", got)
@@ -164,14 +167,15 @@ func TestDiscardHold_WhenTheLastCallerPassesAfterTheFloor_ShouldDrawAtOnce(t *te
 		if got := len(ofEvent(bob.messages(), wire.EventDraw)); got != 0 {
 			t.Fatalf("draws while Bob can still ron = %d, want none", got)
 		}
-		h.act(bob, answer(intOf(t, ronPrompt, wire.KeyWaitID), play.PassAction()))
 
+		h.act(bob, answer(intOf(t, ronPrompt, wire.KeyWaitID), play.PassAction()))
 		if got := len(ofEvent(bob.messages(), wire.EventDraw)); got != 1 {
 			t.Errorf("bob's draws once the late passes are in = %d, want 1", got)
 		}
 		if got, _ := lastDraw(t, bob).Get(wire.KeyBankSeconds); got != wire.Float(19.5) {
 			t.Errorf("bob's bank at his draw = %v, want 19.5 s after his late pass", got)
 		}
+
 		messages := bob.messages()
 		isEvent := func(event wire.EventType) func(wire.Map) bool {
 			return func(m wire.Map) bool { return len(ofEvent([]wire.Map{m}, event)) == 1 }
@@ -223,7 +227,6 @@ func TestDiscardHold_WhenTheDiscardBringsItsSeatFuriten_ShouldTellTheSeatWithThe
 		draw := lastDraw(t, alice)
 
 		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
-
 		if got := len(ofEvent(alice.messages(), wire.EventFuriten)); got != 1 {
 			t.Errorf("furiten changes shown with the discard = %d, want alice's", got)
 		}
@@ -273,6 +276,7 @@ func TestRandomDiscardHold_ShouldPauseAboutEightInAHundredDiscardsWithinItsBound
 		if hold < 150*time.Millisecond || hold > 2100*time.Millisecond {
 			t.Fatalf("hold = %v, want within 150 ms and 2.1 s", hold)
 		}
+
 		if hold > 150*time.Millisecond {
 			pauses++
 			total += hold
@@ -299,6 +303,7 @@ func heldGameEnd(t *testing.T) (h *harness, alice, bob, carol *fakeConn) {
 				}
 			}
 		})
+
 	conns := h.start("Alice", "Bob", "Carol")
 	alice, bob, carol = conns[0], conns[1], conns[2]
 	draw := lastDraw(t, alice)
@@ -336,6 +341,7 @@ func TestDiscardHold_WhenASeatLeavesAndReturnsWhileTheGamesEndIsHeld_ShouldShowT
 		if reason, _ := h.playedGame(t); reason.String != "completed" {
 			t.Errorf("end_reason = %q, want completed: the engine had ended the game", reason.String)
 		}
+
 		records := h.replay(t)
 		if typ, _ := eventType(records[len(records)-1]); typ != wire.EventGameEnd {
 			t.Errorf("last replay record = %v, want the game end, no seat control after it", records[len(records)-1])
@@ -355,6 +361,7 @@ func TestDiscardHold_WhenASeatThatLeftReturnsWhileTheGamesEndIsHeld_ShouldShowIt
 					}
 				}
 			})
+
 		conns := h.start("Alice", "Bob", "Carol")
 		alice, bob, carol := conns[0], conns[1], conns[2]
 		draw := lastDraw(t, alice)

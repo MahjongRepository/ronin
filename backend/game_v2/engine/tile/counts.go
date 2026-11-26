@@ -15,6 +15,7 @@ func CountsFromTiles(tiles []Tile) (Counts, error) {
 	for _, t := range tiles {
 		counts[t.Kind()]++
 	}
+
 	return newCounts(counts)
 }
 
@@ -30,8 +31,10 @@ func newCounts[N uint8 | int](counts [KindCount]N) (Counts, error) {
 		if count > CopiesPerKind {
 			return Counts{}, TooManyCopiesError{Kind: Kind(kind)}
 		}
+
 		valid.counts[kind] = uint8(count)
 	}
+
 	return valid, nil
 }
 
@@ -60,6 +63,7 @@ func (c Counts) WithoutOne(kind Kind) (Counts, bool) {
 	if int(kind) >= KindCount || c.counts[kind] == 0 {
 		return c, false
 	}
+
 	c.counts[kind]--
 	return c, true
 }

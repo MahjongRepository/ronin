@@ -47,14 +47,17 @@ func (g *game) endGame(reason endReason, result play.Option[store.Result]) {
 
 	g.lifecycle = lifecycleEnding
 	g.m.inFlight.Add(1)
+
 	conns := make([]Connection, 0, len(g.participants))
 	for p := range g.connected() {
 		conns = append(conns, p.conn)
 	}
+
 	g.end = ending{reason: reason, conns: conns, result: result, endedAt: g.clock.Now()}
 	if g.replay != nil && reason != endAbandoned {
 		g.end.keepReplay, g.end.records = true, g.replay.Records()
 	}
+
 	g.replay = nil
 	if g.observed != nil {
 		g.observed.seal(g.end.endedAt)
@@ -65,6 +68,7 @@ func (g *game) endGame(reason endReason, result play.Option[store.Result]) {
 		p.timer.cancel()
 		p.conn = nil
 	}
+
 	g.pending.cancel()
 	g.aiTurn.cancel()
 	g.hold.drop()
@@ -76,10 +80,12 @@ func (g *game) vanish() {
 	if !g.active() {
 		return
 	}
+
 	g.lifecycle = lifecycleClosed
 	for _, p := range g.participants {
 		p.timer.cancel()
 	}
+
 	g.pending.cancel()
 	g.aiTurn.cancel()
 	g.hold.drop()
@@ -113,6 +119,7 @@ func (g *game) finish() {
 	for _, conn := range e.conns {
 		g.closeEnded(conn, reason)
 	}
+
 	g.lifecycle = lifecycleClosed
 }
 
@@ -122,6 +129,7 @@ func (g *game) closeEnded(conn Connection, reason endReason) {
 			conn.Close(CloseGameEnded, "game_ended")
 			return nil
 		}
+
 		return closeWithInternalError(conn)
 	})
 	if err != nil {
@@ -134,6 +142,7 @@ func (g *game) saveReplay(records []wire.Map) error {
 	if err != nil {
 		return err
 	}
+
 	return g.m.cfg.Replays.Save(g.id, content)
 }
 
@@ -146,11 +155,13 @@ func (g *game) recordFinish(reason endReason, e ending) error {
 		if !e.result.OK {
 			return errNoResult
 		}
+
 		return db.RecordCompleted(ctx, g.start, e.endedAt, e.result.Value)
 	case endAbandoned:
 		return db.RecordAbandoned(ctx, g.start, e.endedAt)
 	case endFailed:
 	}
+
 	return db.RecordFailed(ctx, g.start, e.endedAt)
 }
 
@@ -168,6 +179,7 @@ func retryStoreWrite(ctx context.Context, clock Clock, write func() error) error
 		if err == nil {
 			return nil
 		}
+
 		waited := make(chan struct{})
 		stop := clock.AfterFunc(wait, func() { close(waited) })
 		select {
@@ -176,7 +188,9 @@ func retryStoreWrite(ctx context.Context, clock Clock, write func() error) error
 			stop()
 			return errors.Join(err, ctx.Err())
 		}
+
 		err = protect(write)
 	}
+
 	return err
 }

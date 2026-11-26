@@ -52,11 +52,13 @@ func (s *clientSocket) Send(data []byte) {
 	if s.isClosed() {
 		return
 	}
+
 	m, err := wire.Decode(data)
 	if err != nil {
 		s.client.game.fail(fmt.Errorf("the server sent %s an undecodable message: %w", s.client.name, err))
 		return
 	}
+
 	s.client.game.observeDeal(m)
 	s.client.receive(s, m)
 }
@@ -67,6 +69,7 @@ func (s *clientSocket) Close(code session.CloseCode, reason string) {
 	if !s.markClosed() {
 		return
 	}
+
 	s.client.lose(s, int(code), reason)
 	s.client.game.queueDisconnect(s)
 }
@@ -122,6 +125,7 @@ func (c *seatClient) problem() error {
 	case len(c.expected) > 0:
 		return fmt.Errorf("%s was never refused with %s", c.name, c.expected[0])
 	}
+
 	return nil
 }
 
@@ -152,19 +156,23 @@ func (c *seatClient) receive(socket *clientSocket, payload wire.Map) {
 	if socket != c.socket {
 		return
 	}
+
 	c.recordLocked(kindReceived, wire.StrMap{{Key: "payload", Value: payload}}, "")
 	if isRefusal(payload) {
 		c.takeRefusal(payload)
 	}
+
 	if id, ok := payload.Int(wire.KeyWaitID); ok {
 		c.waitID = play.Some(id)
 	}
+
 	if isEvent(payload, wire.EventGameStarted) || isSession(payload, gameReconnectedType) {
 		if n, ok := payload.Int(wire.KeySeat); ok {
 			seat, valid := tile.NewSeat(n)
 			c.seat = play.Option[tile.Seat]{Value: seat, OK: valid}
 		}
 	}
+
 	c.checkStaged(payload)
 }
 
@@ -184,6 +192,7 @@ func (c *seatClient) checkStaged(payload wire.Map) {
 		if !ok || !isStaged {
 			return
 		}
+
 		seat, drawn, err := wire.UnpackDraw(packed)
 		index, isStagedDraw := staged.drawOf(drawn)
 		if err == nil && isStagedDraw && staged.draws[index].seat != seat {
@@ -199,6 +208,7 @@ func (c *seatClient) takeRefusal(payload wire.Map) {
 		c.expected = c.expected[1:]
 		return
 	}
+
 	c.refusals = append(c.refusals, payload)
 }
 
@@ -209,6 +219,7 @@ func (c *seatClient) lose(socket *clientSocket, code int, reason string) {
 	if socket != c.socket {
 		return
 	}
+
 	c.socket = nil
 	c.recordLocked(kindClosed, wire.StrMap{
 		{Key: "code", Value: wire.Int(code)}, {Key: "reason", Value: wire.Str(reason)},
@@ -244,18 +255,21 @@ func (c *seatClient) open(typ messaging.ClientMessageType, label string) error {
 	if err != nil {
 		return err
 	}
+
 	c.game.manager.Connect(socket)
 
 	message, err := asWire(c.identity(typ))
 	if err != nil {
 		return err
 	}
+
 	shown := slices.Clone(message)
 	for i, f := range shown {
 		if f.Key == wire.KeyGameTicket {
 			shown[i].Value = wire.Str(ticketPlaceholder)
 		}
 	}
+
 	c.record(kindSent, wire.StrMap{{Key: "message", Value: shown}}, "")
 	c.game.router.Route(socket, message)
 	return nil
@@ -268,6 +282,7 @@ func (c *seatClient) bind(socket *clientSocket, label string) error {
 	if c.socket != nil {
 		return fmt.Errorf("%s opened a socket while one is open", c.name)
 	}
+
 	c.socket = socket
 	c.recordLocked(kindOpened, nil, label)
 	return nil
@@ -292,6 +307,7 @@ func asWire(m wire.Map) (wire.Map, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return wire.Decode(data)
 }
 
@@ -302,28 +318,38 @@ func (c *seatClient) currentSocket() (*clientSocket, error) {
 	if c.socket == nil {
 		return nil, fmt.Errorf("%s acted without an open socket", c.name)
 	}
+
 	return c.socket, nil
 }
 
 func (c *seatClient) dropUnseen(at time.Duration) {
-	c.drop(at, false)
+	c.drop(at, unseenByServer)
 }
 
 func (c *seatClient) dropSeen(at time.Duration) {
-	c.drop(at, true)
+	c.drop(at, seenByServer)
 }
 
-func (c *seatClient) drop(at time.Duration, serverSees bool) {
+type dropVisibility bool
+
+const (
+	unseenByServer dropVisibility = false
+	seenByServer   dropVisibility = true
+)
+
+func (c *seatClient) drop(at time.Duration, visibility dropVisibility) {
 	c.game.runAt(at, func() error {
 		socket, err := c.currentSocket()
 		if err != nil {
 			return err
 		}
+
 		c.lose(socket, unseenDropCode, "")
 		c.labelLast(labelDropped)
-		if serverSees {
+		if visibility == seenByServer {
 			c.game.manager.Disconnect(socket)
 		}
+
 		return nil
 	})
 }
@@ -336,12 +362,14 @@ func (c *seatClient) replacedByAnotherTab(at time.Duration, label string) {
 		if err != nil {
 			return err
 		}
+
 		c.game.router.Route(rival, message)
 		c.game.settle()
 
 		if _, closedErr := c.currentSocket(); closedErr == nil {
 			return fmt.Errorf("%s: another tab reconnected, and this one's socket stayed open", c.name)
 		}
+
 		c.labelLast(label)
 		return nil
 	})
@@ -353,6 +381,7 @@ func (c *seatClient) act(at time.Duration, label string, action messaging.GameAc
 		if err != nil {
 			return err
 		}
+
 		waitID := c.currentWaitID()
 		if !waitID.OK {
 			return fmt.Errorf("%s: game action %d before any wait was opened", c.name, action)
@@ -367,6 +396,7 @@ func (c *seatClient) act(at time.Duration, label string, action messaging.GameAc
 		if err != nil {
 			return err
 		}
+
 		c.record(kindSent, wire.StrMap{{Key: "message", Value: message}}, label)
 		c.game.router.Route(socket, message)
 		return nil
@@ -427,14 +457,17 @@ func (c *seatClient) resync(at time.Duration, label string, refusedWith messagin
 		if err != nil {
 			return err
 		}
+
 		message, err := asWire(wire.Map{{Key: wire.KeyEventType, Value: wire.Int(messaging.ClientResync)}})
 		if err != nil {
 			return err
 		}
+
 		c.record(kindSent, wire.StrMap{{Key: "message", Value: message}}, label)
 		if refusedWith != "" {
 			c.expectRefusal(refusedWith)
 		}
+
 		c.game.router.Route(socket, message)
 		return nil
 	})
@@ -452,22 +485,29 @@ func (c *seatClient) label(name string, matches func(wire.Map) bool, kind string
 	if c.game.failure() != nil {
 		return
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
-	for i, e := range slices.Backward(c.events) {
+	c.mu.Lock()
+	events := slices.Clone(c.events)
+	c.mu.Unlock()
+
+	for i, e := range slices.Backward(events) {
 		payload, _ := e.fields.Get("payload")
 		m, isMap := payload.(wire.Map)
 		if e.kind != kindReceived || !isMap || !matches(m) {
 			continue
 		}
+
 		if e.label != "" {
 			c.game.fail(fmt.Errorf("%s: the last %s is already labelled %s", c.name, kind, e.label))
 			return
 		}
+
+		c.mu.Lock()
 		c.events[i].label = name
+		c.mu.Unlock()
 		return
 	}
+
 	c.game.fail(fmt.Errorf("%s received no %s to label %s", c.name, kind, name))
 }
 

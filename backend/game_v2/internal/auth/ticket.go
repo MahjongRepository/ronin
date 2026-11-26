@@ -144,10 +144,12 @@ func ticketPayload(t Ticket) []byte {
 		if i > 0 {
 			b.WriteString(", ")
 		}
+
 		b.WriteString(pyjson.Quote(key))
 		b.WriteString(": ")
 		b.WriteString(values[i])
 	}
+
 	b.WriteByte('}')
 	return []byte(b.String())
 }

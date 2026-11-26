@@ -38,23 +38,27 @@ func TestLowest_WhenHandIsKnown_ShouldCountItsLowestShape(t *testing.T) {
 		{"1111m2222p3333s1z", 2},
 	}
 	for _, tc := range tests {
-		got, err := shanten.Lowest(mustCounts(t, tc.hand))
-		if err != nil || got != tc.want {
-			t.Errorf("Lowest(%s) = %d, %v, want %d", tc.hand, got, err, tc.want)
-		}
+		t.Run(tc.hand, func(t *testing.T) {
+			got, err := shanten.Lowest(mustCounts(t, tc.hand))
+			if err != nil || got != tc.want {
+				t.Errorf("Lowest(%s) = %d, %v, want %d", tc.hand, got, err, tc.want)
+			}
+		})
 	}
 }
 
 func TestLowest_WhenHandHasFewerThan13Tiles_ShouldLeaveOutKokushi(t *testing.T) {
 	for _, hand := range []string{"19p19s1234567z", "19m19p19s1234z"} {
-		counts := mustCounts(t, hand)
-		got, err := shanten.Lowest(counts)
-		if err != nil || got != 6 {
-			t.Errorf("Lowest(%s) = %d, %v, want 6", hand, got, err)
-		}
-		if kokushi := shanten.Kokushi(counts); kokushi >= got {
-			t.Errorf("Kokushi(%s) = %d, want below the lowest %d", hand, kokushi, got)
-		}
+		t.Run(hand, func(t *testing.T) {
+			counts := mustCounts(t, hand)
+			got, err := shanten.Lowest(counts)
+			if err != nil || got != 6 {
+				t.Errorf("Lowest(%s) = %d, %v, want 6", hand, got, err)
+			}
+			if kokushi := shanten.Kokushi(counts); kokushi >= got {
+				t.Errorf("Kokushi(%s) = %d, want below the lowest %d", hand, kokushi, got)
+			}
+		})
 	}
 }
 
@@ -71,14 +75,17 @@ func TestLowest_WhenNoHandHasTheTileCount_ShouldRefuseIt(t *testing.T) {
 		{"123456789m1234567p", shanten.TooManyTilesError{Count: 16}, "a hand of 16 tiles, more than 14"},
 	}
 	for _, tc := range tests {
-		_, err := shanten.Lowest(mustCounts(t, tc.hand))
-		if !errors.Is(err, tc.want) {
-			t.Errorf("Lowest(%q) error = %v, want %v", tc.hand, err, tc.want)
-			continue
-		}
-		if err.Error() != tc.message {
-			t.Errorf("Lowest(%q) error message = %q, want %q", tc.hand, err.Error(), tc.message)
-		}
+		t.Run(tc.hand, func(t *testing.T) {
+			_, err := shanten.Lowest(mustCounts(t, tc.hand))
+			if !errors.Is(err, tc.want) {
+				t.Errorf("Lowest(%q) error = %v, want %v", tc.hand, err, tc.want)
+				return
+			}
+
+			if err.Error() != tc.message {
+				t.Errorf("Lowest(%q) error message = %q, want %q", tc.hand, err.Error(), tc.message)
+			}
+		})
 	}
 }
 
@@ -100,9 +107,11 @@ func TestChiitoitsu_WhenHandIsKnown_ShouldCountMissingPairsAndKinds(t *testing.T
 		{"1z", 12},
 	}
 	for _, tc := range tests {
-		if got := shanten.Chiitoitsu(mustCounts(t, tc.hand)); got != tc.want {
-			t.Errorf("Chiitoitsu(%s) = %d, want %d", tc.hand, got, tc.want)
-		}
+		t.Run(tc.hand, func(t *testing.T) {
+			if got := shanten.Chiitoitsu(mustCounts(t, tc.hand)); got != tc.want {
+				t.Errorf("Chiitoitsu(%s) = %d, want %d", tc.hand, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -121,8 +130,10 @@ func TestKokushi_WhenHandIsKnown_ShouldCountMissingTerminalsAndHonors(t *testing
 		{"23455m345p45678s", 13},
 	}
 	for _, tc := range tests {
-		if got := shanten.Kokushi(mustCounts(t, tc.hand)); got != tc.want {
-			t.Errorf("Kokushi(%s) = %d, want %d", tc.hand, got, tc.want)
-		}
+		t.Run(tc.hand, func(t *testing.T) {
+			if got := shanten.Kokushi(mustCounts(t, tc.hand)); got != tc.want {
+				t.Errorf("Kokushi(%s) = %d, want %d", tc.hand, got, tc.want)
+			}
+		})
 	}
 }

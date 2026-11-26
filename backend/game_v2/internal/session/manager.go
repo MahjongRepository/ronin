@@ -146,6 +146,7 @@ func (m *Manager) GameCounts() GameCounts {
 			counts.Pending++
 		}
 	}
+
 	return counts
 }
 
@@ -161,9 +162,11 @@ func (m *Manager) PlayingGames() []StartedGame {
 			games = append(games, l.started.Value)
 		}
 	}
+
 	slices.SortFunc(games, func(a, b StartedGame) int {
 		return cmp.Or(a.StartedAt.Compare(b.StartedAt), strings.Compare(a.GameID, b.GameID))
 	})
+
 	return games
 }
 
@@ -182,6 +185,7 @@ func (m *Manager) playingLocked(userID string) (Playing, bool) {
 			}
 		}
 	}
+
 	return Playing{}, false
 }
 
@@ -201,6 +205,7 @@ func (m *Manager) CreatePendingGame(gameID string, players []PlayerSpec, seating
 	case m.games[gameID] != nil:
 		return ErrGameExists
 	}
+
 	if expires, withdrawn := m.withdrawn[gameID]; withdrawn && expires.After(m.cfg.Clock.Now()) {
 		return ErrGameWithdrawn
 	}
@@ -211,6 +216,7 @@ func (m *Manager) CreatePendingGame(gameID string, players []PlayerSpec, seating
 	for _, spec := range players {
 		m.tickets[spec.Ticket] = l
 	}
+
 	m.wg.Go(g.run)
 	g.log.Info("pending game created", "expected_count", len(players))
 	return nil
@@ -222,6 +228,7 @@ func (m *Manager) anyPlayingLocked(players []PlayerSpec) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -255,6 +262,7 @@ func (m *Manager) listedOrWithdrawn(gameID string) (*game, bool) {
 		m.withdrawn[gameID] = now.Add(withdrawnTTL)
 		return nil, false
 	}
+
 	return l.game, true
 }
 
@@ -273,6 +281,7 @@ func (m *Manager) closeUnauthenticated(conn Connection) {
 	if !m.evictUnbound(conn) {
 		return
 	}
+
 	m.log.Info(logAuthTimeout, "connection_id", conn.ID())
 	conn.Close(CloseAuthTimeout, "auth_timeout")
 }
@@ -285,6 +294,7 @@ func (m *Manager) evictUnbound(conn Connection) bool {
 	if entry == nil || entry.bound != nil {
 		return false
 	}
+
 	delete(m.conns, conn.ID())
 	return true
 }
@@ -294,6 +304,7 @@ func (m *Manager) registeredLocked(conn Connection) *connEntry {
 	if entry == nil || entry.conn != conn {
 		return nil
 	}
+
 	return entry
 }
 
@@ -302,6 +313,7 @@ func (m *Manager) evictLocked(conn Connection) {
 	if entry == nil {
 		return
 	}
+
 	delete(m.conns, conn.ID())
 	entry.authTimer()
 }
@@ -311,6 +323,7 @@ func (m *Manager) Join(conn Connection, ticket string) {
 	if !registered {
 		return
 	}
+
 	posted := g != nil && g.postAndWait(func() {
 		g.serve(conn, "join failed", func() error { return g.join(conn, ticket) })
 	})
@@ -326,9 +339,11 @@ func (m *Manager) pathGame(conn Connection) (*game, bool) {
 	if m.registeredLocked(conn) == nil {
 		return nil, false
 	}
+
 	if l := m.games[conn.GameID()]; l != nil {
 		return l.game, true
 	}
+
 	return nil, true
 }
 
@@ -339,12 +354,13 @@ func (m *Manager) reconnecting(conn Connection, ticket string) (*game, play.Opti
 	if m.registeredLocked(conn) == nil {
 		return nil, play.Option[sessionRefusal]{}, false
 	}
+
 	switch l := m.tickets[ticket]; {
 	case l == nil:
-		return nil, play.Some(sessionRefusal{messaging.SessionReconnectNoSession, noLiveGame}), true
+		return nil, play.Some(sessionRefusal{code: messaging.SessionReconnectNoSession, message: noLiveGame}), true
 	case l.game.id != conn.GameID():
 		return nil, play.Some(sessionRefusal{
-			messaging.SessionReconnectGameMismatch, "Session token is not valid for this game",
+			code: messaging.SessionReconnectGameMismatch, message: "Session token is not valid for this game",
 		}), true
 	default:
 		return l.game, play.Option[sessionRefusal]{}, true
@@ -366,24 +382,27 @@ func (m *Manager) bindJoining(g *game, conn Connection, ticket string) seatBindi
 	if entry == nil {
 		return seatBinding{}
 	}
+
 	p, refused := m.joiningLocked(g, entry, ticket)
 	if refused.OK {
 		return seatBinding{registered: true, refused: refused}
 	}
+
 	return seatBinding{registered: true, participant: p, replaced: m.bindLocked(p, entry)}
 }
 
 func (m *Manager) joiningLocked(g *game, entry *connEntry, ticket string) (*participant, play.Option[sessionRefusal]) {
 	switch l := m.tickets[ticket]; {
 	case entry.bound != nil:
-		return nil, play.Some(sessionRefusal{messaging.SessionAlreadyInGame, "Connection already in a game"})
+		return nil, play.Some(sessionRefusal{code: messaging.SessionAlreadyInGame, message: "Connection already in a game"})
 	case l == nil:
-		return nil, play.Some(sessionRefusal{messaging.SessionJoinGameNoSession, "No session for this ticket"})
+		return nil, play.Some(sessionRefusal{code: messaging.SessionJoinGameNoSession, message: "No session for this ticket"})
 	case l.game != g:
 		return nil, play.Some(sessionRefusal{
-			messaging.SessionReconnectGameMismatch, "Session token is not valid for this game",
+			code: messaging.SessionReconnectGameMismatch, message: "Session token is not valid for this game",
 		})
 	}
+
 	return g.byTicket(ticket), play.Option[sessionRefusal]{}
 }
 
@@ -397,9 +416,10 @@ func (m *Manager) bindReconnecting(g *game, conn Connection, ticket string) seat
 		return seatBinding{}
 	case entry.bound != nil:
 		return seatBinding{registered: true, refused: play.Some(sessionRefusal{
-			messaging.SessionReconnectAlreadyActive, "Connection already in a game",
+			code: messaging.SessionReconnectAlreadyActive, message: "Connection already in a game",
 		})}
 	}
+
 	p := g.byTicket(ticket)
 	return seatBinding{registered: true, participant: p, replaced: m.bindLocked(p, entry)}
 }
@@ -409,6 +429,7 @@ func (m *Manager) bindLocked(p *participant, entry *connEntry) Connection {
 	if replaced != nil {
 		m.evictLocked(replaced)
 	}
+
 	p.conn = entry.conn
 	entry.bound = p
 	entry.authTimer()
@@ -420,6 +441,7 @@ func (m *Manager) Act(conn Connection, message messaging.GameActionMessage) {
 	if g == nil {
 		return
 	}
+
 	g.postRouted(func() {
 		g.serve(conn, "game action failed", func() error { return g.gameAction(conn, message) })
 	})
@@ -433,6 +455,7 @@ func (m *Manager) evictBound(conn Connection) *participant {
 	if entry == nil {
 		return nil
 	}
+
 	m.evictLocked(conn)
 	return entry.bound
 }
@@ -469,11 +492,13 @@ func (m *Manager) release(g *game, conns []Connection) {
 	if l := m.games[g.id]; l != nil && l.game == g {
 		delete(m.games, g.id)
 	}
+
 	for _, p := range g.participants {
 		if l := m.tickets[p.spec.Ticket]; l != nil && l.game == g {
 			delete(m.tickets, p.spec.Ticket)
 		}
 	}
+
 	for _, conn := range conns {
 		m.evictLocked(conn)
 	}
@@ -492,6 +517,7 @@ func (m *Manager) binding(conn Connection) (bound *participant, registered bool)
 	if entry == nil {
 		return nil, false
 	}
+
 	return entry.bound, true
 }
 
@@ -504,6 +530,7 @@ func (m *Manager) boundGame(conn Connection) *game {
 		sendSessionError(m.log, conn, messaging.SessionNotInGame, "You must join a game first")
 		return nil
 	}
+
 	return bound.game
 }
 
@@ -512,6 +539,7 @@ func (m *Manager) Disconnect(conn Connection) {
 	if p == nil {
 		return
 	}
+
 	p.game.post(func() {
 		p.game.serve(conn, "disconnect failed", func() error { return p.game.disconnected(p, conn) })
 	})
@@ -547,10 +575,12 @@ func (m *Manager) close() []*game {
 	for _, entry := range m.conns {
 		entry.authTimer()
 	}
+
 	games := make([]*game, 0, len(m.games))
 	for _, l := range m.games {
 		games = append(games, l.game)
 	}
+
 	clear(m.conns)
 	clear(m.games)
 	clear(m.tickets)
@@ -562,6 +592,7 @@ func send(conn Connection, m wire.Map) error {
 	if err != nil {
 		return err
 	}
+
 	conn.Send(data)
 	return nil
 }

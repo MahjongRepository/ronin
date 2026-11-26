@@ -36,6 +36,7 @@ func (d fixtureDir) committed() ([]string, error) {
 			names = append(names, e.Name())
 		}
 	}
+
 	return names, nil
 }
 
@@ -51,6 +52,7 @@ func (d fixtureDir) drift(generated map[string][]byte) ([]string, error) {
 			problems = append(problems, "orphaned: "+name+" (no scenario produces it)")
 		}
 	}
+
 	for _, name := range slices.Sorted(maps.Keys(generated)) {
 		if !slices.Contains(committed, name) {
 			problems = append(problems, "missing: "+name)
@@ -61,10 +63,12 @@ func (d fixtureDir) drift(generated map[string][]byte) ([]string, error) {
 		if readErr != nil {
 			return nil, readErr
 		}
+
 		if !bytes.Equal(content, generated[name]) {
 			problems = append(problems, "stale: "+name)
 		}
 	}
+
 	return problems, nil
 }
 
@@ -73,6 +77,7 @@ func (d fixtureDir) write(generated map[string][]byte) (removed []string, err er
 	if err != nil {
 		return nil, err
 	}
+
 	committed, err := d.committed()
 	if err != nil {
 		return nil, err
@@ -82,17 +87,21 @@ func (d fixtureDir) write(generated map[string][]byte) (removed []string, err er
 		if _, produced := generated[name]; produced {
 			continue
 		}
+
 		err = os.Remove(filepath.Join(d.path, name))
 		if err != nil {
 			return removed, err
 		}
+
 		removed = append(removed, name)
 	}
+
 	for _, name := range slices.Sorted(maps.Keys(generated)) {
 		err = os.WriteFile(filepath.Join(d.path, name), generated[name], fixtureFileMode)
 		if err != nil {
 			return removed, err
 		}
 	}
+
 	return removed, nil
 }

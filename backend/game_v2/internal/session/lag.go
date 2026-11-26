@@ -30,6 +30,7 @@ func (w *lagWindow) observe(at time.Time, delay time.Duration) {
 	if !b.seen || b.second != second {
 		*b = lagBucket{second: second, seen: true}
 	}
+
 	b.worst = max(b.worst, delay)
 }
 
@@ -45,5 +46,6 @@ func (w *lagWindow) worstMillis(at time.Time) (float64, bool) {
 			worst, seen = max(worst, b.worst), true
 		}
 	}
+
 	return worst.Seconds() * millisPerSecond, seen
 }

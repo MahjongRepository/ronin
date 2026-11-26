@@ -27,27 +27,32 @@ func verifyGame(replays replayfile.Dir, gameID string) error {
 	if err != nil {
 		return err
 	}
+
 	content, err := replayfile.Decompress(compressed, wire.MaxReplayBytes)
 	if err != nil {
 		return fmt.Errorf("read replay %s: %w", gameID, err)
 	}
+
 	loaded, err := replay.Load(content)
 	if err != nil {
-		return fmt.Errorf("load replay: %w", err)
+		return fmt.Errorf("load replay %s: %w", gameID, err)
 	}
+
 	if !slices.ContainsFunc(loaded.Records, isGameEnd) {
 		return errNoGameEnd
 	}
 
 	steps, err := replay.Run(engine.Setup{Walls: play.Seeded{Seed: loaded.Seed}}, loaded.Actions)
 	if err != nil {
-		return fmt.Errorf("replay failed: %w", err)
+		return fmt.Errorf("run replay %s: %w", gameID, err)
 	}
+
 	roster := messaging.Roster{GameID: gameID, Names: loaded.Names, AI: loaded.AI}
 	replayed, err := replayedRecords(loaded.Seed, roster, steps)
 	if err != nil {
-		return fmt.Errorf("replay failed: %w", err)
+		return fmt.Errorf("record replay %s: %w", gameID, err)
 	}
+
 	return recordMismatch(playedRecords(loaded.Records), replayed)
 }
 
@@ -64,6 +69,7 @@ func playedRecords(records []wire.Map) []storedRecord {
 			played = append(played, storedRecord{position: i + 2, record: record})
 		}
 	}
+
 	return played
 }
 
@@ -77,6 +83,7 @@ func replayedRecords(seed engine.Seed, roster messaging.Roster, steps []replay.S
 			return nil, err
 		}
 	}
+
 	return log.Records(), nil
 }
 
@@ -87,14 +94,17 @@ func recordMismatch(recorded []storedRecord, replayed []wire.Map) error {
 		if err != nil {
 			return fmt.Errorf("record %d: %w", stored.position, err)
 		}
+
 		if !same {
 			return fmt.Errorf("record %d differs:\n    recorded: %v\n    replayed: %v", stored.position, stored.record,
 				replayed[i])
 		}
 	}
+
 	if len(recorded) != len(replayed) {
 		return fmt.Errorf("recorded %d records besides seat control, replay emitted %d", len(recorded), len(replayed))
 	}
+
 	return nil
 }
 
@@ -103,9 +113,11 @@ func sameRecord(recorded, replayed wire.Map) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	got, err := messaging.EncodeReplayRecords([]wire.Map{replayed})
 	if err != nil {
 		return false, err
 	}
+
 	return bytes.Equal(want, got), nil
 }

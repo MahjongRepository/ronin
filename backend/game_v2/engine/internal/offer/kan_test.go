@@ -28,6 +28,7 @@ func TestKansBySeat_ShouldCountEveryKanKindButNotAPon(t *testing.T) {
 	quad := func(kind play.MeldKind, mpsz string) play.MeldView {
 		return play.MeldView{Kind: kind, Tiles: copies(t, 0, mpsz)}
 	}
+
 	var melds [tile.SeatCount][]play.MeldView
 	melds[0] = []play.MeldView{quad(play.MeldClosedKan, "1111p"), calledMeld(t, play.MeldPon, 0, "777z", seats[3])}
 	melds[2] = []play.MeldView{quad(play.MeldOpenKan, "2222p"), quad(play.MeldAddedKan, "3333p")}
@@ -52,6 +53,7 @@ func TestIsFourKans_WhenOneSeatHoldsAllFour_ShouldBeFalseUntilASecondSeatHoldsOn
 		t.Errorf("IsFourKans, MayAddKan(%v) = %t, %t, want false, false",
 			oneSeat, offer.IsFourKans(oneSeat), offer.MayAddKan(oneSeat, 10))
 	}
+
 	if !offer.IsFourKans(twoSeats) {
 		t.Errorf("IsFourKans(%v) = false, want true", twoSeats)
 	}
@@ -84,6 +86,7 @@ func TestKanOffers_WhenInRiichi_ShouldKeepOnlyTheDrawnClosedKan(t *testing.T) {
 	if want := []play.Action{play.KanAction(play.KanClosed, hand[0])}; !slices.Equal(drewTheFourth, want) {
 		t.Errorf("KanOffers on the drawn fourth copy = %v, want %v", drewTheFourth, want)
 	}
+
 	if len(drewAnother) != 0 {
 		t.Errorf("KanOffers on another draw = %v, want none", drewAnother)
 	}
@@ -112,9 +115,11 @@ func TestKanOffers_WhenNoKanIsLeftToSpareOrNoLiveTile_ShouldOfferNone(t *testing
 	if got := offer.KanOffers(hand, nil, hand[0], false, [4]int{2, 2, 0, 0}, 10); len(got) != 0 {
 		t.Errorf("KanOffers at four kans = %v, want none", got)
 	}
+
 	if got := offer.KanOffers(hand, nil, hand[0], false, [4]int{}, 0); len(got) != 0 {
 		t.Errorf("KanOffers on an empty wall = %v, want none", got)
 	}
+
 	lastLiveTile := offer.KanOffers(hand, nil, hand[0], false, [4]int{}, 1)
 	if want := []play.Action{play.KanAction(play.KanClosed, hand[0])}; !slices.Equal(lastLiveTile, want) {
 		t.Errorf("KanOffers on the last live tile = %v, want %v", lastLiveTile, want)

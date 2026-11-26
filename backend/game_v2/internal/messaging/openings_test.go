@@ -39,6 +39,7 @@ func TestBuildOpening_WhenATurnAfterADrawOffersActions_ShouldListThemInOrderOnTh
 	if opening.Seat != seat(t, 1) || !opening.ReplacesDraw {
 		t.Errorf("opening of seat %d replacing the draw %v, want seat 1 replacing it", opening.Seat.Index(), opening.ReplacesDraw)
 	}
+
 	assertMap(t, "draw", opening.Payload, wire.Map{
 		{Key: wire.KeyEventType, Value: wire.Int(1)},
 		{Key: wire.KeyPackedMove, Value: wire.Int(wire.PackDraw(seat(t, 1), id(t, 42)))},
@@ -75,6 +76,7 @@ func TestBuildOpening_WhenATurnFollowsTheSeatsOwnCall_ShouldCarryOnlyTheTypeAndT
 	if opening.ReplacesDraw {
 		t.Error("a turn after a call replaces a draw")
 	}
+
 	assertMap(t, "turn", opening.Payload, wire.Map{
 		{Key: wire.KeyEventType, Value: wire.Int(12)},
 		{Key: wire.KeyKuikaeTiles, Value: intArray(4, 7)},
@@ -134,18 +136,20 @@ func TestBuildOpening_WhenAKanCanBeRobbed_ShouldSendAChankanPromptNamingTheKan(t
 		source play.CallSource
 		kan    string
 	}{{play.SourceClosedKan, "closed"}, {play.SourceAddedKan, "added"}} {
-		decision := play.Decision{
-			Seat: seat(t, 1), Context: play.Call{Tile: id(t, 8), From: seat(t, 0), Source: c.source},
-			Legal: []play.Action{play.RonAction(), play.PassAction()}, Default: play.PassAction(),
-		}
+		t.Run(c.kan, func(t *testing.T) {
+			decision := play.Decision{
+				Seat: seat(t, 1), Context: play.Call{Tile: id(t, 8), From: seat(t, 0), Source: c.source},
+				Legal: []play.Action{play.RonAction(), play.PassAction()}, Default: play.PassAction(),
+			}
 
-		assertMap(t, c.kan+" chankan prompt", messaging.BuildOpening(decision).Payload, wire.Map{
-			{Key: wire.KeyEventType, Value: wire.Int(3)},
-			{Key: wire.KeyCallType, Value: wire.Int(2)},
-			{Key: wire.KeyTileID, Value: wire.Int(8)},
-			{Key: wire.KeyFromSeat, Value: wire.Int(0)},
-			{Key: wire.KeyKanType, Value: wire.Str(c.kan)},
-			{Key: wire.KeyCallerSeat, Value: wire.Int(1)},
+			assertMap(t, c.kan+" chankan prompt", messaging.BuildOpening(decision).Payload, wire.Map{
+				{Key: wire.KeyEventType, Value: wire.Int(3)},
+				{Key: wire.KeyCallType, Value: wire.Int(2)},
+				{Key: wire.KeyTileID, Value: wire.Int(8)},
+				{Key: wire.KeyFromSeat, Value: wire.Int(0)},
+				{Key: wire.KeyKanType, Value: wire.Str(c.kan)},
+				{Key: wire.KeyCallerSeat, Value: wire.Int(1)},
+			})
 		})
 	}
 }
@@ -171,6 +175,7 @@ func TestPlaceOpenings_ShouldReplaceTheOpenedDrawAndPutEveryOtherOpeningAfterThe
 	if diff := cmp.Diff(want, placed, exportAll()); diff != "" {
 		t.Errorf("placed (-want +got):\n%s", diff)
 	}
+
 	if diff := cmp.Diff([]messaging.Placed{{Event: discard}, {Opening: play.Some(prompt)}}, unfuriten,
 		exportAll()); diff != "" {
 		t.Errorf("placed without furiten (-want +got):\n%s", diff)

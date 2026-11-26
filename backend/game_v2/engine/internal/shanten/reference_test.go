@@ -34,6 +34,7 @@ func parseReferenceLine(t *testing.T, line string) referenceHand {
 		digits[kind] = digit - '0'
 		tiles += int(digits[kind])
 	}
+
 	counts, err := tile.CountsFromArray(digits)
 	if err != nil {
 		t.Fatalf("reference line %q: %v", line, err)
@@ -46,7 +47,15 @@ func parseReferenceLine(t *testing.T, line string) referenceHand {
 			t.Fatalf("reference line %q: %v", line, err)
 		}
 	}
-	return referenceHand{counts, tiles, values[0], values[1], values[2], values[3]}
+
+	return referenceHand{
+		counts:     counts,
+		tiles:      tiles,
+		lowest:     values[0],
+		regular:    values[1],
+		chiitoitsu: values[2],
+		kokushi:    values[3],
+	}
 }
 
 func readReferenceSet(t *testing.T) []referenceHand {
@@ -66,12 +75,13 @@ func readReferenceSet(t *testing.T) []referenceHand {
 	for scanner.Scan() {
 		hands = append(hands, parseReferenceLine(t, scanner.Text()))
 	}
-	if err := scanner.Err(); err != nil {
-		t.Fatalf("read reference set: %v", err)
+	if scanErr := scanner.Err(); scanErr != nil {
+		t.Fatalf("read reference set: %v", scanErr)
 	}
 	if len(hands) == 0 {
 		t.Fatal("reference set holds no hand")
 	}
+
 	return hands
 }
 
@@ -81,6 +91,7 @@ func TestShanten_WhenHandIsInTheReferenceSet_ShouldMatchTheRecordedShanten(t *te
 		if hand.tiles >= 13 {
 			minimum = min(minimum, hand.chiitoitsu, hand.kokushi)
 		}
+
 		got, err := shanten.Lowest(hand.counts)
 		if err != nil || got != hand.lowest || got != minimum {
 			t.Errorf("Lowest(%v) = %d, %v, want %d, the minimum %d", hand.counts.Array(), got, err, hand.lowest, minimum)

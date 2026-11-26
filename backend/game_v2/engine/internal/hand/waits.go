@@ -16,12 +16,14 @@ func ClosedWaits(closed tile.Counts) tile.Kinds {
 		if count >= tile.CopiesPerKind {
 			continue
 		}
+
 		completed := counts
 		completed[kind]++
 		if isAgari(completed) {
 			waits = waits.With(tile.Kind(kind))
 		}
 	}
+
 	return waits
 }
 
@@ -33,6 +35,7 @@ func Waits(closed, melded tile.Counts) tile.Kinds {
 			heldOut = heldOut.With(tile.Kind(kind))
 		}
 	}
+
 	return ClosedWaits(closed).Difference(heldOut)
 }
 
@@ -54,6 +57,7 @@ func TenpaiDiscards(closed, melded tile.Counts) tile.Kinds {
 			discards = discards.With(kind)
 		}
 	}
+
 	return discards
 }
 

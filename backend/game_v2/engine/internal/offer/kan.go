@@ -18,25 +18,27 @@ func isKan(view play.MeldView) bool {
 func KansBySeat(melds [tile.SeatCount][]play.MeldView) [tile.SeatCount]int {
 	var kans [tile.SeatCount]int
 	for seat, seatMelds := range melds {
-		kans[seat] = KanCount(seatMelds)
+		kans[seat] = kanCount(seatMelds)
 	}
+
 	return kans
 }
 
-// KanCount returns the kans among one seat's melds.
-func KanCount(melds []play.MeldView) int {
+// kanCount returns the kans among one seat's melds.
+func kanCount(melds []play.MeldView) int {
 	count := 0
 	for _, view := range melds {
 		if isKan(view) {
 			count++
 		}
 	}
+
 	return count
 }
 
-// MayAddKan reports whether one more kan may stand beside the kans of each seat: a live tile left
+// mayAddKan reports whether one more kan may stand beside the kans of each seat: a live tile left
 // for the dead wall to take and a rinshan tile left to draw.
-func MayAddKan(kans [tile.SeatCount]int, liveTiles int) bool {
+func mayAddKan(kans [tile.SeatCount]int, liveTiles int) bool {
 	return liveTiles >= rules.MinWallForKan && totalKans(kans) < rules.MaxKans
 }
 
@@ -45,6 +47,7 @@ func totalKans(kans [tile.SeatCount]int) int {
 	for _, count := range kans {
 		total += min(count, rules.MaxKans)
 	}
+
 	return total
 }
 
@@ -56,16 +59,18 @@ func IsFourKans(kans [tile.SeatCount]int) bool {
 			declaring++
 		}
 	}
+
 	return rules.Suukaikan && totalKans(kans) >= rules.MaxKans && declaring >= rules.MinPlayersForKanAbort
 }
 
-func CheckedKanOffers(
+func checkedKanOffers(
 	hand []tile.TileID, melds []play.MeldView, drawn tile.TileID, inRiichi bool,
 	kans [tile.SeatCount]int, liveTiles int,
 ) ([]play.Action, error) {
 	if err := meld.CheckHandInput(hand, melds); err != nil {
 		return nil, err
 	}
+
 	return KanOffers(hand, melds, drawn, inRiichi, kans, liveTiles), nil
 }
 
@@ -73,7 +78,7 @@ func KanOffers(
 	hand []tile.TileID, melds []play.MeldView, drawn tile.TileID, inRiichi bool,
 	kans [tile.SeatCount]int, liveTiles int,
 ) []play.Action {
-	if !MayAddKan(kans, liveTiles) {
+	if !mayAddKan(kans, liveTiles) {
 		return nil
 	}
 
@@ -82,12 +87,15 @@ func KanOffers(
 	for _, id := range closedKanTiles(hand, melds, riichiDrawn) {
 		offers = append(offers, play.KanAction(play.KanClosed, id))
 	}
+
 	if inRiichi {
 		return offers
 	}
+
 	for _, id := range addedKanTiles(hand, melds) {
 		offers = append(offers, play.KanAction(play.KanAdded, id))
 	}
+
 	return offers
 }
 
@@ -104,6 +112,7 @@ func closedKanTiles(hand []tile.TileID, melds []play.MeldView, riichiDrawn play.
 		if seen.Contains(kind) || held[kind] < tile.CopiesPerKind {
 			continue
 		}
+
 		seen = seen.With(kind)
 
 		allowed := !riichiDrawn.OK || (riichiDrawn.Value.Kind() == kind && kanKeepsWaits(hand, melds, kind))
@@ -111,6 +120,7 @@ func closedKanTiles(hand []tile.TileID, melds []play.MeldView, riichiDrawn play.
 			tiles = append(tiles, id)
 		}
 	}
+
 	return tiles
 }
 
@@ -131,9 +141,11 @@ func addedKanTiles(hand []tile.TileID, melds []play.MeldView) []tile.TileID {
 		if view.Kind != play.MeldPon || len(view.Tiles) == 0 {
 			continue
 		}
+
 		if fourth := slices.Collect(tile.HeldCopies(hand, view.Tiles[0].Kind())); len(fourth) > 0 {
 			tiles = append(tiles, fourth[0])
 		}
 	}
+
 	return tiles
 }

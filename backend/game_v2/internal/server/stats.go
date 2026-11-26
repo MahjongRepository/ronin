@@ -39,6 +39,7 @@ func initialCloses() map[int]int64 {
 	for _, code := range serverCloseCodes {
 		closes[int(code)] = 0
 	}
+
 	return closes
 }
 
@@ -77,6 +78,7 @@ func (s *socketStats) closeCounts() []closeCount {
 	for code, count := range s.closes {
 		counts = append(counts, closeCount{code: code, count: count})
 	}
+
 	slices.SortFunc(counts, func(a, b closeCount) int { return a.code - b.code })
 	return counts
 }

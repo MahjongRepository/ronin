@@ -19,6 +19,7 @@ func payload(t *testing.T, e play.Event, record play.SeatRecord) wire.Map {
 	if err != nil {
 		t.Fatalf("EventPayload(%T) error = %v", e, err)
 	}
+
 	return m
 }
 
@@ -42,6 +43,7 @@ func notenStart(t *testing.T) (play.GameStarted, []play.RoundStarted, play.Drew)
 			play.PaoAssigned, play.DoraRevealed, play.RoundEnded, play.GameEnded:
 		}
 	}
+
 	return started, dealt, drew
 }
 
@@ -107,6 +109,7 @@ func TestReplayRoundStartedPayload_ShouldMergeTheDealsIntoOneRecordOfEveryHand(t
 	if got := keys(merged); !slices.Equal(got, wantKeys) {
 		t.Errorf("merged keys = %v, want %v", got, wantKeys)
 	}
+
 	players := field(t, merged, wire.KeyPlayers).(wire.Array)
 	assertMap(t, "seat 3 in the merged deal", players[3].(wire.Map), wire.Map{
 		{Key: wire.KeySeat, Value: wire.Int(3)},
@@ -124,17 +127,20 @@ func TestEventPayload_WhenAMoveHasTheShapeOfPython_ShouldEncodeToItsGoldenBytes(
 		{"discard", play.Discarded{Seat: seat(t, 0), Tile: id(t, 37)}, "8201020625"},
 		{"pao_assigned", play.PaoAssigned{Seat: seat(t, 2), Liable: seat(t, 0)}, "83010e32022400"},
 	} {
-		m, err := messaging.EventPayload(c.event, func() messaging.Table {
-			t.Errorf("%s: EventPayload asked for the table", c.name)
-			return messaging.Table{}
+		t.Run(c.name, func(t *testing.T) {
+			m, err := messaging.EventPayload(c.event, func() messaging.Table {
+				t.Errorf("%s: EventPayload asked for the table", c.name)
+				return messaging.Table{}
+			})
+			if err != nil {
+				t.Fatalf("%s: EventPayload error = %v", c.name, err)
+			}
+
+			got, err := wire.Encode(m)
+			if err != nil || hex.EncodeToString(got) != c.hex {
+				t.Errorf("%s: Encode = %x, %v; want %s", c.name, got, err, c.hex)
+			}
 		})
-		if err != nil {
-			t.Fatalf("%s: EventPayload error = %v", c.name, err)
-		}
-		got, err := wire.Encode(m)
-		if err != nil || hex.EncodeToString(got) != c.hex {
-			t.Errorf("%s: Encode = %x, %v; want %s", c.name, got, err, c.hex)
-		}
 	}
 }
 
@@ -160,7 +166,9 @@ func TestEventPayload_WhenAnEventIsATableSignal_ShouldNameOnlyItsFacts(t *testin
 			{Key: wire.KeyEventType, Value: wire.Int(6)}, {Key: wire.KeyTileID, Value: wire.Int(77)},
 		}},
 	} {
-		assertMap(t, c.name, payload(t, c.event, play.SeatRecord{}), c.want)
+		t.Run(c.name, func(t *testing.T) {
+			assertMap(t, c.name, payload(t, c.event, play.SeatRecord{}), c.want)
+		})
 	}
 }
 
@@ -175,6 +183,7 @@ func TestEventPayload_WhenAnAddedKanIsCalled_ShouldPackTheCopyItAdded(t *testing
 	if got := keys(m); !slices.Equal(got, []wire.Key{wire.KeyEventType, wire.KeyPackedMeld}) {
 		t.Fatalf("meld keys = %v", got)
 	}
+
 	meld, err := wire.UnpackMeld(int(field(t, m, wire.KeyPackedMeld).(wire.Int)))
 	want := wire.Meld{
 		Caller: seat(t, 0), Kind: play.MeldAddedKan, Tiles: ids(t, 4, 5, 6, 7), Called: play.Some(id(t, 5)),
@@ -222,6 +231,7 @@ func TestEventPayload_WhenTheGameEndsWithSticksUnawarded_ShouldNameTheirCountBon
 			{Key: wire.KeyFinalScore, Value: wire.Int(final)},
 		}
 	}
+
 	assertMap(t, "game end", m, wire.Map{
 		{Key: wire.KeyEventType, Value: wire.Int(10)},
 		{Key: wire.KeyWinnerSeat, Value: wire.Int(1)},

@@ -11,39 +11,58 @@ import (
 )
 
 func TestDivide_WhenHandHasOneReading_ShouldSplitItIntoSetsAndThePair(t *testing.T) {
-	for mpsz, want := range map[string][]string{
-		"234567m23455s777z":  {"234m", "567m", "234s", "55s", "777z"},
-		"123m123p123s11222z": {"123m", "123p", "123s", "11z", "222z"},
-		"23444m344556p333s":  {"234m", "44m", "345p", "456p", "333s"},
-		"111123666789s11z":   {"111s", "123s", "666s", "789s", "11z"},
-	} {
-		got := mustDivide(t, mpsz)
-		if len(got) != 1 || !slices.Equal(setsMpsz(t, got[0]), want) {
-			t.Errorf("Divide(%s) = %d readings, first %v; want one, %v", mpsz, len(got), setsMpsz(t, got[0]), want)
-		}
+	tests := []struct {
+		mpsz string
+		want []string
+	}{
+		{mpsz: "234567m23455s777z", want: []string{"234m", "567m", "234s", "55s", "777z"}},
+		{mpsz: "123m123p123s11222z", want: []string{"123m", "123p", "123s", "11z", "222z"}},
+		{mpsz: "23444m344556p333s", want: []string{"234m", "44m", "345p", "456p", "333s"}},
+		{mpsz: "111123666789s11z", want: []string{"111s", "123s", "666s", "789s", "11z"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.mpsz, func(t *testing.T) {
+			got := mustDivide(t, tc.mpsz)
+			if len(got) != 1 || !slices.Equal(setsMpsz(t, got[0]), tc.want) {
+				t.Errorf("Divide(%s) = %d readings, first %v; want one, %v", tc.mpsz, len(got), setsMpsz(t, got[0]), tc.want)
+			}
+		})
 	}
 }
 
 func TestDivide_WhenHandHasTwoReadings_ShouldSortThem(t *testing.T) {
-	for mpsz, want := range map[string][2][]string{
-		"11122233388899m": {
-			{"111m", "222m", "333m", "888m", "99m"},
-			{"123m", "123m", "123m", "888m", "99m"},
+	tests := []struct {
+		mpsz string
+		want [2][]string
+	}{
+		{
+			mpsz: "11122233388899m",
+			want: [2][]string{
+				{"111m", "222m", "333m", "888m", "99m"},
+				{"123m", "123m", "123m", "888m", "99m"},
+			},
 		},
-		"112233m99p445566s": {
-			{"11m", "22m", "33m", "99p", "44s", "55s", "66s"},
-			{"123m", "123m", "99p", "456s", "456s"},
+		{
+			mpsz: "112233m99p445566s",
+			want: [2][]string{
+				{"11m", "22m", "33m", "99p", "44s", "55s", "66s"},
+				{"123m", "123m", "99p", "456s", "456s"},
+			},
 		},
-	} {
-		got := mustDivide(t, mpsz)
-		if len(got) != 2 {
-			t.Fatalf("Divide(%s) gave %d readings, want 2", mpsz, len(got))
-		}
-		for i := range got {
-			if sets := setsMpsz(t, got[i]); !slices.Equal(sets, want[i]) {
-				t.Errorf("Divide(%s)[%d] = %v, want %v", mpsz, i, sets, want[i])
+	}
+	for _, tc := range tests {
+		t.Run(tc.mpsz, func(t *testing.T) {
+			got := mustDivide(t, tc.mpsz)
+			if len(got) != 2 {
+				t.Fatalf("Divide(%s) gave %d readings, want 2", tc.mpsz, len(got))
 			}
-		}
+
+			for i := range got {
+				if sets := setsMpsz(t, got[i]); !slices.Equal(sets, tc.want[i]) {
+					t.Errorf("Divide(%s)[%d] = %v, want %v", tc.mpsz, i, sets, tc.want[i])
+				}
+			}
+		})
 	}
 }
 
@@ -55,10 +74,10 @@ func TestDivide_WhenReadingsSplitAcrossSuits_ShouldSortSevenPairsAmongThem(t *te
 	}
 
 	got := mustDivide(t, "556677m11223344p")
-
 	if len(got) != len(want) {
 		t.Fatalf("Divide gave %d readings, want %d", len(got), len(want))
 	}
+
 	for i := range got {
 		if sets := setsMpsz(t, got[i]); !slices.Equal(sets, want[i]) {
 			t.Errorf("reading %d = %v, want %v", i, sets, want[i])
@@ -75,10 +94,10 @@ func TestDivide_WhenATripletAndASequenceShareTheLowestKind_ShouldListTheTripletF
 	}
 
 	got := mustDivide(t, "111123666789s11z")
-
 	if len(got) != 1 {
 		t.Fatalf("Divide gave %d readings, want 1", len(got))
 	}
+
 	sets, ok := got[0].SetsAndPair()
 	if !ok || sets.Pair() != 27 || !slices.Equal(sets.Sets(), want) {
 		t.Errorf("reading = %v, pair %d, sets %v; want sets and pair 27, %v", ok, sets.Pair(), sets.Sets(), want)
@@ -92,10 +111,10 @@ func TestDivide_WhenHandReadsAsTripletsOrAsSequences_ShouldTypeThePairAndSets(t 
 	}
 
 	got := mustDivide(t, "11122233388899m")
-
 	if len(got) != len(want) {
 		t.Fatalf("Divide gave %d readings, want %d", len(got), len(want))
 	}
+
 	for i, d := range got {
 		sets, ok := d.SetsAndPair()
 		if !ok || sets.Pair() != 8 || !slices.Equal(sets.Sets(), want[i]) {
@@ -108,30 +127,37 @@ func TestDivide_WhenHandIsSevenPairs_ShouldReadThePairsInOrder(t *testing.T) {
 	want := [7]tile.Kind{0, 8, 10, 16, 20, 24, 27}
 
 	got := mustDivide(t, "1199m2288p3377s11z")
-
 	if len(got) != 1 {
 		t.Fatalf("Divide gave %d readings, want 1", len(got))
 	}
+
 	pairs, ok := got[0].SevenPairs()
 	if !ok || pairs != want {
 		t.Errorf("SevenPairs() = %v, %v; want %v, true", pairs, ok, want)
 	}
+
 	if _, isSets := got[0].SetsAndPair(); isSets {
 		t.Error("SetsAndPair() ok = true for seven pairs")
 	}
 }
 
 func TestDivide_WhenMeldsTakeSomeTiles_ShouldDivideWhatTheyLeave(t *testing.T) {
-	for mpsz, want := range map[string][]string{
-		"11z":             {"11z"},
-		"789p22z":         {"789p", "22z"},
-		"778899p22z":      {"789p", "789p", "22z"},
-		"123m456p55s777z": {"123m", "456p", "55s", "777z"},
-	} {
-		got := mustDivide(t, mpsz)
-		if len(got) != 1 || !slices.Equal(setsMpsz(t, got[0]), want) {
-			t.Errorf("Divide(%s) = %d readings; want one, %v", mpsz, len(got), want)
-		}
+	tests := []struct {
+		mpsz string
+		want []string
+	}{
+		{mpsz: "11z", want: []string{"11z"}},
+		{mpsz: "789p22z", want: []string{"789p", "22z"}},
+		{mpsz: "778899p22z", want: []string{"789p", "789p", "22z"}},
+		{mpsz: "123m456p55s777z", want: []string{"123m", "456p", "55s", "777z"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.mpsz, func(t *testing.T) {
+			got := mustDivide(t, tc.mpsz)
+			if len(got) != 1 || !slices.Equal(setsMpsz(t, got[0]), tc.want) {
+				t.Errorf("Divide(%s) = %d readings; want one, %v", tc.mpsz, len(got), tc.want)
+			}
+		})
 	}
 }
 
@@ -139,7 +165,6 @@ func TestDivide_WhenHandHoldsFourOfAKind_ShouldReadATripletAndOneMoreTile(t *tes
 	want := []string{"111m", "123m", "55p"}
 
 	got := mustDivide(t, "111123m55p")
-
 	if len(got) != 1 || !slices.Equal(setsMpsz(t, got[0]), want) {
 		t.Errorf("Divide = %d readings; want one, %v", len(got), want)
 	}
@@ -161,18 +186,24 @@ func TestDivide_WhenHandDoesNotDivide_ShouldGiveNoReading(t *testing.T) {
 }
 
 func TestDivide_WhenNoWinningHandHasTheTileCount_ShouldRefuseIt(t *testing.T) {
-	for mpsz, count := range map[string]int{
-		"":                      0,
-		"1m":                    1,
-		"123m":                  3,
-		"123456789m1234z":       13,
-		"2288m2288p228s2244z":   15,
-		"123789m123789p111s11z": 17,
-	} {
-		_, err := hand.Divide(mustCounts(t, mpsz))
-		if !errors.Is(err, hand.WrongTileCountError{Count: count}) {
-			t.Errorf("Divide(%s) error = %v, want a wrong count of %d", mpsz, err, count)
-		}
+	tests := []struct {
+		mpsz  string
+		count int
+	}{
+		{mpsz: "", count: 0},
+		{mpsz: "1m", count: 1},
+		{mpsz: "123m", count: 3},
+		{mpsz: "123456789m1234z", count: 13},
+		{mpsz: "2288m2288p228s2244z", count: 15},
+		{mpsz: "123789m123789p111s11z", count: 17},
+	}
+	for _, tc := range tests {
+		t.Run(tc.mpsz, func(t *testing.T) {
+			_, err := hand.Divide(mustCounts(t, tc.mpsz))
+			if !errors.Is(err, hand.WrongTileCountError{Count: tc.count}) {
+				t.Errorf("Divide(%s) error = %v, want a wrong count of %d", tc.mpsz, err, tc.count)
+			}
+		})
 	}
 }
 
@@ -197,8 +228,10 @@ func TestDivide_WhenHandIsAPurePairStraight_ShouldFillEveryReadingSlot(t *testin
 		if ok {
 			pair = int(sets.Pair())
 		}
+
 		pairs = append(pairs, pair)
 	}
+
 	if want := []int{-1, 0, 3, 6}; decompositions.Len() != 4 || !slices.Equal(pairs, want) {
 		t.Errorf("Divide = %d readings with pairs %v, want 4 with %v", decompositions.Len(), pairs, want)
 	}
@@ -215,6 +248,7 @@ func TestDecompositionsAll_WhenTheCallerStops_ShouldYieldNoMore(t *testing.T) {
 		yielded++
 		break
 	}
+
 	if yielded != 1 {
 		t.Errorf("All yielded %d after a break, want 1", yielded)
 	}
@@ -236,6 +270,7 @@ func winBlocks(t *testing.T, mpsz, win string) []hand.WinBlock {
 	if len(decompositions) != 1 {
 		t.Fatalf("Divide(%s) gave %d readings, want 1", mpsz, len(decompositions))
 	}
+
 	return slices.Collect(decompositions[0].WinBlocks(mustKind(t, win)))
 }
 
@@ -259,6 +294,7 @@ func TestWinBlocks_WhenHandReadsAsSevenPairs_ShouldWinOnThePairOfTheWinningKind(
 	if want := []hand.WinBlock{hand.PairWinBlock()}; !slices.Equal(sevenPairs, want) {
 		t.Errorf("seven pairs WinBlocks(1m) = %v, want %v", sevenPairs, want)
 	}
+
 	if want := []hand.WinBlock{hand.SetWinBlock(hand.Set{Shape: hand.Sequence, Kind: 0})}; !slices.Equal(sets, want) {
 		t.Errorf("sets WinBlocks(1m) = %v, want %v", sets, want)
 	}
@@ -305,6 +341,7 @@ func TestWinBlocks_WhenAnyKindWins_ShouldNameEachDistinctBlockOfItInKindSetsOrde
 				for block := range d.WinBlocks(win) {
 					got = append(got, winBlockKinds(win, block))
 				}
+
 				if !slices.EqualFunc(got, want, slices.Equal) {
 					t.Errorf("%s %v WinBlocks(%d) = %v, want %v", mpsz, d.KindSets(), win, got, want)
 				}
@@ -321,6 +358,7 @@ func TestWinBlocks_WhenTheCallerStops_ShouldYieldNoMore(t *testing.T) {
 		yielded++
 		break
 	}
+
 	if yielded != 1 {
 		t.Errorf("WinBlocks yielded %d after a break, want 1", yielded)
 	}
@@ -359,6 +397,7 @@ func TestReading_WhenMeldsArePonsOrKans_ShouldCountOnlyDeclaredKansAsQuads(t *te
 	if withPons.Kans != 0 || withPons.Triplets != declared || withPons.OpenTriplets != declared {
 		t.Errorf("with pons = %+v, want no kans and triplets %#x all open", withPons, declared)
 	}
+
 	if want := tile.Mask(18, 33); withKans.Kans != declared || withKans.OpenTriplets != want {
 		t.Errorf("with kans = %+v, want kans %#x and open triplets %#x", withKans, declared, want)
 	}

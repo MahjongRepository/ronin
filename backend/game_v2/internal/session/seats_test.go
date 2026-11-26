@@ -29,6 +29,7 @@ func reconnected(t *testing.T, conn *fakeConn) wire.Map {
 	if len(snapshots) != 1 {
 		t.Fatalf("%s got %d game_reconnected, want 1", conn.id, len(snapshots))
 	}
+
 	return snapshots[0]
 }
 
@@ -38,6 +39,7 @@ func sessionErrorCode(t *testing.T, conn *fakeConn) wire.Value {
 	if len(errs) != 1 {
 		t.Fatalf("%s got %d session errors, want 1", conn.id, len(errs))
 	}
+
 	code, _ := errs[0].Get(wire.KeySessionErrorCode)
 	return code
 }
@@ -63,6 +65,7 @@ func TestReconnect_WhenTheSeatLeftDuringItsTurn_ShouldTakeItBackOnItsOriginalDea
 		if got := intOf(t, reconnected(t, back), wire.KeyWaitID); got != leftWaitID+1 {
 			t.Errorf("game_reconnected wait id = %d, want a new decision %d", got, leftWaitID+1)
 		}
+
 		opening := lastOpening(t, back)
 		if got := intOf(t, opening, wire.KeyWaitID); got != leftWaitID+1 {
 			t.Errorf("re-sent draw wait id = %d, want %d", got, leftWaitID+1)
@@ -78,10 +81,12 @@ func TestReconnect_WhenTheSeatLeftDuringItsTurn_ShouldTakeItBackOnItsOriginalDea
 		if got := len(ofEvent(bob.messages(), wire.EventDiscard)); got != 0 {
 			t.Fatalf("the AI player discarded %d times after the seat was taken back", got)
 		}
+
 		sleep(13500*time.Millisecond - time.Millisecond)
 		if got := h.m.Stats().TurnTimeouts; got != 0 {
 			t.Fatalf("the turn timed out before its original deadline")
 		}
+
 		sleep(time.Millisecond)
 		if got := h.m.Stats().TurnTimeouts; got != 1 {
 			t.Errorf("TurnTimeouts = %d, want the turn timed out at its original 30 s", got)
@@ -105,6 +110,7 @@ func TestReconnect_WhenTheAIPlayedTheTurnTheSeatLeft_ShouldShowTheBankChargedOnl
 		if got := len(ofEvent(bob.messages(), wire.EventDiscard)); got != 1 {
 			t.Fatalf("bob saw %d discards, want the AI player's one for the absent seat", got)
 		}
+
 		back := h.reconnect("ticket-Alice")
 
 		settings, _ := reconnected(t, back).Get(wire.KeyTimerSettings)
@@ -132,6 +138,7 @@ func TestReconnect_WhenTheParticipantIsStillConnected_ShouldReplaceItsConnection
 		if got := len(ofSession(bob.messages(), "seat_control")); got != 0 {
 			t.Errorf("bob got %d seat_control for a seat that never changed hands", got)
 		}
+
 		opening := lastOpening(t, second)
 		if got := intOf(t, opening, wire.KeyWaitID); got != waitID {
 			t.Errorf("re-sent draw wait id = %d, want the open decision %d", got, waitID)
@@ -144,6 +151,7 @@ func TestReconnect_WhenTheParticipantIsStillConnected_ShouldReplaceItsConnection
 		if got := h.m.Stats().TurnTimeouts; got != 0 {
 			t.Fatalf("the turn timed out before its first deadline")
 		}
+
 		sleep(time.Millisecond)
 		stats := h.m.Stats()
 		if stats.TurnTimeouts != 1 || stats.Takeovers != 1 || stats.Reconnects != 0 {
@@ -166,20 +174,22 @@ func TestReconnect_WhenTheStartPauseHoldsTheDealersDraw_ShouldShowTheDealtHandAn
 		if len(messages) != 1 {
 			t.Fatalf("second connection got %d messages, want the snapshot alone", len(messages))
 		}
+
 		snapshot := reconnected(t, second)
 		wantHand, _ := dealt.Get(wire.KeyMyTiles)
 		gotHand, _ := snapshot.Get(wire.KeyMyTiles)
 		if diff := cmp.Diff(wantHand, gotHand); diff != "" {
 			t.Errorf("snapshot hand differs from the deal (-want +got):\n%s", diff)
 		}
+
 		for _, tc := range []struct {
 			key  wire.Key
 			want wire.Value
 		}{
-			{wire.KeyTilesRemaining, wire.Int(70)},
-			{wire.KeyConfirmationOwed, wire.Bool(true)},
-			{wire.KeyWaitElapsed, wire.Float(4)},
-			{wire.KeyRoundAdvanceSeconds, wire.Int(10)},
+			{key: wire.KeyTilesRemaining, want: wire.Int(70)},
+			{key: wire.KeyConfirmationOwed, want: wire.Bool(true)},
+			{key: wire.KeyWaitElapsed, want: wire.Float(4)},
+			{key: wire.KeyRoundAdvanceSeconds, want: wire.Int(10)},
 		} {
 			if got, _ := snapshot.Get(tc.key); got != tc.want {
 				t.Errorf("snapshot %v = %v, want %v", tc.key, got, tc.want)
@@ -213,10 +223,10 @@ func TestReconnect_WhenItCannotTakeASeat_ShouldAnswerWhy(t *testing.T) {
 			conn *fakeConn
 			want messaging.SessionErrorCode
 		}{
-			{early, messaging.SessionReconnectRetryLater},
-			{stranger, messaging.SessionReconnectNoSession},
-			{lost, messaging.SessionReconnectGameMismatch},
-			{alice, messaging.SessionReconnectAlreadyActive},
+			{conn: early, want: messaging.SessionReconnectRetryLater},
+			{conn: stranger, want: messaging.SessionReconnectNoSession},
+			{conn: lost, want: messaging.SessionReconnectGameMismatch},
+			{conn: alice, want: messaging.SessionReconnectAlreadyActive},
 		} {
 			if got := sessionErrorCode(t, tc.conn); got != wire.Str(tc.want) {
 				t.Errorf("%s session error = %v, want %s", tc.conn.id, got, tc.want)
@@ -237,10 +247,10 @@ func TestResync_WhenTheTurnSeatAsks_ShouldResendItsStateAndTellNobodyElse(t *tes
 		sleep(4 * time.Second)
 		h.m.Resync(alice)
 		synctest.Wait()
-
 		if got := intOf(t, reconnected(t, alice), wire.KeyWaitID); got != waitID {
 			t.Errorf("game_reconnected wait id = %d, want the open decision %d", got, waitID)
 		}
+
 		opening := lastOpening(t, alice)
 		if got, _ := opening.Get(wire.KeyWaitElapsed); got != wire.Float(4) || intOf(t, opening, wire.KeyWaitID) != waitID {
 			t.Errorf("re-sent draw = %v, want wait %d after 4 s", opening, waitID)
@@ -270,8 +280,8 @@ func TestResync_WhenTheGameIsPendingOrTheConnectionJoinedNone_ShouldAnswerWhy(t 
 			conn *fakeConn
 			want messaging.SessionErrorCode
 		}{
-			{alice, messaging.SessionGameNotStarted},
-			{stranger, messaging.SessionNotInGame},
+			{conn: alice, want: messaging.SessionGameNotStarted},
+			{conn: stranger, want: messaging.SessionNotInGame},
 		} {
 			if got := sessionErrorCode(t, tc.conn); got != wire.Str(tc.want) {
 				t.Errorf("%s session error = %v, want %s", tc.conn.id, got, tc.want)

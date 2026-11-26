@@ -73,10 +73,12 @@ func (s *shapedGame) payload(e play.Event) wire.Map {
 	if err != nil {
 		s.t.Fatalf("EventPayload(%T) error = %v", e, err)
 	}
+
 	_, err = wire.Encode(m)
 	if err != nil {
 		s.t.Fatalf("Encode(%T) = %v: %v", e, err, m)
 	}
+
 	return m
 }
 
@@ -88,8 +90,10 @@ func (s *shapedGame) apply(next engine.Game, events []play.Emitted) {
 		if ended, ok := e.Event.(play.RoundEnded); ok {
 			s.checkRoundEnd(ended, m)
 		}
+
 		s.record(e)
 	}
+
 	s.replay.flushDeal()
 
 	s.batches++
@@ -103,16 +107,19 @@ func (s *shapedGame) apply(next engine.Game, events []play.Emitted) {
 				s.t.Fatalf("Encode(opening) error = %v: %v", err, stamped)
 			}
 		}
+
 		if seat.Index() != s.batches%tile.SeatCount {
 			continue
 		}
+
 		snapshot, err := messaging.ReconnectionPayload(view.Record, testRoster(), [tile.SeatCount]play.Option[wire.SeatControlReason]{})
 		if err != nil {
 			s.t.Fatalf("ReconnectionPayload error = %v", err)
 		}
+
 		reconnected := messaging.GameReconnected(snapshot, 1, play.Option[messaging.Pause]{}, timerSettings())
-		if _, err := wire.Encode(reconnected); err != nil {
-			s.t.Fatalf("Encode(snapshot) error = %v: %v", err, reconnected)
+		if _, encodeErr := wire.Encode(reconnected); encodeErr != nil {
+			s.t.Fatalf("Encode(snapshot) error = %v: %v", encodeErr, reconnected)
 		}
 	}
 }
@@ -153,9 +160,11 @@ func (s *shapedGame) checkRoundEnd(ended play.RoundEnded, m wire.Map) {
 		for _, yaku := range field(s.t, hand, wire.KeyYaku).(wire.Array) {
 			total += int(field(s.t, yaku.(wire.Map), wire.KeyHan).(wire.Int))
 		}
+
 		if isHan && total != han.Han {
 			s.t.Errorf("win %+v: yaku han sum to %d, want %d: %v", win, total, han.Han, hand)
 		}
+
 		points := int(field(s.t, hand, wire.KeyPoints).(wire.Int))
 		sticks := int(field(s.t, shaped[i], wire.KeyRiichiCollected).(wire.Int))
 		bonus := int(field(s.t, shaped[i], wire.KeyHonbaBonus).(wire.Int))
@@ -171,6 +180,7 @@ func chooseAction(d play.Decision, hand []tile.TileID, step int) play.Action {
 			return d.Legal[i]
 		}
 	}
+
 	if step%3 == 0 {
 		for _, a := range d.Legal {
 			if a.Kind() == play.ActionPon || a.Kind() == play.ActionChi || a.Kind() == play.ActionKan {
@@ -178,6 +188,7 @@ func chooseAction(d play.Decision, hand []tile.TileID, step int) play.Action {
 			}
 		}
 	}
+
 	if _, isCall := d.Context.(play.Call); isCall {
 		return d.Default
 	}
@@ -188,10 +199,12 @@ func chooseAction(d play.Decision, hand []tile.TileID, step int) play.Action {
 		if a.Kind() != play.ActionDiscard || !ok {
 			continue
 		}
+
 		if score := connectedness(hand, id.Kind()); score < bestScore {
 			best, bestScore = a, score
 		}
 	}
+
 	return best
 }
 
@@ -209,6 +222,7 @@ func connectedness(hand []tile.TileID, kind tile.Kind) int {
 			score++
 		}
 	}
+
 	return score
 }
 
@@ -218,10 +232,12 @@ func playShapedGame(t *testing.T, n int, results map[string]int, openings map[wi
 	if err != nil {
 		t.Fatalf("ParseSeed error = %v", err)
 	}
+
 	g, events, err := engine.NewGame(engine.Setup{Walls: play.Seeded{Seed: seed}})
 	if err != nil {
 		t.Fatalf("NewGame error = %v", err)
 	}
+
 	s := &shapedGame{t: t, seed: seed, results: results, openings: openings}
 	s.replay.records = []wire.Map{wire.VersionRecord()}
 	s.apply(g, events)
@@ -241,14 +257,17 @@ func playShapedGame(t *testing.T, n int, results map[string]int, openings map[wi
 		case play.AwaitingDealt:
 			g, events, refusal = s.game.Begin()
 		case play.AwaitingGameOver:
-			if _, err := wire.EncodeReplay(s.replay.records); err != nil {
-				t.Fatalf("game %d: EncodeReplay error = %v", n, err)
+			if _, encodeErr := wire.EncodeReplay(s.replay.records); encodeErr != nil {
+				t.Fatalf("game %d: EncodeReplay error = %v", n, encodeErr)
 			}
+
 			return
 		}
+
 		if refusal.OK {
 			t.Fatalf("game %d step %d refused: %+v", n, step, refusal.Value)
 		}
+
 		s.apply(g, events)
 	}
 }
@@ -271,6 +290,7 @@ func TestSelfPlay_WhenEveryEventOpeningAndSnapshotIsShaped_ShouldEncodeLiveAndAs
 			t.Errorf("no %s among the results %v", kind, results)
 		}
 	}
+
 	for _, opening := range []wire.EventType{wire.EventDraw, wire.EventTurn, wire.EventCallPrompt} {
 		if !slices.ContainsFunc(openings[:], func(seen map[wire.EventType]int) bool { return seen[opening] > 0 }) {
 			t.Errorf("no opening of type %d among %v", opening, openings)

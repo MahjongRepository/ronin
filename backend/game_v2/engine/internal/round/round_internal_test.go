@@ -16,6 +16,7 @@ func id(t *testing.T, n int) tile.TileID {
 	if !ok {
 		t.Fatalf("NewTileID(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -25,6 +26,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -42,6 +44,7 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 		ids = append(ids, id(t, int(kind)*tile.CopiesPerKind+first+seen[kind]))
 		seen[kind]++
 	}
+
 	return ids
 }
 
@@ -51,6 +54,7 @@ func orderedRound(t *testing.T, dealer tile.Seat) Round {
 	if err != nil {
 		t.Fatalf("FromTiles error = %v", err)
 	}
+
 	return Deal(w, dealer, tile.East)
 }
 
@@ -113,19 +117,22 @@ func TestIsKeishikiTenpai_WhenCopiesOfTheWaitRemainElsewhere_ShouldBeTrue(t *tes
 }
 
 func TestNotenPayments_ShouldSplitThePenaltyBetweenNotenAndTenpaiSeats(t *testing.T) {
-	for _, c := range []struct {
+	for _, tc := range []struct {
+		name   string
 		tenpai [tile.SeatCount]bool
 		want   [tile.SeatCount]int
 	}{
-		{[tile.SeatCount]bool{}, [tile.SeatCount]int{}},
-		{[tile.SeatCount]bool{false, true, false, false}, [tile.SeatCount]int{-1000, 3000, -1000, -1000}},
-		{[tile.SeatCount]bool{true, true, false, false}, [tile.SeatCount]int{1500, 1500, -1500, -1500}},
-		{[tile.SeatCount]bool{true, true, true, false}, [tile.SeatCount]int{1000, 1000, 1000, -3000}},
-		{[tile.SeatCount]bool{true, true, true, true}, [tile.SeatCount]int{}},
+		{"nobody tenpai", [tile.SeatCount]bool{}, [tile.SeatCount]int{}},
+		{"one tenpai", [tile.SeatCount]bool{false, true, false, false}, [tile.SeatCount]int{-1000, 3000, -1000, -1000}},
+		{"two tenpai", [tile.SeatCount]bool{true, true, false, false}, [tile.SeatCount]int{1500, 1500, -1500, -1500}},
+		{"three tenpai", [tile.SeatCount]bool{true, true, true, false}, [tile.SeatCount]int{1000, 1000, 1000, -3000}},
+		{"all tenpai", [tile.SeatCount]bool{true, true, true, true}, [tile.SeatCount]int{}},
 	} {
-		if got := notenPayments(c.tenpai); got != c.want {
-			t.Errorf("notenPayments(%v) = %v, want %v", c.tenpai, got, c.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			if got := notenPayments(tc.tenpai); got != tc.want {
+				t.Errorf("notenPayments(%v) = %v, want %v", tc.tenpai, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -175,17 +182,21 @@ func TestOffers_ShouldListRonThenTheMeldsThenPassAndAwaitMeldCallersToo(t *testi
 	if want := []tile.Seat{seat(t, 1), seat(t, 3)}; !slices.Equal(prompt.Pending(), want) {
 		t.Errorf("pending = %v, want %v", prompt.Pending(), want)
 	}
-	for _, c := range []struct {
+
+	for _, tc := range []struct {
+		name string
 		seat tile.Seat
 		want []play.Action
 	}{
-		{seat(t, 1), []play.Action{play.RonAction(), pon, chi, play.PassAction()}},
-		{seat(t, 3), []play.Action{pon, play.PassAction()}},
-		{seat(t, 2), nil},
+		{"ron caller", seat(t, 1), []play.Action{play.RonAction(), pon, chi, play.PassAction()}},
+		{"meld caller", seat(t, 3), []play.Action{pon, play.PassAction()}},
+		{"seat without offers", seat(t, 2), nil},
 	} {
-		if got := prompt.Offers(c.seat); !slices.Equal(got, c.want) {
-			t.Errorf("Offers(%d) = %v, want %v", c.seat.Index(), got, c.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			if got := prompt.Offers(tc.seat); !slices.Equal(got, tc.want) {
+				t.Errorf("Offers(%d) = %v, want %v", tc.seat.Index(), got, tc.want)
+			}
+		})
 	}
 }
 

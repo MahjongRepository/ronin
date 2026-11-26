@@ -16,7 +16,6 @@ func assertBranchesStayApart(t *testing.T, build func() game.Game, first, second
 
 	firstBranch, _ := script(t, base, first...)
 	secondBranch, _ := script(t, base, second...)
-
 	assertSameGame(t, base, build())
 	wantFirst, _ := script(t, build(), first...)
 	assertSameGame(t, firstBranch, wantFirst)
@@ -53,8 +52,8 @@ func TestAct_WhenAnAddedKanAndADiscardBranchFromOneState_ShouldLeaveTheStateAndE
 		g, _ = discardDrawn(t, g, 3)
 		return g
 	}
-	_, oneMan := onePonAndFourthCopy(t)
 
+	_, oneMan := onePonAndFourthCopy(t)
 	assertBranchesStayApart(t, build,
 		[]testkit.SeatAction{act(seat(t, 0), play.KanAction(play.KanAdded, oneMan[3]))},
 		[]testkit.SeatAction{act(seat(t, 0), play.DiscardAction(oneMan[3]))},
@@ -101,7 +100,6 @@ func TestAct_WhenTwoRoundEndingActionsBranchFromOneState_ShouldLeaveTheStateAndE
 
 func TestHand_WhenTheSeatHasDrawn_ShouldReachItsBoundOfFourteenTiles(t *testing.T) {
 	g := begun(t, stagedWall(t), noStart())
-
 	assertEqual(t, "dealer tiles", len(g.Hand(seat(t, 0))), 14)
 	assertEqual(t, "legal discards", len(g.LegalActions(seat(t, 0))), 14)
 }
@@ -114,6 +112,7 @@ func TestMelds_WhenASeatCallsFourPons_ShouldReachItsBoundOfFourMelds(t *testing.
 	for i, calledTile := range called {
 		draws = append(draws, junkDraws[1+2*i], junkDraws[2+2*i], calledTile)
 	}
+
 	w := testkit.StartWall{
 		Hands: [tile.SeatCount][]tile.TileID{
 			slices.Concat(copies(t, 0, "11223344m5m"), copies(t, 0, "1234z")),

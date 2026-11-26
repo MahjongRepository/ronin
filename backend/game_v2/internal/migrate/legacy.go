@@ -105,10 +105,12 @@ func checkLegacyShape(record wire.Map) error {
 		if !isResult || result < 0 || result > int(legacyNagashi) {
 			return errors.New("a round end of a result type replay version 0.4-dev never held")
 		}
+
 		keys = append(slices.Clone(roundEndCommon), resultKeys...)
 	case !known:
 		return errUnknownEvent
 	}
+
 	return checkFields(record, keys, wire.EventType(event))
 }
 
@@ -122,14 +124,17 @@ func checkFields(m wire.Map, allowed []wire.Key, event wire.EventType) error {
 		if f.Key == wire.KeyPlayers {
 			nested, isNested = legacyPlayerKeys[event], true
 		}
+
 		if !isNested {
 			continue
 		}
+
 		err := checkNested(f.Value, nested, event)
 		if err != nil {
 			return errors.New(f.Key.String() + ": " + err.Error())
 		}
 	}
+
 	return nil
 }
 
@@ -137,17 +142,20 @@ func checkNested(v wire.Value, allowed []wire.Key, event wire.EventType) error {
 	if object, isMap := v.(wire.Map); isMap {
 		return checkFields(object, allowed, event)
 	}
+
 	items, _ := v.(wire.Array)
 	for i, item := range items {
 		object, isMap := item.(wire.Map)
 		if !isMap {
 			continue
 		}
+
 		err := checkFields(object, allowed, event)
 		if err != nil {
 			return errors.New("item " + strconv.Itoa(i) + ": " + err.Error())
 		}
 	}
+
 	return nil
 }
 

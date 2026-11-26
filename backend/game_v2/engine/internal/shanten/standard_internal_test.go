@@ -12,10 +12,12 @@ func kindCounts(t *testing.T, mpsz string) [tile.KindCount]uint8 {
 	if err != nil {
 		t.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	counts, err := tile.CountsFromTiles(tiles)
 	if err != nil {
 		t.Fatalf("CountsFromTiles(%q) error = %v", mpsz, err)
 	}
+
 	return counts.Array()
 }
 
@@ -53,14 +55,17 @@ func TestStandardReplacementNumber_WhenHandIsKnown_ShouldCountTheRegularShapeAlo
 		{"1111m111122233z", 2},
 	}
 	for _, tc := range tests {
-		counts := kindCounts(t, tc.hand)
-		total := 0
-		for _, count := range counts {
-			total += int(count)
-		}
-		if got := standardReplacementNumber(counts, total/tilesPerSet); got != tc.want {
-			t.Errorf("standardReplacementNumber(%s) = %d, want %d", tc.hand, got, tc.want)
-		}
+		t.Run(tc.hand, func(t *testing.T) {
+			counts := kindCounts(t, tc.hand)
+			total := 0
+			for _, count := range counts {
+				total += int(count)
+			}
+
+			if got := standardReplacementNumber(counts, total/tilesPerSet); got != tc.want {
+				t.Errorf("standardReplacementNumber(%s) = %d, want %d", tc.hand, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -80,12 +85,15 @@ func groupCountsUpTo14Tiles(kinds int, yield func([]uint8)) {
 			yield(counts)
 			return
 		}
+
 		for count := 0; count <= tile.CopiesPerKind && tiles+count <= tile.MaxConcealedTiles; count++ {
 			counts[kind] = uint8(count)
 			fill(kind+1, tiles+count)
 		}
+
 		counts[kind] = 0
 	}
+
 	fill(0, 0)
 }
 
@@ -96,8 +104,8 @@ func TestHash_WhenEveryGroupOfUpTo14TilesIsHashed_ShouldGiveEachItsOwnMapEntry(t
 		table [][15][5]uint32
 		blob  string
 	}{
-		{"shupai", 9, shupaiHash[:], shupaiReplacementNumbers},
-		{"zipai", 7, zipaiHash[:], zipaiReplacementNumbers},
+		{name: "shupai", kinds: 9, table: shupaiHash[:], blob: shupaiReplacementNumbers},
+		{name: "zipai", kinds: 7, table: zipaiHash[:], blob: zipaiReplacementNumbers},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

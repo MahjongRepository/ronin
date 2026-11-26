@@ -17,10 +17,10 @@ func TestShutdown_ShouldCloseSocketsWith1012AsDisconnectsBeforeTheSessionDrains(
 	closed := awaitClose(t, ws)
 
 	h.shutdown()
-
 	if code := websocket.CloseStatus(<-closed); code != websocket.StatusServiceRestart {
 		t.Errorf("close = %d, want 1012", code)
 	}
+
 	var endReason sql.NullString
 	err := h.openDB(t).QueryRowContext(t.Context(), "SELECT end_reason FROM played_games WHERE id = ?", testGameID).Scan(&endReason)
 	if err != nil {

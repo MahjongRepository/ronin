@@ -70,6 +70,7 @@ func TestConnectionWrite_WhenThePeerStopsReading_ShouldDropItPastTheSendDeadline
 			t.Errorf("accept: %v", err)
 			return
 		}
+
 		conn := newConnection(ws, "game-0001", s)
 		accepted <- conn
 		conn.write(context.Background())

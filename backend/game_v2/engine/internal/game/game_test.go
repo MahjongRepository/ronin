@@ -25,9 +25,11 @@ func dealerTenpaiWall(t *testing.T, dealer tile.Seat) testkit.StartWall {
 			w.Hands[s.Index()] = copies(t, 0, "123456789m1234p")
 			continue
 		}
+
 		w.Hands[s.Index()] = junk(t, junkCopy)
 		junkCopy++
 	}
+
 	return w
 }
 
@@ -58,6 +60,7 @@ func finishRoundByDefaults(t *testing.T, g game.Game) (game.Game, []play.Emitted
 		if len(seats) == 0 {
 			t.Fatal("the round is not in play")
 		}
+
 		for _, s := range seats {
 			action, _ := g.DefaultAction(s)
 			var events []play.Emitted
@@ -67,6 +70,7 @@ func finishRoundByDefaults(t *testing.T, g game.Game) (game.Game, []play.Emitted
 			}
 		}
 	}
+
 	t.Fatal("the round does not end")
 	return g, nil
 }
@@ -77,6 +81,7 @@ func gameEnded(t *testing.T, events []play.Emitted) play.Standings {
 	if len(kinds) < 2 || !slices.Equal(kinds[len(kinds)-2:], []string{"round_ended", "game_ended"}) {
 		t.Fatalf("event kinds = %v, want them to end with round_ended, game_ended", kinds)
 	}
+
 	ended, _ := events[len(events)-1].Event.(play.GameEnded)
 	return ended.Standings
 }
@@ -99,8 +104,10 @@ func endCauseAfterRound(t *testing.T, w testkit.StartWall, start play.Option[pla
 		if kinds := testkit.EventKinds(events); kinds[len(kinds)-1] != "round_ended" {
 			t.Errorf("last event = %s, want round_ended", kinds[len(kinds)-1])
 		}
+
 		return play.Option[play.GameEndCause]{}
 	}
+
 	return play.Some(assertGameOver(t, g, events).Cause)
 }
 
@@ -109,6 +116,7 @@ func TestDealNextRound_ShouldDealTheNextFixedWallFromTheNewDealerAndAwaitItsFirs
 	for i := range hands {
 		hands[i] = copies(t, i, "123456789m1234p")
 	}
+
 	dealerDraw := tileOf(t, 0, "9p")
 	second := testkit.StartWall{Hands: hands, Draws: []tile.TileID{dealerDraw}}
 	g, _ := newGame(t, fixed(wallTiles(t, notenWall(t), seat(t, 0)), wallTiles(t, second, seat(t, 1))), noStart())
@@ -116,13 +124,12 @@ func TestDealNextRound_ShouldDealTheNextFixedWallFromTheNewDealerAndAwaitItsFirs
 	assertEqual(t, "awaiting", g.Awaiting(), play.Awaiting(play.AwaitingRoundOver{}))
 
 	g, events, refused := g.DealNextRound()
-
 	assertEqual(t, "refusal", refused, play.Option[play.Refusal]{})
+	assertEqual(t, "events", len(events), tile.SeatCount)
 	header := play.RoundHeader{
 		RoundNumber: 1, Wind: tile.East, RoundInWind: 2, Dealer: seat(t, 1), Honba: 1,
 		Dice: evenDice(),
 	}
-	assertEqual(t, "events", len(events), tile.SeatCount)
 	for i, s := range tile.Seats() {
 		started, _ := events[i].Event.(play.RoundStarted)
 		assertEqual(t, "dealt", [3]any{started.Seat, started.Header, started.Hand}, [3]any{s, header, hands[i]})
@@ -135,13 +142,13 @@ func TestDealNextRound_ShouldDealTheNextFixedWallFromTheNewDealerAndAwaitItsFirs
 			t.Errorf("seat %d has a decision before the first draw", s.Index())
 		}
 	}
+
 	dealt, answered, refused := g.Act(seat(t, 2), play.PassAction())
 	assertEqual(t, "call answer refusal", refused, play.Some(refusal(play.RefusalNotAwaited, play.CodeWrongPhase)))
 	assertEqual(t, "call answer events", answered, []play.Emitted(nil))
 	assertSameGame(t, dealt, g)
 
 	_, drew, refused := g.Begin()
-
 	assertEqual(t, "begin refusal", refused, play.Option[play.Refusal]{})
 	assertEqual[play.Event](t, "draw", drew[0].Event, play.Drew{Seat: seat(t, 1), Tile: dealerDraw})
 }
@@ -150,7 +157,6 @@ func TestBegin_WhenTheGameDoesNotAwaitTheDeal_ShouldRefuseItAsNotAwaited(t *test
 	g := begun(t, stagedWall(t), noStart())
 
 	next, events, refused := g.Begin()
-
 	assertEqual(t, "refusal", refused, play.Some(refusal(play.RefusalNotAwaited, play.CodeWrongPhase)))
 	assertEqual(t, "events", events, []play.Emitted(nil))
 	assertSameGame(t, next, g)
@@ -162,7 +168,6 @@ func TestNew_WhenALaterFixedWallRepeatsATile_ShouldRefuseTheSetup(t *testing.T) 
 	repeating[1] = repeating[0]
 
 	_, _, err := game.New(fixed(valid, repeating), noStart())
-
 	if want := (game.InvalidWallError{Err: wall.DuplicateTileError{Tile: repeating[0]}}); !errors.Is(err, want) {
 		t.Errorf("error = %v, want %v", err, want)
 	}
@@ -172,7 +177,6 @@ func TestDealNextRound_WhenTheLastFixedWallWasDealt_ShouldEndTheGame(t *testing.
 	g, _ := finishRoundByDefaults(t, begun(t, notenWall(t), noStart()))
 
 	g, events, _ := g.DealNextRound()
-
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"game_ended"})
 	ended, _ := events[0].Event.(play.GameEnded)
 	assertEqual(t, "standings", ended.Standings, play.Standings{
@@ -216,7 +220,6 @@ func TestDealNextRound_WhenEastFourEndsWithASeatAtTheThreshold_ShouldPlaySouthOn
 	g, _ = finishRoundByDefaults(t, g)
 
 	g, _, _ = g.DealNextRound()
-
 	header := g.Header()
 	assertEqual(t, "position", [4]any{header.Wind, header.RoundInWind, header.Dealer, header.Honba},
 		[4]any{tile.South, 1, seat(t, 0), 1})
@@ -277,5 +280,6 @@ func seededBy(t *testing.T, pair string) play.WallSource {
 	if err != nil {
 		t.Fatalf("ParseSeed error = %v", err)
 	}
+
 	return play.Seeded{Seed: seed}
 }

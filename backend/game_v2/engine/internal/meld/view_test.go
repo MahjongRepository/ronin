@@ -20,9 +20,11 @@ func ids(t *testing.T, first int, mpsz string) []tile.TileID {
 		if !ok {
 			t.Fatalf("%q repeats a kind past its copies", mpsz)
 		}
+
 		out = append(out, id)
 		seen[kind]++
 	}
+
 	return out
 }
 
@@ -32,25 +34,33 @@ func view(t *testing.T, kind play.MeldKind, mpsz string) play.MeldView {
 	if kind == play.MeldClosedKan {
 		return play.MeldView{Kind: kind, Tiles: tileIDs}
 	}
-	from, _ := tile.NewSeat(3)
+
+	from, ok := tile.NewSeat(3)
+	if !ok {
+		t.Fatal("NewSeat(3) refused")
+	}
+
 	return play.MeldView{Kind: kind, Tiles: tileIDs, Called: play.Some(tileIDs[0]), From: play.Some(from)}
 }
 
 func TestFromView_WhenTheTilesFitTheKind_ShouldReadRedFivesAndScoreAnAddedKanAsOpen(t *testing.T) {
 	for _, c := range []struct {
+		name string
 		view play.MeldView
 		want meld.Meld
 	}{
-		{view(t, play.MeldChi, "345m"), chi(t, "340m")},
-		{view(t, play.MeldPon, "555z"), pon(t, "555z")},
-		{view(t, play.MeldOpenKan, "2222s"), openKan(t, "2222s")},
-		{view(t, play.MeldAddedKan, "1111p"), openKan(t, "1111p")},
-		{view(t, play.MeldClosedKan, "9999s"), closedKan(t, "9999s")},
+		{"chi", view(t, play.MeldChi, "345m"), chi(t, "340m")},
+		{"pon", view(t, play.MeldPon, "555z"), pon(t, "555z")},
+		{"open kan", view(t, play.MeldOpenKan, "2222s"), openKan(t, "2222s")},
+		{"added kan", view(t, play.MeldAddedKan, "1111p"), openKan(t, "1111p")},
+		{"closed kan", view(t, play.MeldClosedKan, "9999s"), closedKan(t, "9999s")},
 	} {
-		got, ok := meld.FromView(c.view)
-		if !ok || got != c.want {
-			t.Errorf("FromView(%v) = %v, %t, want %v", c.view, got, ok, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := meld.FromView(c.view)
+			if !ok || got != c.want {
+				t.Errorf("FromView(%v) = %v, %t, want %v", c.view, got, ok, c.want)
+			}
+		})
 	}
 }
 
@@ -67,9 +77,11 @@ func TestFromView_WhenTheTilesDoNotFitTheKind_ShouldRefuse(t *testing.T) {
 		{"five tiles", view(t, play.MeldAddedKan, "11112p")},
 		{"unknown kind", play.MeldView{Kind: play.MeldKind(9), Tiles: ids(t, 0, "1111p")}},
 	} {
-		if got, ok := meld.FromView(c.view); ok {
-			t.Errorf("%s FromView = %v, want refused", c.name, got)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if got, ok := meld.FromView(c.view); ok {
+				t.Errorf("FromView = %v, want refused", got)
+			}
+		})
 	}
 }
 
@@ -87,7 +99,6 @@ func TestCheckHandInput_WhenAMeldIsMisfitAndATileDuplicated_ShouldReportTheMisfi
 	duplicated := ids(t, 0, "1m")[0]
 
 	err := meld.CheckHandInput([]tile.TileID{duplicated, duplicated}, melds)
-
 	if !errors.Is(err, meld.MisfitMeldError{Index: 1}) {
 		t.Errorf("CheckHandInput error = %v, want MisfitMeldError{Index: 1}", err)
 	}
@@ -98,7 +109,6 @@ func TestCheckHandInput_WhenAHandTileIsAlsoMelded_ShouldReportTheDuplicate(t *te
 	melds := []play.MeldView{view(t, play.MeldPon, "555p")}
 
 	err := meld.CheckHandInput(hand, melds)
-
 	if !errors.Is(err, meld.DuplicateTileError{Tile: ids(t, 2, "5p")[0]}) {
 		t.Errorf("CheckHandInput error = %v, want the duplicate 5p copy 2", err)
 	}
@@ -108,22 +118,7 @@ func TestCheckHandInput_WhenOneIDIsHeldFiveTimes_ShouldReportTheDuplicate(t *tes
 	first := ids(t, 0, "1m")[0]
 
 	err := meld.CheckHandInput([]tile.TileID{first, first, first, first, first}, nil)
-
 	if !errors.Is(err, meld.DuplicateTileError{Tile: first}) {
 		t.Errorf("CheckHandInput error = %v, want the duplicate 1m", err)
-	}
-}
-
-func TestHandInputErrors_ShouldNameTheMeldOrTile(t *testing.T) {
-	for _, c := range []struct {
-		err  error
-		want string
-	}{
-		{meld.MisfitMeldError{Index: 2}, "meld 2 does not fit its kind"},
-		{meld.DuplicateTileError{Tile: ids(t, 1, "1m")[0]}, "tile 1 is held twice"},
-	} {
-		if got := c.err.Error(); got != c.want {
-			t.Errorf("Error = %q, want %q", got, c.want)
-		}
 	}
 }

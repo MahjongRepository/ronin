@@ -109,10 +109,12 @@ func newHarness(t *testing.T, options ...option) *harness {
 	for _, apply := range options {
 		apply(&serverCfg, &sessionCfg)
 	}
+
 	manager, err := session.New(context.Background(), sessionCfg)
 	if err != nil {
 		t.Fatalf("session.New error = %v", err)
 	}
+
 	serverCfg.Session = manager
 	srv, err := server.New(serverCfg)
 	if err != nil {
@@ -131,6 +133,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 			t.Errorf("the server logged an error:\n%s", logs.String())
 		}
 	})
+
 	return h
 }
 
@@ -138,6 +141,7 @@ func (h *harness) shutdown() {
 	if h.stopped {
 		return
 	}
+
 	h.stopped = true
 	err := h.srv.Shutdown(context.Background())
 	if err != nil {
@@ -171,6 +175,7 @@ func gameBody(gameID string, names ...string) createBody {
 	for _, name := range names {
 		body.Players = append(body.Players, playerBody{Name: name, UserID: "user-" + name, Ticket: ticketFor(gameID, name)})
 	}
+
 	return body
 }
 
@@ -187,9 +192,11 @@ func (h *harness) request(method, path string, body io.Reader, headers map[strin
 	if err != nil {
 		h.t.Fatalf("NewRequest error = %v", err)
 	}
+
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
+
 	resp, err := h.http.Client().Do(req)
 	if err != nil {
 		h.t.Fatalf("%s %s error = %v", method, path, err)
@@ -200,6 +207,7 @@ func (h *harness) request(method, path string, body io.Reader, headers map[strin
 	if err != nil {
 		h.t.Fatalf("read %s %s body: %v", method, path, err)
 	}
+
 	got := answer{status: resp.StatusCode, header: resp.Header, text: string(raw)}
 	if len(raw) > 0 && strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
 		err = json.Unmarshal(raw, &got.body)
@@ -207,6 +215,7 @@ func (h *harness) request(method, path string, body io.Reader, headers map[strin
 			h.t.Fatalf("decode %s %s body %q: %v", method, path, raw, err)
 		}
 	}
+
 	return got
 }
 
@@ -226,6 +235,7 @@ func (h *harness) postGame(body any) answer {
 	if err != nil {
 		h.t.Fatalf("encode body: %v", err)
 	}
+
 	return h.request(http.MethodPost, "/games", bytes.NewReader(raw), nil)
 }
 
@@ -251,6 +261,7 @@ func (h *harness) dial(gameID string, header http.Header) *websocket.Conn {
 	if err != nil {
 		h.t.Fatalf("dial /ws/%s: %v", gameID, err)
 	}
+
 	h.t.Cleanup(func() { _ = ws.CloseNow() })
 	return ws
 }
@@ -295,6 +306,7 @@ func send(t *testing.T, ws *websocket.Conn, m wire.Map) {
 	if err != nil {
 		t.Fatalf("encode %v: %v", m, err)
 	}
+
 	sendRaw(t, ws, data)
 }
 
@@ -314,10 +326,12 @@ func read(t *testing.T, ws *websocket.Conn) (wire.Map, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	m, err := wire.Decode(data)
 	if err != nil {
 		t.Fatalf("the server sent an undecodable message: %v", err)
 	}
+
 	return m, nil
 }
 
@@ -327,6 +341,7 @@ func readMessage(t *testing.T, ws *websocket.Conn) wire.Map {
 	if err != nil {
 		t.Fatalf("read message: %v", err)
 	}
+
 	return m
 }
 
@@ -346,10 +361,12 @@ func readClose(t *testing.T, ws *websocket.Conn) websocket.CloseError {
 		if err == nil {
 			continue
 		}
+
 		closed, ok := errors.AsType[websocket.CloseError](err)
 		if !ok {
 			t.Fatalf("read ended with %v, want a close frame", err)
 		}
+
 		return closed
 	}
 }
@@ -366,6 +383,7 @@ func awaitClose(t *testing.T, ws *websocket.Conn) <-chan error {
 			}
 		}
 	}()
+
 	return closed
 }
 
@@ -392,17 +410,24 @@ func counter(t *testing.T, status map[string]any, key string) int {
 	if !ok {
 		t.Fatalf("/status %s = %v, want a number", key, status[key])
 	}
+
 	return int(v)
 }
 
+const eventuallyInterval = 10 * time.Millisecond
+
 func eventually(t *testing.T, condition func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(readTimeout)
+	ticker := time.NewTicker(eventuallyInterval)
+	defer ticker.Stop()
+
+	deadline := time.After(readTimeout)
 	for !condition() {
-		if time.Now().After(deadline) {
+		select {
+		case <-ticker.C:
+		case <-deadline:
 			t.Fatal("the condition did not hold in time")
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -412,6 +437,7 @@ func (h *harness) openDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("sql.Open error = %v", err)
 	}
+
 	t.Cleanup(func() { _ = db.Close() })
 	return db
 }

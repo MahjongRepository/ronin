@@ -43,6 +43,7 @@ func main() {
 	if len(os.Args) != 2 {
 		log.Fatal("usage: go run extract_maps.go <xiangting crate directory>")
 	}
+
 	standard := filepath.Join(os.Args[1], "src", "standard")
 
 	maps := []mapSource{
@@ -54,9 +55,11 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := os.WriteFile(source.blob, blob, 0o644); err != nil {
-			log.Fatal(err)
+
+		if writeErr := os.WriteFile(source.blob, blob, 0o644); writeErr != nil {
+			log.Fatal(writeErr)
 		}
+
 		fmt.Printf("%s %x\n", source.blob, sha256.Sum256(blob))
 	}
 
@@ -71,12 +74,14 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+
 	formatted, err := format.Source(out.Bytes())
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := os.WriteFile("lookup_hash.go", formatted, 0o644); err != nil {
-		log.Fatal(err)
+
+	if writeErr := os.WriteFile("lookup_hash.go", formatted, 0o644); writeErr != nil {
+		log.Fatal(writeErr)
 	}
 }
 
@@ -85,17 +90,20 @@ func arrayBody(path, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	text := string(source)
 	start := strings.Index(text, " "+name+":")
 	if start < 0 {
 		return "", fmt.Errorf("%s: no %s", path, name)
 	}
+
 	text = text[start:]
 	open := strings.Index(text, "= [")
 	end := strings.Index(text, "];")
 	if open < 0 || end < open {
 		return "", fmt.Errorf("%s: %s is not an array literal", path, name)
 	}
+
 	return lineComment.ReplaceAllString(text[open+len("= ["):end], ""), nil
 }
 
@@ -104,18 +112,22 @@ func extractMap(path string, source mapSource) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	values := integer.FindAllString(body, -1)
 	if len(values) != source.entries {
 		return nil, fmt.Errorf("%s: %d entries, want %d", path, len(values), source.entries)
 	}
+
 	blob := make([]byte, 0, 4*len(values))
 	for _, value := range values {
-		number, err := strconv.ParseUint(value, 10, 32)
-		if err != nil {
-			return nil, err
+		number, parseErr := strconv.ParseUint(value, 10, 32)
+		if parseErr != nil {
+			return nil, parseErr
 		}
+
 		blob = append(blob, byte(number), byte(number>>8), byte(number>>16), byte(number>>24))
 	}
+
 	return blob, nil
 }
 
@@ -124,10 +136,12 @@ func writeTable(out *bytes.Buffer, path string, source tableSource) error {
 	if err != nil {
 		return err
 	}
+
 	values := integer.FindAllString(body, -1)
 	if len(values) != source.kinds*tableTiles*tableCopies {
 		return fmt.Errorf("%s: %d values, want %d", path, len(values), source.kinds*tableTiles*tableCopies)
 	}
+
 	fmt.Fprintf(out, "\nvar %s = [%d][%d][%d]uint32{\n", source.goName, source.kinds, tableTiles, tableCopies)
 	for kind := range source.kinds {
 		out.WriteString("{\n")
@@ -135,8 +149,10 @@ func writeTable(out *bytes.Buffer, path string, source tableSource) error {
 			row := values[(kind*tableTiles+tiles)*tableCopies:][:tableCopies]
 			fmt.Fprintf(out, "{%s},\n", strings.Join(row, ", "))
 		}
+
 		out.WriteString("},\n")
 	}
+
 	out.WriteString("}\n")
 	return nil
 }

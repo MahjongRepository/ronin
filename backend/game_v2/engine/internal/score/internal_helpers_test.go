@@ -15,6 +15,7 @@ func mustTiles(t *testing.T, mpsz string) []tile.Tile {
 	if err != nil {
 		t.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	return parsed
 }
 
@@ -24,6 +25,7 @@ func mustTile(t *testing.T, mpsz string) tile.Tile {
 	if err != nil {
 		t.Fatalf("ParseTile(%q) error = %v", mpsz, err)
 	}
+
 	return parsed
 }
 
@@ -38,6 +40,7 @@ func countsOf(t *testing.T, mpsz string) [tile.KindCount]uint8 {
 	if err != nil {
 		t.Fatalf("CountsFromTiles(%q) error = %v", mpsz, err)
 	}
+
 	return counts.Array()
 }
 
@@ -47,6 +50,7 @@ func kindsOf(t *testing.T, mpsz string) uint64 {
 	for _, parsed := range mustTiles(t, mpsz) {
 		kinds |= uint64(1) << parsed.Kind()
 	}
+
 	return kinds
 }
 
@@ -68,6 +72,7 @@ func newMeld(t *testing.T, kind meld.Kind, mpsz string) meld.Meld {
 	if err != nil {
 		t.Fatalf("%v of %q error = %v", kind, mpsz, err)
 	}
+
 	return m
 }
 
@@ -77,14 +82,17 @@ func decompositionOf(t *testing.T, mpsz string, index int) hand.Decomposition {
 	if err != nil {
 		t.Fatalf("CountsFromTiles(%q) error = %v", mpsz, err)
 	}
+
 	decompositions, err := hand.Divide(counts)
 	if err != nil {
 		t.Fatalf("Divide(%q) error = %v", mpsz, err)
 	}
+
 	all := slices.Collect(decompositions.All())
 	if index >= len(all) {
 		t.Fatalf("Divide(%q) gives %d readings, want reading %d", mpsz, len(all), index)
 	}
+
 	return all[index]
 }
 

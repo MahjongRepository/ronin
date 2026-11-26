@@ -50,6 +50,7 @@ func recordSocketSchedule(tb testing.TB) socketSchedule {
 	if err != nil {
 		tb.Fatalf("record the full game's schedule: %v", err)
 	}
+
 	return socketSchedule{script: script, steps: table.schedule, frames: sentCounts(conns)}
 }
 
@@ -58,6 +59,7 @@ func (s socketSchedule) messages() int {
 	for _, frames := range s.frames {
 		total += frames
 	}
+
 	return total
 }
 
@@ -74,6 +76,7 @@ func openSocketTable(tb testing.TB, script fullGameScript) *socketTable {
 	if err != nil {
 		tb.Fatalf("store.Open error = %v", err)
 	}
+
 	replays := replayfile.New(filepath.Join(dir, "replays"))
 	manager, err := session.New(context.Background(), session.Config{
 		Timing:   session.DefaultTiming(),
@@ -106,11 +109,12 @@ func openSocketTable(tb testing.TB, script fullGameScript) *socketTable {
 	tb.Cleanup(func() {
 		shutdownErr := srv.Shutdown(context.Background())
 		table.http.Close()
-		err := errors.Join(shutdownErr, db.Close())
-		if err != nil {
-			tb.Errorf("close the socket table: %v", err)
+		closeErr := errors.Join(shutdownErr, db.Close())
+		if closeErr != nil {
+			tb.Errorf("close the socket table: %v", closeErr)
 		}
 	})
+
 	return table
 }
 
@@ -133,6 +137,7 @@ func (c *socketClient) read(ctx context.Context, changed chan<- struct{}) {
 			poke(changed)
 			return
 		}
+
 		c.received.Add(1)
 		poke(changed)
 	}
@@ -153,6 +158,7 @@ func (t *socketTable) play(ctx context.Context, schedule socketSchedule, gameID 
 	for _, name := range schedule.script.names {
 		tickets = append(tickets, ticketFor(gameID, name))
 	}
+
 	err := t.create(ctx, gameID, schedule.script.names, tickets)
 	if err != nil {
 		return err
@@ -170,6 +176,7 @@ func (t *socketTable) play(ctx context.Context, schedule socketSchedule, gameID 
 		if err != nil {
 			return err
 		}
+
 		message := step.message
 		if step.join {
 			message, err = wire.Encode(joinMessage(tickets[step.player]))
@@ -177,11 +184,13 @@ func (t *socketTable) play(ctx context.Context, schedule socketSchedule, gameID 
 				return err
 			}
 		}
+
 		err = clients[step.player].ws.Write(ctx, websocket.MessageBinary, message)
 		if err != nil {
 			return fmt.Errorf("client %d writes: %w", step.player, err)
 		}
 	}
+
 	return awaitGameEnd(ctx, clients, schedule.frames)
 }
 
@@ -190,14 +199,17 @@ func (t *socketTable) create(ctx context.Context, gameID string, names, tickets 
 	for i, name := range names {
 		body.Players = append(body.Players, playerBody{Name: name, UserID: "user-" + name, Ticket: tickets[i]})
 	}
+
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.http.URL+"/games", bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
+
 	resp, err := t.http.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("POST /games: %w", err)
@@ -207,6 +219,7 @@ func (t *socketTable) create(ctx context.Context, gameID string, names, tickets 
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("POST /games status = %d, want %d", resp.StatusCode, http.StatusCreated)
 	}
+
 	return nil
 }
 
@@ -221,11 +234,13 @@ func (t *socketTable) dialAll(ctx context.Context, gameID string, n int, changed
 		if err != nil {
 			return clients, fmt.Errorf("dial %s: %w", url, err)
 		}
+
 		ws.SetReadLimit(socketReadLimit)
 		client := &socketClient{ws: ws, done: make(chan struct{})}
 		clients = append(clients, client)
 		go client.read(ctx, changed)
 	}
+
 	return clients, nil
 }
 
@@ -233,6 +248,7 @@ func stopClients(clients []*socketClient) {
 	for _, client := range clients {
 		_ = client.ws.CloseNow()
 	}
+
 	for _, client := range clients {
 		<-client.done
 	}
@@ -243,6 +259,7 @@ func awaitFrames(ctx context.Context, clients []*socketClient, after []int, chan
 		if receivedAll(clients, after) {
 			return nil
 		}
+
 		select {
 		case <-changed:
 		case <-ctx.Done():
@@ -257,6 +274,7 @@ func receivedAll(clients []*socketClient, after []int) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -265,6 +283,7 @@ func received(clients []*socketClient) []int {
 	for _, client := range clients {
 		counts = append(counts, int(client.received.Load()))
 	}
+
 	return counts
 }
 
@@ -275,6 +294,7 @@ func awaitGameEnd(ctx context.Context, clients []*socketClient, frames []int) er
 		case <-ctx.Done():
 			return fmt.Errorf("client %d still open once the script ran: %w", i, ctx.Err())
 		}
+
 		status := websocket.CloseStatus(client.end)
 		if status != websocket.StatusCode(session.CloseGameEnded) {
 			return fmt.Errorf("client %d ended, want close code %d: %w", i, session.CloseGameEnded, client.end)
@@ -283,6 +303,7 @@ func awaitGameEnd(ctx context.Context, clients []*socketClient, frames []int) er
 			return fmt.Errorf("client %d received %d frames, want the %d the session sent in process", i, got, frames[i])
 		}
 	}
+
 	return nil
 }
 
@@ -299,6 +320,7 @@ func TestSocket_WhenFourClientsPlayTheFullGameFixture_ShouldSaveTheFixtureReplay
 	if err != nil {
 		t.Fatalf("read the saved replay: %v", err)
 	}
+
 	saved, err := replayfile.Decompress(compressed, replayfile.MaxFileSize)
 	if err != nil {
 		t.Fatalf("decompress the saved replay: %v", err)
@@ -315,6 +337,7 @@ func processCPU(tb testing.TB) time.Duration {
 	if err != nil {
 		tb.Fatalf("getrusage: %v", err)
 	}
+
 	return time.Duration(usage.Utime.Nano() + usage.Stime.Nano())
 }
 
@@ -333,6 +356,7 @@ func BenchmarkSocket_FullGame(b *testing.B) {
 			b.Fatalf("play game %d: %v", games, err)
 		}
 	}
+
 	b.ReportMetric(float64(schedule.script.steps), "steps/op")
 	b.ReportMetric(float64(schedule.messages()), "messages/op")
 	b.ReportMetric(float64(cpu.Nanoseconds())/float64(games), "cpu-ns/op")

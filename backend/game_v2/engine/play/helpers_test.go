@@ -12,6 +12,7 @@ func id(t *testing.T, n int) tile.TileID {
 	if !ok {
 		t.Fatalf("NewTileID(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -21,6 +22,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -38,6 +40,7 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 		ids = append(ids, id(t, int(kind)*tile.CopiesPerKind+first+seen[kind]))
 		seen[kind]++
 	}
+
 	return ids
 }
 
@@ -47,5 +50,6 @@ func copyOf(t *testing.T, first int, mpsz string) tile.TileID {
 	if len(ids) != 1 {
 		t.Fatalf("%q holds %d tiles, want 1", mpsz, len(ids))
 	}
+
 	return ids[0]
 }

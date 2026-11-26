@@ -14,6 +14,7 @@ func hexBytes(t *testing.T, text string) []byte {
 	if err != nil {
 		t.Fatalf("hex %q: %v", text, err)
 	}
+
 	return content
 }
 
@@ -42,10 +43,12 @@ func TestAppendValue_ShouldEncodeEachIntegerInTheFewestBytes(t *testing.T) {
 		{math.MinInt32 - 1, "d3ffffffff7fffffff"},
 	}
 	for _, tc := range tests {
-		got := appendValue(nil, Int(tc.n))
-		if want := hexBytes(t, tc.want); !bytes.Equal(got, want) {
-			t.Errorf("appendValue(Int(%d)) = %x, want %x", tc.n, got, want)
-		}
+		t.Run(tc.want, func(t *testing.T) {
+			got := appendValue(nil, Int(tc.n))
+			if want := hexBytes(t, tc.want); !bytes.Equal(got, want) {
+				t.Errorf("appendValue(Int(%d)) = %x, want %x", tc.n, got, want)
+			}
+		})
 	}
 }
 
@@ -85,9 +88,13 @@ func TestAppendValue_ShouldEncodeEachLengthInTheFewestBytes(t *testing.T) {
 		{"string map", StrMap{{Key: "0", Value: Int(250)}}, "81a130ccfa"},
 	}
 	for _, tc := range tests {
-		got := appendValue(nil, tc.value)
-		if want := hexBytes(t, tc.want); !bytes.HasPrefix(got, want) {
-			t.Errorf("appendValue(%s) = %x..., want a prefix of %x", tc.name, got[:min(len(got), 8)], want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) {
+				got := appendValue(nil, tc.value)
+				if want := hexBytes(t, tc.want); !bytes.HasPrefix(got, want) {
+					t.Errorf("appendValue(%s) = %x..., want a prefix of %x", tc.name, got[:min(len(got), 8)], want)
+				}
+			})
+		})
 	}
 }

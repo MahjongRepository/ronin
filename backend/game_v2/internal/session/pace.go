@@ -11,6 +11,7 @@ func (g *game) pauseTimeout() time.Duration {
 	if g.pause.startsGame {
 		return g.timing.GameStartConfirm
 	}
+
 	return g.timing.RoundAdvance * time.Duration(g.pause.resultsShown)
 }
 
@@ -41,6 +42,7 @@ func (g *game) decisionTimerFired(p *participant) func(token uint64) {
 	if g.wait.kind == waitTurn {
 		kind = timeoutTurn
 	}
+
 	return g.timerFired(p, kind)
 }
 
@@ -61,6 +63,7 @@ func timeoutFailure(kind timeoutKind) string {
 		return "meld timeout failed"
 	case timeoutPause:
 	}
+
 	return "round_advance timeout failed"
 }
 
@@ -68,11 +71,13 @@ func (g *game) timedOut(p *participant, kind timeoutKind, token uint64) error {
 	if !p.timer.running.claim(token) {
 		return nil
 	}
+
 	if kind == timeoutPause {
 		err := g.confirmPause(p.seat)
 		if err != nil {
 			return err
 		}
+
 		g.m.stats.roundAdvanceTimeouts.Add(1)
 		return nil
 	}
@@ -81,30 +86,36 @@ func (g *game) timedOut(p *participant, kind timeoutKind, token uint64) error {
 	if !ok {
 		return errNoDefault
 	}
+
 	action := disguisedDefault(decision, g.m.cfg.Pick)
 	message, counter := logTurnTimeout, &g.m.stats.turnTimeouts
 	if kind == timeoutMeld {
 		message, counter = logMeldTimeout, &g.m.stats.meldTimeouts
 	}
+
 	p.log.Info(message, "action", actionName(action))
 	events, err := g.requireAct(p.seat, action)
 	if err != nil {
 		return err
 	}
+
 	counter.Add(1)
 	expired := p.decisionID
 	err = g.followEngine(events, play.Some(p.seat))
 	if err != nil || kind != timeoutMeld {
 		return err
 	}
+
 	_, open := g.engine.Awaiting().(play.AwaitingCall)
-	return closeCallOf(p, expired, open || g.hold.held())
+	promptStaysUp := open || g.hold.held()
+	return closeCallOf(p, expired, promptStaysUp)
 }
 
 func (g *game) confirmPause(seat tile.Seat) error {
 	if g.pause == nil || !g.pause.owes(seat) {
 		return nil
 	}
+
 	g.stopTimerAt(seat)
 	g.pause.owing[seat.Index()] = false
 	if g.pause.anyOwing() {
@@ -116,18 +127,22 @@ func (g *game) confirmPause(seat tile.Seat) error {
 	if ended.startsGame {
 		return g.begin(play.Some(seat))
 	}
+
 	next, events, refusal := g.engine.DealNextRound()
 	if refusal.OK {
 		return errRefusedDeal
 	}
+
 	if _, dealt := next.Awaiting().(play.AwaitingDealt); dealt {
 		var drew []play.Emitted
 		next, drew, refusal = next.Begin()
 		if refusal.OK {
 			return errRefusedBegin
 		}
+
 		events = append(events, drew...)
 	}
+
 	g.engine = next
 	return g.followEngine(events, play.Some(seat))
 }

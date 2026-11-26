@@ -71,6 +71,7 @@ func (r *Round) settleDiscard(seat tile.Seat, id tile.TileID, tsumogiri bool, po
 	if result != nil {
 		return ended(events, result)
 	}
+
 	return r.drawTurn(seat.Next(), events)
 }
 
@@ -79,7 +80,8 @@ func (r *Round) drawTurn(seat tile.Seat, events []play.Emitted) Transition {
 	if !ok {
 		return ended(events, r.exhaustiveDraw())
 	}
-	return playing(appendDrawEvents(events, seat, id, false))
+
+	return playing(appendDrawEvents(events, seat, id, liveDraw))
 }
 
 func (r *Round) draw(seat tile.Seat) (tile.TileID, bool) {
@@ -103,16 +105,20 @@ func (r *Round) TurnActions(seat tile.Seat, score int) []play.Action {
 	for _, id := range offer.TurnDiscards(r.hand(seat), r.drawn, r.InRiichi(seat), r.kuikae) {
 		actions = append(actions, play.DiscardAction(id))
 	}
+
 	for _, id := range r.riichiDiscards(seat, score) {
 		actions = append(actions, play.RiichiAction(id))
 	}
+
 	if _, _, ok := r.tsumoWin(seat); ok {
 		actions = append(actions, play.TsumoAction())
 	}
+
 	actions = append(actions, r.kanOffers(seat)...)
 	if r.mayKyuushu(seat) {
 		actions = append(actions, play.KyuushuAction())
 	}
+
 	return actions
 }
 
@@ -148,10 +154,12 @@ func (r *Round) moveToRiver(seat tile.Seat, position int, id tile.TileID) bool {
 	i := seat.Index()
 	r.kuikae = nil
 	r.hands[i].removeAt(position)
+
 	tsumogiri := r.drawn.OK && r.drawn.Value == id
 	r.drawn = play.Option[tile.TileID]{}
 	r.rivers[i] = appendTo(r.rivers[i], play.RiverTile{Tile: id, Tsumogiri: tsumogiri})
 	r.latestDiscard = play.Some(seat)
+
 	r.rinshan = false
 	r.furiten[i].Temporary = false
 	r.riichi[i].Value.Ippatsu = false
@@ -200,6 +208,7 @@ func (r *Round) isFourRiichi() bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -208,6 +217,7 @@ func (r *Round) isFourWinds() bool {
 	for _, river := range r.rivers {
 		total += len(river)
 	}
+
 	if total != rules.FourWindsDiscardCount || r.hasAnyCall() {
 		return false
 	}
@@ -218,5 +228,6 @@ func (r *Round) isFourWinds() bool {
 			discards = append(discards, discard.Tile)
 		}
 	}
+
 	return offer.IsFourWinds(discards)
 }

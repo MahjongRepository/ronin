@@ -26,10 +26,12 @@ func TestSessionMessages_ShouldEncodeToTheGoldenBytes(t *testing.T) {
 		},
 		{"pong", messaging.Pong(), "816ca4706f6e67"},
 	} {
-		got, err := wire.Encode(c.message)
-		if err != nil || hex.EncodeToString(got) != c.hex {
-			t.Errorf("%s: Encode = %x, %v; want %s", c.name, got, err, c.hex)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got, err := wire.Encode(c.message)
+			if err != nil || hex.EncodeToString(got) != c.hex {
+				t.Errorf("%s: Encode = %x, %v; want %s", c.name, got, err, c.hex)
+			}
+		})
 	}
 }
 
@@ -58,7 +60,9 @@ func TestSessionMessages_ShouldNameOnlyWhatTheyCarry(t *testing.T) {
 			{Key: wire.KeySeat, Value: wire.Int(2)},
 		}},
 	} {
-		assertMap(t, c.name, c.got, c.want)
+		t.Run(c.name, func(t *testing.T) {
+			assertMap(t, c.name, c.got, c.want)
+		})
 	}
 }
 

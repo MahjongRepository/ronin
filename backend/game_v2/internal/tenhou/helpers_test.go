@@ -32,6 +32,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -41,6 +42,7 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 	if err != nil {
 		t.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	var seen [tile.KindCount]int
 	ids := make([]tile.TileID, 0, len(parsed))
 	for _, p := range parsed {
@@ -49,9 +51,11 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 		if !ok {
 			t.Fatalf("no copy %d of %v", first+seen[kind], kind)
 		}
+
 		ids = append(ids, id)
 		seen[kind]++
 	}
+
 	return ids
 }
 
@@ -61,6 +65,7 @@ func copyOf(t *testing.T, first int, mpsz string) tile.TileID {
 	if len(ids) != 1 {
 		t.Fatalf("%q holds %d tiles, want 1", mpsz, len(ids))
 	}
+
 	return ids[0]
 }
 
@@ -78,6 +83,7 @@ func dealSlot(seatIndex, i int) int {
 	if block := i / dealBlockSize; block < dealBlocks {
 		return block*dealRoundSize + seatIndex*dealBlockSize + i%dealBlockSize
 	}
+
 	return finalDealStart + seatIndex
 }
 
@@ -90,20 +96,25 @@ func (w stagedWall) tiles(t *testing.T) [tile.TileIDCount]tile.TileID {
 		if slices.Contains(placed, at) {
 			t.Fatalf("staged wall places tile %d twice", at.Index())
 		}
+
 		slots[slot], filled[slot] = at, true
 		placed = append(placed, at)
 	}
+
 	for s, hand := range w.hands {
 		if len(hand) != handSize {
 			t.Fatalf("staged wall deals seat %d %d tiles", s, len(hand))
 		}
+
 		for i, held := range hand {
 			place(dealSlot(s, i), held)
 		}
 	}
+
 	for i, drawn := range w.draws {
 		place(firstDrawSlot+i, drawn)
 	}
+
 	for i, drawn := range w.rinshan {
 		place(rinshanSlots[i], drawn)
 	}
@@ -114,11 +125,13 @@ func (w stagedWall) tiles(t *testing.T) [tile.TileIDCount]tile.TileID {
 			free = append(free, unplaced)
 		}
 	}
+
 	for slot := range slots {
 		if !filled[slot] {
 			slots[slot], free = free[0], free[1:]
 		}
 	}
+
 	return slots
 }
 
@@ -138,6 +151,7 @@ func playedReplay(t *testing.T, setup engine.Setup, actions []replay.SeatAction)
 	if err != nil {
 		t.Fatalf("replay.Run error = %v", err)
 	}
+
 	return recordedReplay(t, engine.Seed{}, steps)
 }
 
@@ -148,6 +162,7 @@ func recordedReplay(t *testing.T, seed engine.Seed, steps []replay.Step) []byte 
 		table := func() messaging.Table {
 			return messaging.Table{Roster: testRoster, Record: step.Game.View(tile.Seats()[0]).Record}
 		}
+
 		if err := log.Collect(step.Events, table); err != nil {
 			t.Fatalf("Collect error = %v", err)
 		}
@@ -157,6 +172,7 @@ func recordedReplay(t *testing.T, seed engine.Seed, steps []replay.Step) []byte 
 	if err != nil {
 		t.Fatalf("EncodeReplayRecords error = %v", err)
 	}
+
 	return content
 }
 
@@ -166,9 +182,21 @@ func converted(t *testing.T, content []byte) string {
 	if err != nil {
 		t.Fatalf("Convert error = %v", err)
 	}
+
 	return xml
 }
 
-func tags(xml, pattern string) []string {
-	return regexp.MustCompile(pattern).FindAllString(xml, -1)
+var (
+	unTags           = regexp.MustCompile(`<UN n0="\w+" n1="\w+" n2="\w+" n3="\w+"`)
+	gameStartTags    = regexp.MustCompile(`<TAIKYOKU oya="\d"/><INIT [^>]*/><T\d+/>`)
+	ryuukyokuTags    = regexp.MustCompile(`<RYUUKYOKU [^>]*/>`)
+	reachDepositTags = regexp.MustCompile(`<REACH [^>]*step="2"/>`)
+	agariTags        = regexp.MustCompile(`<AGARI [^>]*/>`)
+	callTags         = regexp.MustCompile(`<N [^>]*/>`)
+	agariMachiTags   = regexp.MustCompile(`<AGARI [^>]* machi="\d+"`)
+	initRounds       = regexp.MustCompile(`<INIT seed="(\d+),(\d+),[^>]* oya="(\d)"`)
+)
+
+func tags(xml string, pattern *regexp.Regexp) []string {
+	return pattern.FindAllString(xml, -1)
 }

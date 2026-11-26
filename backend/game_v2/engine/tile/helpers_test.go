@@ -12,6 +12,7 @@ func mustTile(t *testing.T, mpsz string) tile.Tile {
 	if err != nil {
 		t.Fatalf("ParseTile(%q) error = %v", mpsz, err)
 	}
+
 	return parsed
 }
 
@@ -21,6 +22,7 @@ func mustTiles(t *testing.T, mpsz string) []tile.Tile {
 	if err != nil {
 		t.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	return parsed
 }
 
@@ -32,8 +34,10 @@ func plainTiles(t *testing.T, kinds ...tile.Kind) []tile.Tile {
 		if !ok {
 			t.Fatalf("NewTile(%d) refused", kind)
 		}
+
 		tiles = append(tiles, plain)
 	}
+
 	return tiles
 }
 
@@ -43,6 +47,7 @@ func redFive(t *testing.T, kind tile.Kind) tile.Tile {
 	if !ok {
 		t.Fatalf("RedFive(%d) refused", kind)
 	}
+
 	return red
 }
 
@@ -52,6 +57,7 @@ func mustID(t *testing.T, n int) tile.TileID {
 	if !ok {
 		t.Fatalf("NewTileID(%d) refused", n)
 	}
+
 	return id
 }
 
@@ -61,6 +67,7 @@ func mustIDs(t *testing.T, ns ...int) []tile.TileID {
 	for _, n := range ns {
 		ids = append(ids, mustID(t, n))
 	}
+
 	return ids
 }
 

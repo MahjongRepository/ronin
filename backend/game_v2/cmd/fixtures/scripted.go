@@ -52,6 +52,7 @@ func newScriptedGame(
 		g.fail(fmt.Errorf("start the game: %w", err))
 		return g
 	}
+
 	g.game = started
 
 	g.collect(events)
@@ -59,6 +60,7 @@ func newScriptedGame(
 		g.ai[seat.Index()] = true
 		g.log.AddSeatControl(seat, play.Some(wire.SeatControlAbsent))
 	}
+
 	g.endCall()
 	g.begin()
 	g.playAIPlayers()
@@ -70,14 +72,17 @@ func (g *scriptedGame) begin() {
 	if g.err != nil {
 		return
 	}
+
 	if _, dealt := g.game.Awaiting().(play.AwaitingDealt); !dealt {
 		return
 	}
+
 	next, events, refusal := g.game.Begin()
 	if refusal.OK {
 		g.fail(fmt.Errorf("the dealer's first draw refused: %s: %s", refusal.Value.Kind, refusal.Value.Code))
 		return
 	}
+
 	g.game = next
 	g.collect(events)
 }
@@ -93,6 +98,7 @@ func (g *scriptedGame) seat(n int) (tile.Seat, bool) {
 	if !ok {
 		g.fail(fmt.Errorf("no seat %d", n))
 	}
+
 	return seat, ok
 }
 
@@ -100,6 +106,7 @@ func (g *scriptedGame) collect(events []play.Emitted) {
 	if g.err != nil {
 		return
 	}
+
 	table := func() messaging.Table {
 		return messaging.Table{Roster: g.roster, Record: g.game.View(tile.Seats()[0]).Record}
 	}
@@ -126,15 +133,18 @@ func (g *scriptedGame) checkDraw(drew play.Drew) {
 	if g.game.View(drew.Seat).Record.Header.RoundNumber != g.firstDeal {
 		return
 	}
+
 	index := slices.IndexFunc(g.staged, func(d stagedDraw) bool { return d.id == drew.Tile })
 	if index < 0 {
 		return
 	}
+
 	if index != g.nextDraw || drew.Seat != g.staged[index].seat {
 		g.fail(fmt.Errorf("seat %d drew staged draw %d (staged for seat %d) as draw %d",
 			drew.Seat.Index(), index, g.staged[index].seat.Index(), g.nextDraw))
 		return
 	}
+
 	g.nextDraw++
 }
 
@@ -152,12 +162,14 @@ func (g *scriptedGame) apply(seat tile.Seat, action play.Action) {
 	if g.err != nil {
 		return
 	}
+
 	next, events, refusal := g.game.Act(seat, action)
 	if refusal.OK {
 		g.fail(fmt.Errorf("seat %d %+v refused: %s: %s",
 			seat.Index(), action, refusal.Value.Kind, refusal.Value.Code))
 		return
 	}
+
 	g.game = next
 	delete(g.draws, seat)
 	g.collect(events)
@@ -169,12 +181,14 @@ func (g *scriptedGame) playAIPlayers() {
 		if at < 0 {
 			return
 		}
+
 		seat := awaitedSeats(g.game.Awaiting())[at]
 		decision, ok := g.game.Decision(seat)
 		if !ok {
 			g.fail(fmt.Errorf("AI player's seat %d awaited with no decision", seat.Index()))
 			return
 		}
+
 		g.apply(seat, decision.Default)
 	}
 }
@@ -187,6 +201,7 @@ func awaitedSeats(awaiting play.Awaiting) []tile.Seat {
 		return a.Seats
 	case play.AwaitingDealt, play.AwaitingRoundOver, play.AwaitingGameOver:
 	}
+
 	return nil
 }
 
@@ -198,11 +213,13 @@ func (g *scriptedGame) advanceRound() {
 	if g.err != nil {
 		return
 	}
+
 	next, events, refusal := g.game.DealNextRound()
 	if refusal.OK {
 		g.fail(fmt.Errorf("the next round's deal refused: %s: %s", refusal.Value.Kind, refusal.Value.Code))
 		return
 	}
+
 	g.game = next
 	g.collect(events)
 	g.begin()
@@ -225,6 +242,7 @@ func openStagedGame(id string, staged stagedWall, seats seating, start play.Opti
 	if start.OK {
 		dealer = start.Value.Dealer
 	}
+
 	if staged.dealer != dealer {
 		failed := &scriptedGame{id: id}
 		failed.fail(fmt.Errorf("a staged game's first round is dealt from seat %d, not %d",
@@ -236,15 +254,17 @@ func openStagedGame(id string, staged stagedWall, seats seating, start play.Opti
 	setup, setupErr := stagedSetup(seed, []stagedWall{staged}, start, dealers)
 	roster, playerSeats := session.SeatPlayers(id, seats.players, seed, session.SeatingShuffled)
 	var absent []tile.Seat
-	var absentErr error
 	for _, seat := range playerSeats {
 		if slices.Contains(seats.absent, seat.Index()) {
 			absent = append(absent, seat)
 		}
 	}
+
+	var absentErr error
 	if len(absent) != len(seats.absent) || len(absent) == len(playerSeats) {
 		absentErr = fmt.Errorf("absent seats %v are not some of the players' %v", seats.absent, playerSeats)
 	}
+
 	if err := errors.Join(setupErr, absentErr); err != nil {
 		failed := &scriptedGame{id: id}
 		failed.fail(err)
@@ -281,12 +301,14 @@ func (g *stagedGame) pon(seat int) {
 	if !ok {
 		return
 	}
+
 	g.passCalls(s)
 	pons := slices.DeleteFunc(g.game.LegalActions(s), func(a play.Action) bool { return a.Kind() != play.ActionPon })
 	if len(pons) != 1 {
 		g.fail(fmt.Errorf("seat %d is offered %d pons, not one", seat, len(pons)))
 		return
 	}
+
 	g.step(s, pons[0])
 }
 
@@ -309,8 +331,10 @@ func (g *stagedGame) ron(seats ...int) {
 		if !ok {
 			return
 		}
+
 		declaring = append(declaring, s)
 	}
+
 	g.passCalls(declaring...)
 	for _, s := range declaring {
 		g.step(s, play.RonAction())
@@ -322,10 +346,12 @@ func (g *stagedGame) leave(seat int) {
 	if !ok || g.err != nil {
 		return
 	}
+
 	if g.ai[s.Index()] {
 		g.fail(fmt.Errorf("seat %d was replaced with an AI player twice", seat))
 		return
 	}
+
 	g.ai[s.Index()] = true
 	g.log.AddSeatControl(s, play.Some(wire.SeatControlLeft))
 	g.playAIPlayers()
@@ -337,10 +363,12 @@ func (g *stagedGame) restoreHuman(seat int) {
 	if !ok || g.err != nil {
 		return
 	}
+
 	if !g.ai[s.Index()] {
 		g.fail(fmt.Errorf("seat %d was restored without an AI player in it", seat))
 		return
 	}
+
 	g.ai[s.Index()] = false
 	g.log.AddSeatControl(s, play.Option[wire.SeatControlReason]{})
 	g.endCall()
@@ -373,6 +401,7 @@ func (g *stagedGame) tsumogiriTo(seat play.Option[tile.Seat]) {
 			g.fail(fmt.Errorf("seat %d was offered tsumo while discarding draws", turn.Seat.Index()))
 			return
 		}
+
 		g.tsumogiri(turn.Seat.Index())
 	}
 }
@@ -386,11 +415,13 @@ func (g *stagedGame) act(seat int, action play.Action) {
 	if !ok {
 		return
 	}
+
 	if action.AnswersCall() && action.Kind() != play.ActionPass {
 		g.passCalls(s)
 	} else {
 		g.passCalls()
 	}
+
 	g.step(s, action)
 }
 
@@ -400,17 +431,20 @@ func (g *stagedGame) passCalls(exclude ...tile.Seat) {
 		if !open {
 			return
 		}
+
 		answering := slices.DeleteFunc(slices.Clone(call.Seats), func(s tile.Seat) bool {
 			return slices.Contains(exclude, s)
 		})
 		if len(answering) == 0 {
 			return
 		}
+
 		seat := lowestSeat(answering)
 		if slices.Contains(g.game.LegalActions(seat), play.RonAction()) {
 			g.fail(fmt.Errorf("seat %d was offered ron; pass it or call it", seat.Index()))
 			return
 		}
+
 		g.step(seat, play.PassAction())
 	}
 }
@@ -420,10 +454,12 @@ func (g *stagedGame) drawn(seat int) (tile.TileID, bool) {
 	if !ok {
 		return tile.TileID{}, false
 	}
+
 	drawn, ok := g.draws[s]
 	if !ok {
 		g.fail(fmt.Errorf("seat %d has no drawn tile", seat))
 	}
+
 	return drawn, ok
 }
 
@@ -431,6 +467,7 @@ func (g *stagedGame) replay(want outcome) (recording, error) {
 	if g.err == nil && g.nextDraw != len(g.staged) {
 		g.fail(fmt.Errorf("draw %d and later were staged but not drawn", g.nextDraw))
 	}
+
 	if g.err != nil {
 		return recording{}, g.err
 	}
@@ -440,13 +477,16 @@ func (g *stagedGame) replay(want outcome) (recording, error) {
 	if err != nil {
 		return recording{}, err
 	}
+
 	g.passCalls()
 	if _, over := g.game.Awaiting().(play.AwaitingRoundOver); over {
 		g.confirmRound()
 	}
+
 	if g.err != nil {
 		return recording{}, g.err
 	}
+
 	return played, requireReproduces(g.id, played, g.game)
 }
 
@@ -470,9 +510,11 @@ func playPolicyGame(
 				g.fail(err)
 				break
 			}
+
 			g.step(seat, action)
 		}
 	}
+
 	return recording{}, g.err
 }
 
@@ -483,6 +525,7 @@ func defaultPolicy(game engine.Game, seat tile.Seat, _ tile.TileID) (play.Action
 	if !ok {
 		return play.Action{}, fmt.Errorf("seat %d awaited with no default action", seat.Index())
 	}
+
 	return action, nil
 }
 
@@ -496,6 +539,7 @@ func eagerPolicy(game engine.Game, seat tile.Seat, drawn tile.TileID) (play.Acti
 	case slices.Contains(legal, play.TsumoAction()):
 		return play.TsumoAction(), nil
 	}
+
 	discard, err := closestToReadyDiscard(game.View(seat).Record.Hand, drawn)
 	return play.DiscardAction(discard), err
 }
@@ -513,15 +557,19 @@ func closestToReadyDiscard(hand []tile.TileID, drawn tile.TileID) (tile.TileID, 
 		if err != nil {
 			return tile.TileID{}, err
 		}
+
 		shanten, err := engine.Shanten(rest)
 		if err != nil {
 			return tile.TileID{}, err
 		}
+
 		ranks = append(ranks, discardRank{shanten: shanten, drawn: id == drawn, id: id})
 	}
+
 	if len(ranks) == 0 {
 		return tile.TileID{}, errors.New("an empty hand has no discard")
 	}
+
 	return slices.MinFunc(ranks, compareDiscardRanks).id, nil
 }
 
@@ -533,5 +581,6 @@ func drawnRank(r discardRank) int {
 	if r.drawn {
 		return 1
 	}
+
 	return 0
 }

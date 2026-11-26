@@ -10,12 +10,13 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-func CheckedRiichiDiscards(
+func checkedRiichiDiscards(
 	hand []tile.TileID, melds []play.MeldView, inRiichi bool, score, liveTiles int,
 ) ([]tile.TileID, error) {
 	if err := meld.CheckHandInput(hand, melds); err != nil {
 		return nil, err
 	}
+
 	return RiichiDiscards(hand, melds, inRiichi, score, liveTiles), nil
 }
 
@@ -32,5 +33,6 @@ func RiichiDiscards(held []tile.TileID, melds []play.MeldView, inRiichi bool, sc
 			discards = append(discards, id)
 		}
 	}
+
 	return discards
 }

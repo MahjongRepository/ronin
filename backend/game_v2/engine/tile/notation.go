@@ -18,21 +18,27 @@ func ParseTiles(mpsz string) ([]Tile, error) {
 			if !isRank(character) {
 				return nil, InvalidCharacterError{Character: character}
 			}
+
 			ranks = append(ranks, character)
 			continue
 		}
+
 		for _, rank := range ranks {
 			parsed, err := parseTile(rank, suitStart)
 			if err != nil {
 				return nil, err
 			}
+
 			tiles = append(tiles, parsed)
 		}
+
 		ranks = ranks[:0]
 	}
+
 	if len(ranks) > 0 {
 		return nil, MissingSuitError{}
 	}
+
 	return tiles, nil
 }
 
@@ -43,9 +49,11 @@ func ParseTile(mpsz string) (Tile, error) {
 	if err != nil {
 		return Tile{}, err
 	}
+
 	if len(tiles) != 1 {
 		return Tile{}, NotOneTileError{Count: len(tiles)}
 	}
+
 	return tiles[0], nil
 }
 
@@ -60,6 +68,7 @@ func suitStartOf(character rune) (Kind, bool) {
 	case 'z', 'h':
 		return HonorStart, true
 	}
+
 	return 0, false
 }
 
@@ -72,13 +81,16 @@ func parseTile(rank rune, suitStart Kind) (Tile, error) {
 	if (rank == '0' || rank == 'r') && !isHonor {
 		return redFiveOfSuit(int(suitStart / 9)), nil
 	}
+
 	if rank < '1' || rank > '9' {
 		return Tile{}, InvalidCharacterError{Character: rank}
 	}
+
 	kind := suitStart + Kind(rank-'1')
 	if kind >= KindCount {
 		return Tile{}, TileOutOfRangeError{Character: rank}
 	}
+
 	return Tile{code: uint8(kind)}, nil
 }
 
@@ -95,12 +107,15 @@ func TilesString(tiles []Tile) string {
 		if openSuit != 0 && openSuit != suit {
 			text.WriteByte(openSuit)
 		}
+
 		text.WriteByte(rank)
 		openSuit = suit
 	}
+
 	if openSuit != 0 {
 		text.WriteByte(openSuit)
 	}
+
 	return text.String()
 }
 

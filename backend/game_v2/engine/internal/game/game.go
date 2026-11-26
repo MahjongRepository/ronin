@@ -28,6 +28,7 @@ func (w *walls) wallFor(p position) (wall.Wall, bool) {
 	if w.seed.OK {
 		return wall.FromSeed(w.seed.Value, p.roundNumber, p.dealer), true
 	}
+
 	if len(w.fixed) == 0 {
 		return wall.Wall{}, false
 	}
@@ -64,6 +65,7 @@ func New(source play.WallSource, start play.Option[play.StartPosition]) (Game, [
 	case play.Fixed:
 		fixedWalls = s.Walls
 	}
+
 	if start.OK {
 		if err := checkStart(start.Value); err != nil {
 			return Game{}, nil, err
@@ -75,6 +77,7 @@ func New(source play.WallSource, start play.Option[play.StartPosition]) (Game, [
 		if err != nil {
 			return Game{}, nil, InvalidWallError{Err: err}
 		}
+
 		g.walls.fixed = append(g.walls.fixed, w)
 	}
 
@@ -84,6 +87,7 @@ func New(source play.WallSource, start play.Option[play.StartPosition]) (Game, [
 			rules.StartingScore, rules.StartingScore, rules.StartingScore, rules.StartingScore,
 		}, Dealer: g.firstDealer}
 	}
+
 	p := position{
 		roundNumber:   at.RoundNumber,
 		dealer:        at.Dealer,
@@ -112,10 +116,12 @@ func checkStart(start play.StartPosition) error {
 		if score%scoreStep != 0 {
 			return StartScoreOffHundredsError{Seat: seat}
 		}
+
 		if rules.Tobi && score < rules.TobiThreshold {
 			return StartScoreBelowTobiError{Seat: seat}
 		}
 	}
+
 	if start.Honba < 0 || start.RiichiSticks < 0 {
 		return NegativeStartCountError{}
 	}
@@ -124,9 +130,11 @@ func checkStart(start play.StartPosition) error {
 	for _, score := range start.Scores {
 		found = saturatingAdd(found, score)
 	}
+
 	if found != tablePoints {
 		return StartPointsOffTotalError{Found: found, Expected: tablePoints}
 	}
+
 	return nil
 }
 
@@ -134,6 +142,7 @@ func saturatingAdd(a, b int) int {
 	if b > math.MaxInt-a {
 		return math.MaxInt
 	}
+
 	return a + b
 }
 
@@ -141,6 +150,7 @@ func saturatingMul(a, b int) int {
 	if a > math.MaxInt/b {
 		return math.MaxInt
 	}
+
 	return a * b
 }
 
@@ -178,6 +188,7 @@ func (g *Game) roundStartedEvents() []play.Emitted {
 			LiveTiles:      w.LiveCount(),
 		}))
 	}
+
 	return events
 }
 
@@ -219,6 +230,7 @@ func (g Game) Awaiting() play.Awaiting {
 		return play.AwaitingGameOver{}
 	case play.PhasePlaying:
 	}
+
 	if g.drawPending {
 		return play.AwaitingDealt{}
 	}
@@ -226,6 +238,7 @@ func (g Game) Awaiting() play.Awaiting {
 	if prompt := g.round.Prompt(); prompt.OK {
 		return play.AwaitingCall{Seats: prompt.Value.Pending()}
 	}
+
 	return play.AwaitingTurn{Seat: g.round.Current()}
 }
 
@@ -249,9 +262,11 @@ func (g Game) LegalActions(seat tile.Seat) []play.Action {
 	if g.isCallFor(seat) {
 		return g.round.Prompt().Value.Offers(seat)
 	}
+
 	if !g.isTurnOf(seat) {
 		return nil
 	}
+
 	return g.round.TurnActions(seat, g.points.Score(seat))
 }
 
@@ -259,6 +274,7 @@ func (g Game) DefaultAction(seat tile.Seat) (play.Action, bool) {
 	if g.isCallFor(seat) {
 		return play.PassAction(), true
 	}
+
 	return g.turnDefault(g.LegalActions(seat))
 }
 
@@ -266,11 +282,13 @@ func (g Game) turnDefault(legal []play.Action) (play.Action, bool) {
 	if drawn := g.round.Drawn(); drawn.OK && slices.Contains(legal, play.DiscardAction(drawn.Value)) {
 		return play.DiscardAction(drawn.Value), true
 	}
+
 	for _, action := range slices.Backward(legal) {
 		if action.Kind() == play.ActionDiscard {
 			return action, true
 		}
 	}
+
 	return play.Action{}, false
 }
 
@@ -281,9 +299,11 @@ func (g Game) Decision(seat tile.Seat) (play.Decision, bool) {
 	if !g.isCallFor(seat) {
 		fallback, ok = g.turnDefault(legal)
 	}
+
 	if !ok {
 		return play.Decision{}, false
 	}
+
 	return play.Decision{Seat: seat, Context: g.decisionContext(), Legal: legal, Default: fallback}, true
 }
 
@@ -297,6 +317,7 @@ func (g Game) decisionContext() play.DecisionContext {
 			Houtei: offer.IsHoutei(g.round.LiveTiles(), p.Source()),
 		}
 	}
+
 	if drawn := g.round.Drawn(); drawn.OK {
 		return play.TurnAfterDraw{
 			Drawn:   drawn.Value,
@@ -304,6 +325,7 @@ func (g Game) decisionContext() play.DecisionContext {
 			Haitei:  offer.IsHaitei(g.round.LiveTiles(), g.round.Rinshan()),
 		}
 	}
+
 	return play.TurnAfterCall{Kuikae: g.round.Kuikae()}
 }
 
@@ -311,6 +333,7 @@ func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, pla
 	if g.phase != play.PhasePlaying || g.drawPending {
 		return g, nil, notAwaited(play.CodeWrongPhase)
 	}
+
 	if !action.AnswersCall() && !g.isTurnOf(seat) {
 		return g, nil, notAwaited(play.CodeSeatNotAwaited)
 	}
@@ -323,6 +346,7 @@ func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, pla
 	} else {
 		t, refusal = next.turnAction(seat, action)
 	}
+
 	if refusal.OK {
 		return g, nil, refusal
 	}
@@ -331,6 +355,7 @@ func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, pla
 		finished := next.finishRound(t.Ended)
 		return next, append(t.Events, finished...), play.Option[play.Refusal]{}
 	}
+
 	furiten := next.round.ReportFuriten()
 	return next, append(t.Events, furiten...), play.Option[play.Refusal]{}
 }
@@ -351,6 +376,7 @@ func (g *Game) turnAction(seat tile.Seat, action play.Action) (round.Transition,
 		return g.round.DeclareKan(seat, kan, id)
 	case play.ActionRon, play.ActionPass, play.ActionPon, play.ActionChi:
 	}
+
 	return round.Transition{}, play.Some(play.Refusal{Kind: play.RefusalNotOffered, Code: play.CodeNotOffered})
 }
 
@@ -369,14 +395,17 @@ func (g *Game) finishRound(result play.RoundResult) []play.Emitted {
 		uniqueDealers: g.uniqueDealers,
 		honba:         g.header.Honba,
 	}
+
 	next := ended.after(result)
 	cause, ends := gameEndCause(ended, next, result, g.points.Scores(), g.firstDealer)
+
 	var riichiSeats []tile.Seat
 	for _, seat := range tile.Seats() {
 		if g.round.InRiichi(seat) {
 			riichiSeats = append(riichiSeats, seat)
 		}
 	}
+
 	g.history = append(slices.Clip(g.history), play.FinishedRound{
 		Header:      g.header,
 		Result:      result,
@@ -393,6 +422,7 @@ func (g *Game) finishRound(result play.RoundResult) []play.Emitted {
 		g.phase = play.PhaseRoundOver
 		return events
 	}
+
 	return append(events, g.endGame(cause))
 }
 
@@ -411,6 +441,7 @@ func (g Game) SeatView(seat tile.Seat) play.SeatView {
 	if turn, afterDraw := decision.Context.(play.TurnAfterDraw); afterDraw {
 		drawn = play.Some(turn.Drawn)
 	}
+
 	var result play.RoundResult
 	latestDiscard := g.round.LatestDiscard()
 	if g.phase != play.PhasePlaying && len(g.history) > 0 {
@@ -430,6 +461,7 @@ func (g Game) SeatView(seat tile.Seat) play.SeatView {
 			Pao:         g.round.Pao(player),
 		}
 	}
+
 	seen := play.SeatRecord{
 		Seat:            seat,
 		Hand:            g.round.Hand(seat),
@@ -462,9 +494,11 @@ func (g Game) CheckInvariants() error {
 	if err := g.CheckOwnership(); err != nil {
 		return OwnershipError{Err: err}
 	}
+
 	if found := g.points.Total(); found != tablePoints {
 		return TablePointsError{Found: found, Expected: tablePoints}
 	}
+
 	if !g.standings.OK {
 		return nil
 	}
@@ -475,6 +509,7 @@ func (g Game) CheckInvariants() error {
 		scores += standings.Scores[seat]
 		points += standings.Points[seat]
 	}
+
 	placements := standings.Placements
 	slices.Sort(placements[:])
 	switch {

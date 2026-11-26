@@ -113,6 +113,7 @@ func BenchmarkIsAgari(b *testing.B) {
 		mustCounts(b, "1133557799m1122p"),
 		mustCounts(b, "19m19p19s11234567z"),
 	}
+
 	complete := 0
 	for b.Loop() {
 		for _, counts := range hands {
@@ -121,5 +122,6 @@ func BenchmarkIsAgari(b *testing.B) {
 			}
 		}
 	}
+
 	b.ReportMetric(float64(complete)/float64(b.N), "complete/op")
 }

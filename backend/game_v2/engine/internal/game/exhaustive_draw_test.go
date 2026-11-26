@@ -30,6 +30,7 @@ func TestExhaustiveDraw_WhenTheLastDiscardHasNoCallers_ShouldEndTheRound(t *test
 	if draw, ok := decision.Context.(play.TurnAfterDraw); !ok || !draw.Haitei {
 		t.Errorf("context = %+v, want the haitei draw", decision.Context)
 	}
+
 	header := g.Header()
 
 	g, events := script(t, g, act(seat(t, 1), decision.Default))
@@ -63,7 +64,6 @@ func TestAct_WhenTheRoundIsOver_ShouldRefuseEveryPlayCallAndChangeNothing(t *tes
 		return g
 	}
 	g := build()
-
 	assertRefused(t, build, seat(t, 2), play.DiscardAction(g.Hand(seat(t, 2))[0]),
 		refusal(play.RefusalNotAwaited, play.CodeWrongPhase))
 	for _, s := range tile.Seats() {

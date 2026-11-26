@@ -1,7 +1,6 @@
 package tenhou
 
 import (
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +18,7 @@ func defaultActionGame(t *testing.T, seed engine.Seed) []replay.Step {
 	if err != nil {
 		t.Fatalf("NewGame error = %v", err)
 	}
+
 	steps := []replay.Step{{Events: events, Game: g}}
 	for {
 		var refusal play.Option[play.Refusal]
@@ -34,9 +34,11 @@ func defaultActionGame(t *testing.T, seed engine.Seed) []replay.Step {
 		case play.AwaitingCall:
 			g, events, refusal = actDefault(t, g, awaiting.Seats[0])
 		}
+
 		if refusal.OK {
 			t.Fatalf("the engine refused: %+v", refusal.Value)
 		}
+
 		steps = append(steps, replay.Step{Events: events, Game: g})
 	}
 }
@@ -47,6 +49,7 @@ func actDefault(t *testing.T, g engine.Game, s tile.Seat) (engine.Game, []play.E
 	if !ok {
 		t.Fatalf("seat %d has no default action", s.Index())
 	}
+
 	return g.Act(s, action)
 }
 
@@ -58,25 +61,28 @@ func TestConvert_WhenTheFirstDealerIsNotSeat0_ShouldSeatThePlayersFromItAndCount
 	}
 
 	xml := converted(t, recordedReplay(t, seed, defaultActionGame(t, seed)))
-
-	if got := tags(xml, `<UN n0="\w+" n1="\w+" n2="\w+" n3="\w+"`); !slices.Equal(got, []string{`<UN n0="P1" n1="P2" n2="P3" n3="P0"`}) {
+	if got := tags(xml, unTags); !slices.Equal(got, []string{`<UN n0="P1" n1="P2" n2="P3" n3="P0"`}) {
 		t.Errorf("UN = %q, want the players from the first dealer", got)
 	}
+
 	var want [][]string
 	for round := range 12 {
 		counter := strconv.Itoa(round)
 		want = append(want, []string{counter, counter, strconv.Itoa(round % tile.SeatCount)})
 	}
+
 	var got [][]string
-	for _, init := range regexp.MustCompile(`<INIT seed="(\d+),(\d+),[^>]* oya="(\d)"`).FindAllStringSubmatch(xml, -1) {
+	for _, init := range initRounds.FindAllStringSubmatch(xml, -1) {
 		got = append(got, init[1:])
 	}
 	if !slices.EqualFunc(got, want, slices.Equal) {
 		t.Errorf("INIT round counters, honba and dealers = %q, want %q", got, want)
 	}
-	if got := tags(xml, `<TAIKYOKU oya="\d"/><INIT [^>]*/><T\d+/>`); len(got) != 1 || !strings.HasPrefix(got[0], `<TAIKYOKU oya="0"/>`) {
+
+	if got := tags(xml, gameStartTags); len(got) != 1 || !strings.HasPrefix(got[0], `<TAIKYOKU oya="0"/>`) {
 		t.Errorf("game start = %q, want seat 0 to deal and draw first", got)
 	}
+
 	owari := `<RYUUKYOKU ba="11,0" sc="250,0,250,0,250,0,250,0" owari="250,35.0,250,5.0,250,-15.0,250,-25.0" /></mjloggm>`
 	if !strings.HasSuffix(xml, owari) {
 		t.Errorf("log ends %q, want %q", xml[max(0, len(xml)-len(owari)):], owari)

@@ -23,24 +23,6 @@ type Yaku struct {
 	Han int
 }
 
-func yakuHan(id play.YakuID, open bool, rules Rules) (int, bool) {
-	if id == play.YakuTanyao && open && !rules.OpenTanyao {
-		return 0, false
-	}
-
-	hanOpen, hasOpen := id.HanOpen()
-	switch {
-	case open && !hasOpen:
-		return 0, false
-	case !rules.DoubleYakuman && id.IsDoubleYakuman():
-		return singleYakumanHan, true
-	case open:
-		return hanOpen, true
-	default:
-		return id.HanClosed(), true
-	}
-}
-
 type yakuInput struct {
 	counts    [tile.KindCount]uint8
 	kinds     uint64
@@ -53,11 +35,30 @@ type yakuInput struct {
 
 type yakuList []Yaku
 
+func (in yakuInput) han(id play.YakuID) (int, bool) {
+	if id == play.YakuTanyao && in.open && !in.rules.OpenTanyao {
+		return 0, false
+	}
+
+	hanOpen, hasOpen := id.HanOpen()
+	switch {
+	case in.open && !hasOpen:
+		return 0, false
+	case !in.rules.DoubleYakuman && id.IsDoubleYakuman():
+		return singleYakumanHan, true
+	case in.open:
+		return hanOpen, true
+	default:
+		return id.HanClosed(), true
+	}
+}
+
 func (in yakuInput) add(list yakuList, id play.YakuID) yakuList {
-	han, ok := yakuHan(id, in.open, in.rules)
+	han, ok := in.han(id)
 	if !ok {
 		return list
 	}
+
 	return append(list, Yaku{ID: id, Han: han})
 }
 
@@ -67,9 +68,11 @@ func (in yakuInput) evaluate(reading hand.Reading, winBlock hand.WinBlock) yakuL
 	if reading.Sequences != 0 {
 		list = in.addChiYaku(list, reading)
 	}
+
 	if reading.Triplets != 0 {
 		list = in.addPonYaku(list, reading, winBlock)
 	}
+
 	return list
 }
 
@@ -78,6 +81,7 @@ func (in yakuInput) evaluateKokushi() yakuList {
 	if in.winTileCount() == 2 {
 		kokushi = play.YakuDaburuKokushiMusou
 	}
+
 	list := in.add(nil, kokushi)
 	return in.addFirstTurnYaku(list)
 }
@@ -103,6 +107,7 @@ func (in yakuInput) suitCount() int {
 			suits++
 		}
 	}
+
 	return suits
 }
 
@@ -131,15 +136,19 @@ func (in yakuInput) addWinConditionYaku(list yakuList, reading hand.Reading, win
 	if situation.Win.IsTsumo() {
 		list = in.add(list, play.YakuTsumo)
 	}
+
 	if in.isPinfu(reading, winBlock) {
 		list = in.add(list, play.YakuPinfu)
 	}
+
 	if reading.SevenPairs {
 		list = in.add(list, play.YakuChiitoitsu)
 	}
+
 	if isTanyao(in.kinds) {
 		list = in.add(list, play.YakuTanyao)
 	}
+
 	if riichi := situation.Riichi; riichi.OK {
 		list = in.addRiichiYaku(list, riichi.Value)
 	}
@@ -155,6 +164,7 @@ func (in yakuInput) addWinConditionYaku(list yakuList, reading hand.Reading, win
 	case WinHoutei:
 		list = in.add(list, play.YakuHoutei)
 	}
+
 	return in.addFirstTurnYaku(list)
 }
 
@@ -164,9 +174,11 @@ func (in yakuInput) addRiichiYaku(list yakuList, riichi play.Riichi) yakuList {
 	} else {
 		list = in.add(list, play.YakuRiichi)
 	}
+
 	if riichi.Ippatsu {
 		list = in.add(list, play.YakuIppatsu)
 	}
+
 	return list
 }
 
@@ -189,15 +201,19 @@ func (in yakuInput) addSuitAndTerminalYaku(list yakuList) yakuList {
 	case in.isHonitsu():
 		list = in.add(list, play.YakuHonitsu)
 	}
+
 	if isTsuuiisou(in.kinds) {
 		list = in.add(list, play.YakuTsuuiisou)
 	}
+
 	if isHonroutou(in.kinds) {
 		list = in.add(list, play.YakuHonroutou)
 	}
+
 	if isChinroutou(in.kinds) {
 		list = in.add(list, play.YakuChinroutou)
 	}
+
 	if isRyuuiisou(in.kinds) {
 		list = in.add(list, play.YakuRyuuiisou)
 	}
@@ -205,9 +221,11 @@ func (in yakuInput) addSuitAndTerminalYaku(list yakuList) yakuList {
 	if in.hasMelds || !in.isChinitsu() || !hasChuurenPoutouRanks(in.counts) {
 		return list
 	}
+
 	if count := in.winTileCount(); count == 2 || count == 4 {
 		return in.add(list, play.YakuDaburuChuurenPoutou)
 	}
+
 	return in.add(list, play.YakuChuurenPoutou)
 }
 
@@ -218,6 +236,7 @@ func (in yakuInput) addChiYaku(list yakuList, reading hand.Reading) yakuList {
 	case isChantaShape(reading):
 		list = in.add(list, play.YakuJunchan)
 	}
+
 	if isIttsu(reading.Sequences) {
 		list = in.add(list, play.YakuIttsu)
 	}
@@ -233,6 +252,7 @@ func (in yakuInput) addChiYaku(list yakuList, reading hand.Reading) yakuList {
 	if isSanshoku(reading.Sequences) {
 		list = in.add(list, play.YakuSanshoku)
 	}
+
 	return list
 }
 
@@ -243,12 +263,15 @@ func (in yakuInput) addPonYaku(list yakuList, reading hand.Reading, winBlock han
 	if isToitoi(reading.Triplets) {
 		list = in.add(list, play.YakuToitoi)
 	}
+
 	if closedTriplets == sanankouTriplets {
 		list = in.add(list, play.YakuSanankou)
 	}
+
 	if isSanshokuDoukou(reading.Triplets) {
 		list = in.add(list, play.YakuSanshokuDoukou)
 	}
+
 	if in.hasHonors() {
 		list = in.addHonorYaku(list)
 	}
@@ -267,6 +290,7 @@ func (in yakuInput) addPonYaku(list yakuList, reading hand.Reading, winBlock han
 	case suukantsuKans:
 		list = in.add(list, play.YakuSuukantsu)
 	}
+
 	return list
 }
 
@@ -274,12 +298,15 @@ func (in yakuInput) addHonorYaku(list yakuList) yakuList {
 	if isShousangen(in.counts) {
 		list = in.add(list, play.YakuShousangen)
 	}
+
 	if hasHonorSet(in.counts, tile.KindHaku) {
 		list = in.add(list, play.YakuHaku)
 	}
+
 	if hasHonorSet(in.counts, tile.KindHatsu) {
 		list = in.add(list, play.YakuHatsu)
 	}
+
 	if hasHonorSet(in.counts, tile.KindChun) {
 		list = in.add(list, play.YakuChun)
 	}
@@ -289,6 +316,7 @@ func (in yakuInput) addHonorYaku(list yakuList) yakuList {
 			list = in.add(list, seat.yaku)
 		}
 	}
+
 	for _, round := range roundWindYaku {
 		if isRoundWind(in.counts, round.wind, in.situation.RoundWind) {
 			list = in.add(list, round.yaku)
@@ -298,11 +326,14 @@ func (in yakuInput) addHonorYaku(list yakuList) yakuList {
 	if isDaisangen(in.counts) {
 		list = in.add(list, play.YakuDaisangen)
 	}
+
 	if isShousuushii(in.counts) {
 		list = in.add(list, play.YakuShousuushii)
 	}
+
 	if isDaisuushii(in.counts) {
 		list = in.add(list, play.YakuDaisuushii)
 	}
+
 	return list
 }

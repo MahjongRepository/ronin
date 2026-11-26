@@ -10,13 +10,14 @@ import (
 
 func TestVisibility_WhenToAll_ShouldIncludeEverySeat(t *testing.T) {
 	everyone := play.ToAll()
-
 	if !everyone.All() {
 		t.Error("All = false")
 	}
+
 	if _, single := everyone.Seat(); single {
 		t.Error("Seat reports a single seat")
 	}
+
 	for _, s := range tile.Seats() {
 		if !everyone.Includes(s) {
 			t.Errorf("Includes(%d) = false", s.Index())
@@ -30,9 +31,11 @@ func TestVisibility_WhenZero_ShouldIncludeNoSeat(t *testing.T) {
 	if unset.All() {
 		t.Error("All = true")
 	}
+
 	if _, single := unset.Seat(); single {
 		t.Error("Seat reports a single seat")
 	}
+
 	for _, s := range tile.Seats() {
 		if unset.Includes(s) {
 			t.Errorf("Includes(%d) = true", s.Index())
@@ -42,13 +45,14 @@ func TestVisibility_WhenZero_ShouldIncludeNoSeat(t *testing.T) {
 
 func TestVisibility_WhenToSeat_ShouldIncludeOnlyThatSeat(t *testing.T) {
 	only := play.ToSeat(seat(t, 2))
-
 	if got, single := only.Seat(); !single || got != seat(t, 2) {
 		t.Errorf("Seat = %d, %t, want 2, true", got.Index(), single)
 	}
+
 	if only.All() {
 		t.Error("All = true")
 	}
+
 	var included []int
 	for _, s := range tile.Seats() {
 		if only.Includes(s) {
@@ -68,6 +72,7 @@ func meldView(t *testing.T, kind play.MeldKind, tiles []tile.TileID, called play
 	if called.OK {
 		from = play.Some(seat(t, 3))
 	}
+
 	return play.MeldView{Kind: kind, Tiles: sorted, Called: called, From: from}
 }
 
@@ -100,10 +105,12 @@ func TestMeldViewCall_ShouldHoldTheMeldTilesButTheCalledOne(t *testing.T) {
 	if got, ok := uncalled.Call(); ok {
 		t.Errorf("uncalled Call = %v, want none", got)
 	}
+
 	calledElsewhere := meldView(t, play.MeldChi, copies(t, 0, "345m"), play.Some(copyOf(t, 1, "4m")))
 	if got, ok := calledElsewhere.Call(); ok {
 		t.Errorf("called elsewhere Call = %v, want none", got)
 	}
+
 	calledWithOneMore := meldView(t, play.MeldPon, copies(t, 0, "77z"), play.Some(copyOf(t, 0, "7z")))
 	if got, ok := calledWithOneMore.Call(); ok {
 		t.Errorf("two-tile pon Call = %v, want none", got)

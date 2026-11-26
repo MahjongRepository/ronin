@@ -17,6 +17,7 @@ func (m *Manager) Reconnect(conn Connection, ticket string) {
 		sendSessionError(m.log, conn, refused.Value.code, refused.Value.message)
 		return
 	}
+
 	posted := g.postAndWait(func() {
 		g.serve(conn, "reconnect failed", func() error { return g.reconnect(conn, ticket) })
 	})
@@ -32,6 +33,7 @@ func (m *Manager) Resync(conn Connection) {
 	if g == nil {
 		return
 	}
+
 	g.postRouted(func() {
 		g.serve(conn, "resync failed", func() error { return g.resync(conn) })
 	})
@@ -42,6 +44,7 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 		sendSessionError(g.log, conn, messaging.SessionReconnectRetryLater, "Game has not started yet, retry shortly")
 		return nil
 	}
+
 	if !g.active() {
 		sendSessionError(g.log, conn, messaging.SessionReconnectNoSession, noLiveGame)
 		return nil
@@ -64,6 +67,7 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 		if err != nil {
 			return err
 		}
+
 		g.m.stats.reconnects.Add(1)
 		message = logPlayerReconnected
 	}
@@ -72,6 +76,7 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 	if err != nil {
 		return err
 	}
+
 	p.log.Info(message)
 	return nil
 }
@@ -80,13 +85,16 @@ func (g *game) takeSeatBack(p *participant) error {
 	if g.holdsGameEnd() {
 		return nil
 	}
+
 	err := g.handOver(p, play.Option[wire.SeatControlReason]{})
 	if err != nil {
 		return err
 	}
+
 	if !g.hold.held() {
 		g.takeBackDecision(p)
 	}
+
 	return nil
 }
 
@@ -95,15 +103,18 @@ func (g *game) takeBackDecision(p *participant) {
 		g.asked.invalidate()
 		g.playAIPlayers()
 	}
+
 	if !g.wait.awaits(p.seat) {
 		return
 	}
+
 	g.aiTurn.cancel()
 	p.decisionID++
 	if p.timer.suspended.OK {
 		p.timer.resume(g.decisionTimerFired(p))
 		return
 	}
+
 	g.startDecisionTimer(p)
 }
 
@@ -112,6 +123,7 @@ func (g *game) resync(conn Connection) error {
 	if p == nil {
 		return nil
 	}
+
 	if g.lifecycle == lifecyclePending {
 		sendSessionError(g.log, conn, messaging.SessionGameNotStarted, "Game has not started yet")
 		return nil
@@ -121,6 +133,7 @@ func (g *game) resync(conn Connection) error {
 	if err != nil {
 		return err
 	}
+
 	g.m.stats.resyncs.Add(1)
 	p.log.Info("seat resynced")
 	return nil
@@ -132,6 +145,7 @@ func (g *game) sendSeatState(p *participant, conn Connection) error {
 	for _, other := range g.participants {
 		standIns[other.seat.Index()] = other.standIn
 	}
+
 	standIns[p.seat.Index()] = play.Option[wire.SeatControlReason]{}
 	snapshot, err := messaging.ReconnectionPayload(view.Record, g.roster, standIns)
 	if err != nil {
@@ -142,9 +156,11 @@ func (g *game) sendSeatState(p *participant, conn Connection) error {
 	if err != nil {
 		return err
 	}
+
 	if !view.Decision.OK {
 		return nil
 	}
+
 	opening := messaging.BuildOpening(view.Decision.Value)
 	return send(conn, messaging.StampOpening(opening.Payload, p.decisionID, seconds(p.timer.bank), p.timer.elapsed()))
 }
@@ -153,10 +169,12 @@ func (g *game) pausePart(p *participant) play.Option[messaging.Pause] {
 	if g.pause == nil {
 		return play.Option[messaging.Pause]{}
 	}
+
 	part := messaging.Pause{Owed: g.pause.owes(p.seat)}
 	if elapsed := p.timer.elapsed(); part.Owed && elapsed.OK {
 		part.Timer = play.Some(messaging.PauseTimer{Elapsed: elapsed.Value, Timeout: seconds(g.pauseTimeout())})
 	}
+
 	return play.Some(part)
 }
 
@@ -173,6 +191,7 @@ func (g *game) disconnected(p *participant, conn Connection) error {
 	case g.holdsGameEnd(), g.lifecycle != lifecyclePlaying:
 		return nil
 	}
+
 	return g.releaseSeat(p)
 }
 
@@ -187,6 +206,7 @@ func (g *game) releaseSeat(p *participant) error {
 	if err != nil {
 		return err
 	}
+
 	g.playAIPlayers()
 	return g.confirmPause(p.seat)
 }
@@ -196,9 +216,11 @@ func (g *game) handOver(p *participant, standIn play.Option[wire.SeatControlReas
 	if standIn.OK {
 		g.m.stats.aiReplacements.Add(1)
 	}
+
 	if g.replay != nil {
 		g.replay.AddSeatControl(p.seat, standIn)
 		g.observed.follow(g.replay, g.clock.Now())
 	}
+
 	return g.broadcastTo(g.othersThan(p), messaging.SeatControl(p.seat, standIn))
 }

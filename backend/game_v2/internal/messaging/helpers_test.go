@@ -29,6 +29,7 @@ func id(t *testing.T, n int) tile.TileID {
 	if !ok {
 		t.Fatalf("NewTileID(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -38,6 +39,7 @@ func ids(t *testing.T, ns ...int) []tile.TileID {
 	for _, n := range ns {
 		got = append(got, id(t, n))
 	}
+
 	return got
 }
 
@@ -47,6 +49,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -56,6 +59,7 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 	if err != nil {
 		t.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	var seen [tile.KindCount]int
 	got := make([]tile.TileID, 0, len(parsed))
 	for _, p := range parsed {
@@ -63,6 +67,7 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 		got = append(got, id(t, int(kind)*tile.CopiesPerKind+first+seen[kind]))
 		seen[kind]++
 	}
+
 	return got
 }
 
@@ -73,6 +78,7 @@ func with(m wire.Map, k wire.Key, v wire.Value) wire.Map {
 			replaced[i].Value = v
 		}
 	}
+
 	return replaced
 }
 
@@ -82,6 +88,7 @@ func field(t *testing.T, m wire.Map, k wire.Key) wire.Value {
 	if !ok {
 		t.Fatalf("%v has no %v", m, k)
 	}
+
 	return v
 }
 
@@ -90,6 +97,7 @@ func keys(m wire.Map) []wire.Key {
 	for _, f := range m {
 		got = append(got, f.Key)
 	}
+
 	return got
 }
 
@@ -105,6 +113,7 @@ func scores(points ...int) wire.StrMap {
 	for i, p := range points {
 		m = append(m, wire.StrField{Key: strconv.Itoa(i), Value: wire.Int(p)})
 	}
+
 	return m
 }
 
@@ -113,6 +122,7 @@ func intArray(ns ...int) wire.Array {
 	for _, n := range ns {
 		a = append(a, wire.Int(n))
 	}
+
 	return a
 }
 
@@ -125,6 +135,7 @@ func dealSlot(offset, i int) int {
 	if block := i / dealBlockSize; block < dealBlocks {
 		return block*dealRoundSize + offset*dealBlockSize + i%dealBlockSize
 	}
+
 	return finalDealStart + offset
 }
 
@@ -137,14 +148,17 @@ func fixedWall(t *testing.T, hands [tile.SeatCount][]tile.TileID, draws []tile.T
 		if slices.Contains(placed, at) {
 			t.Fatalf("wall places tile %d twice", at.Index())
 		}
+
 		slots[slot], filled[slot] = at, true
 		placed = append(placed, at)
 	}
+
 	for _, s := range tile.Seats() {
 		for i, held := range hands[s.Index()] {
 			place(dealSlot(s.Index(), i), held)
 		}
 	}
+
 	for i, drawn := range draws {
 		place(firstDrawSlot+i, drawn)
 	}
@@ -155,11 +169,13 @@ func fixedWall(t *testing.T, hands [tile.SeatCount][]tile.TileID, draws []tile.T
 			free = append(free, unplaced)
 		}
 	}
+
 	for slot := range slots {
 		if !filled[slot] {
 			slots[slot], free = free[0], free[1:]
 		}
 	}
+
 	return slots
 }
 
@@ -169,6 +185,7 @@ func newFixedGame(t *testing.T, walls ...[tile.TileIDCount]tile.TileID) (engine.
 	if err != nil {
 		t.Fatalf("NewGame error = %v", err)
 	}
+
 	g, drew, _ := g.Begin()
 	return g, append(dealt, drew...)
 }
@@ -179,6 +196,7 @@ func act(t *testing.T, g engine.Game, s tile.Seat, a play.Action) (engine.Game, 
 	if refusal.OK {
 		t.Fatalf("seat %d %v refused: %+v", s.Index(), a, refusal.Value)
 	}
+
 	return next, events
 }
 

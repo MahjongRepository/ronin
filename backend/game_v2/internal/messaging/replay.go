@@ -35,16 +35,19 @@ func (r *ReplayLog) Collect(events []play.Emitted, table func() Table) error {
 			dealt = append(dealt, e)
 			continue
 		}
+
 		flush()
 
 		record, kept, err := r.record(emitted.Event, table)
 		if err != nil {
 			return err
 		}
+
 		if kept {
 			r.records = append(r.records, record)
 		}
 	}
+
 	flush()
 	return nil
 }
@@ -77,6 +80,7 @@ func (r *ReplayLog) record(event play.Event, table func() Table) (wire.Map, bool
 	case play.Discarded, play.RiichiDeposited, play.Called, play.PaoAssigned, play.DoraRevealed, play.RoundEnded,
 		play.GameEnded:
 	}
+
 	record, err := EventPayload(event, table)
 	return record, err == nil, err
 }

@@ -13,6 +13,7 @@ func NewSeat(n int) (Seat, bool) {
 	if n < 0 || n >= SeatCount {
 		return Seat{}, false
 	}
+
 	return Seat{n: uint8(n)}, true
 }
 

@@ -16,13 +16,15 @@ func TestPublicSeatDeclaredRiichi_ShouldHoldFromTheRiichiDiscardBeforeItStands(t
 		public play.PublicSeat
 		want   bool
 	}{
-		{"plain river", play.PublicSeat{River: []play.RiverTile{plain}}, false},
-		{"riichi discard", play.PublicSeat{River: []play.RiverTile{plain, declaring}}, true},
-		{"riichi standing", play.PublicSeat{River: []play.RiverTile{plain, declaring}, Riichi: standing}, true},
-		{"riichi without a river", play.PublicSeat{Riichi: standing}, true},
+		{name: "plain river", public: play.PublicSeat{River: []play.RiverTile{plain}}},
+		{name: "riichi discard", public: play.PublicSeat{River: []play.RiverTile{plain, declaring}}, want: true},
+		{name: "riichi standing", public: play.PublicSeat{River: []play.RiverTile{plain, declaring}, Riichi: standing}, want: true},
+		{name: "riichi without a river", public: play.PublicSeat{Riichi: standing}, want: true},
 	} {
-		if got := c.public.DeclaredRiichi(); got != c.want {
-			t.Errorf("%s DeclaredRiichi = %t, want %t", c.name, got, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.public.DeclaredRiichi(); got != c.want {
+				t.Errorf("DeclaredRiichi = %t, want %t", got, c.want)
+			}
+		})
 	}
 }

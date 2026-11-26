@@ -67,11 +67,13 @@ func TestYakuID_ShouldGiveEveryYakuItsTenhouID(t *testing.T) {
 	if len(ids) != play.YakuCount {
 		t.Fatalf("%d rows, want %d", len(ids), play.YakuCount)
 	}
+
 	for _, row := range ids {
 		if got, ok := tenhou.YakuID(row.yaku); !ok || got != row.id {
 			t.Errorf("YakuID(%s) = %d, %t, want %d", row.yaku.Name(), got, ok, row.id)
 		}
 	}
+
 	if _, ok := tenhou.YakuID(play.YakuID(99)); ok {
 		t.Error("YakuID(99) found an id")
 	}

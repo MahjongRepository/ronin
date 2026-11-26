@@ -15,6 +15,7 @@ func id(t *testing.T, n int) tile.TileID {
 	if !ok {
 		t.Fatalf("NewTileID(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -24,6 +25,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -42,9 +44,11 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 		if offset >= tile.CopiesPerKind {
 			t.Fatalf("%q repeats a kind past its copies", mpsz)
 		}
+
 		ids = append(ids, id(t, int(kind)*tile.CopiesPerKind+offset))
 		seen[kind]++
 	}
+
 	return ids
 }
 
@@ -54,6 +58,7 @@ func copyOf(t *testing.T, first int, mpsz string) tile.TileID {
 	if len(ids) != 1 {
 		t.Fatalf("%q holds %d tiles, want 1", mpsz, len(ids))
 	}
+
 	return ids[0]
 }
 
@@ -78,6 +83,7 @@ func river(tiles []tile.TileID) []play.RiverTile {
 	for i, discarded := range tiles {
 		discards[i] = play.RiverTile{Tile: discarded}
 	}
+
 	return discards
 }
 
@@ -93,6 +99,7 @@ func faultOf(t *testing.T, call func()) (fault play.EngineFaultError) {
 		if !ok {
 			t.Fatalf("recovered %v, want a play.EngineFaultError", recovered)
 		}
+
 		fault = got
 	}()
 	call()

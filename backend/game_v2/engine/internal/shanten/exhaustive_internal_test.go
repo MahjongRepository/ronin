@@ -19,6 +19,13 @@ const (
 	lastSequenceRank = 6
 )
 
+type sequenceRule bool
+
+const (
+	sequencesAllowed   sequenceRule = true
+	sequencesForbidden sequenceRule = false
+)
+
 type groupCosts [2][maxSets + 1]int
 
 type groupState [maxSets + 1][2][tile.CopiesPerKind + 1][tile.CopiesPerKind + 1]int
@@ -34,10 +41,11 @@ func unreachableState() groupState {
 			}
 		}
 	}
+
 	return state
 }
 
-func stepGroup(state groupState, count uint8, sequencesStart bool) groupState {
+func stepGroup(state groupState, count uint8, sequences sequenceRule) groupState {
 	next := unreachableState()
 	for sets := range state {
 		for pair := range state[sets] {
@@ -47,10 +55,12 @@ func stepGroup(state groupState, count uint8, sequencesStart bool) groupState {
 					if cost >= unreachableCost {
 						continue
 					}
+
 					maxStarted := 0
-					if sequencesStart {
+					if sequences == sequencesAllowed {
 						maxStarted = tile.CopiesPerKind - before - twoBefore
 					}
+
 					for started := 0; started <= maxStarted; started++ {
 						for triplet := range 2 {
 							for newPair := range 2 - pair {
@@ -59,6 +69,7 @@ func stepGroup(state groupState, count uint8, sequencesStart bool) groupState {
 								if target > tile.CopiesPerKind || nextSets > maxSets {
 									continue
 								}
+
 								nextCost := cost + max(0, target-int(count))
 								slot := &next[nextSets][pair+newPair][started][before]
 								*slot = min(*slot, nextCost)
@@ -69,6 +80,7 @@ func stepGroup(state groupState, count uint8, sequencesStart bool) groupState {
 			}
 		}
 	}
+
 	return next
 }
 
@@ -79,6 +91,7 @@ func costsOf(state groupState) groupCosts {
 			costs[pair][sets] = state[sets][pair][0][0]
 		}
 	}
+
 	return costs
 }
 
@@ -87,14 +100,16 @@ func base5(counts []uint8) int {
 	for _, count := range slices.Backward(counts) {
 		index = index*(tile.CopiesPerKind+1) + int(count)
 	}
+
 	return index
 }
 
-func countGroups(kinds int, sequences bool) []groupCosts {
+func countGroups(kinds int, sequences sequenceRule) []groupCosts {
 	size := 1
 	for range kinds {
 		size *= tile.CopiesPerKind + 1
 	}
+
 	costs := make([]groupCosts, size)
 	counts := make([]uint8, kinds)
 	var fill func(kind, tiles int, state groupState)
@@ -103,12 +118,15 @@ func countGroups(kinds int, sequences bool) []groupCosts {
 			costs[base5(counts)] = costsOf(state)
 			return
 		}
+
 		for count := 0; count <= tile.CopiesPerKind && tiles+count <= tile.MaxConcealedTiles; count++ {
 			counts[kind] = uint8(count)
-			fill(kind+1, tiles+count, stepGroup(state, uint8(count), sequences && kind <= lastSequenceRank))
+			fill(kind+1, tiles+count, stepGroup(state, uint8(count), sequenceRule(sequences == sequencesAllowed && kind <= lastSequenceRank)))
 		}
+
 		counts[kind] = 0
 	}
+
 	start := unreachableState()
 	start[0][0][0][0] = 0
 	fill(0, 0, start)
@@ -125,9 +143,11 @@ func combine(lhs, rhs groupCosts) groupCosts {
 					best = min(best, lhs[lhsPair][lhsSets]+rhs[pair-lhsPair][sets-lhsSets])
 				}
 			}
+
 			combined[pair][sets] = best
 		}
 	}
+
 	return combined
 }
 
@@ -141,6 +161,7 @@ func sevenPairsReplacements(counts [tile.KindCount]uint8) int {
 			singles++
 		}
 	}
+
 	pairs = min(pairs, sevenPairs)
 	return 2*sevenPairs - 2*pairs - min(singles, sevenPairs-pairs)
 }
@@ -155,6 +176,7 @@ func thirteenOrphansReplacements(counts [tile.KindCount]uint8) int {
 			doubled = 1
 		}
 	}
+
 	return kokushiKinds + 1 - held - doubled
 }
 
@@ -170,6 +192,7 @@ func (c independentCount) lowest(counts [tile.KindCount]uint8, tiles int) int {
 	if sets >= fullHandSets {
 		replacements = min(replacements, sevenPairsReplacements(counts), thirteenOrphansReplacements(counts))
 	}
+
 	return replacements - 1
 }
 
@@ -178,6 +201,7 @@ func handTable(tiles int) [tile.KindCount + 1][]uint64 {
 	for i := range table {
 		table[i] = make([]uint64, tiles+1)
 	}
+
 	table[tile.KindCount][tiles] = 1
 	for i := tile.KindCount - 1; i >= 0; i-- {
 		for n := 0; n <= min(tile.CopiesPerKind*i, tiles); n++ {
@@ -186,6 +210,7 @@ func handTable(tiles int) [tile.KindCount + 1][]uint64 {
 			}
 		}
 	}
+
 	return table
 }
 
@@ -200,10 +225,12 @@ func decodeHand(index uint64, table [tile.KindCount + 1][]uint64) [tile.KindCoun
 				n++
 				continue
 			}
+
 			counts[i] = uint8(c)
 			break
 		}
 	}
+
 	return counts
 }
 
@@ -228,12 +255,12 @@ func TestMaps_WhenEveryGroupIsCountedIndependently_ShouldHoldItsReplacementNumbe
 	tests := []struct {
 		name      string
 		kinds     int
-		sequences bool
+		sequences sequenceRule
 		table     [][15][5]uint32
 		blob      string
 	}{
-		{"shupai", 9, true, shupaiHash[:], shupaiReplacementNumbers},
-		{"zipai", honorKinds, false, zipaiHash[:], zipaiReplacementNumbers},
+		{name: "shupai", kinds: 9, sequences: sequencesAllowed, table: shupaiHash[:], blob: shupaiReplacementNumbers},
+		{name: "zipai", kinds: honorKinds, sequences: sequencesForbidden, table: zipaiHash[:], blob: zipaiReplacementNumbers},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -254,11 +281,12 @@ func TestMaps_WhenEveryGroupIsCountedIndependently_ShouldHoldItsReplacementNumbe
 }
 
 func TestLowest_WhenEveryHandOfASizeIsCounted_ShouldMatchAnIndependentCount(t *testing.T) {
-	count := independentCount{suits: countGroups(9, true), honors: countGroups(honorKinds, false)}
+	count := independentCount{suits: countGroups(9, sequencesAllowed), honors: countGroups(honorKinds, sequencesForbidden)}
 	for tiles := 1; tiles <= tile.MaxConcealedTiles; tiles++ {
 		if tiles%tilesPerSet == 0 {
 			continue
 		}
+
 		t.Run(fmt.Sprintf("size_%02d", tiles), func(t *testing.T) {
 			table := handTable(tiles)
 			hands := table[0][0]
@@ -274,6 +302,7 @@ func TestLowest_WhenEveryHandOfASizeIsCounted_ShouldMatchAnIndependentCount(t *t
 							mismatches[worker] = fmt.Sprintf("hand %d %v: %v", index, counts, err)
 							return
 						}
+
 						got, err := Lowest(valid)
 						if want := count.lowest(counts, tiles); err != nil || got != want {
 							mismatches[worker] = fmt.Sprintf("Lowest(%v) = %d, %v, want %d", counts, got, err, want)

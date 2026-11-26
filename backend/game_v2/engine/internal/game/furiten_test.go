@@ -12,9 +12,14 @@ import (
 
 const waitingSeat = 1
 
-func waitingSeatFuriten(t *testing.T, furiten bool) []play.FuritenChanged {
+func waitingSeatFuriten(t *testing.T) []play.FuritenChanged {
 	t.Helper()
-	return []play.FuritenChanged{{Seat: seat(t, waitingSeat), Furiten: furiten}}
+	return []play.FuritenChanged{{Seat: seat(t, waitingSeat), Furiten: true}}
+}
+
+func waitingSeatFuritenCleared(t *testing.T) []play.FuritenChanged {
+	t.Helper()
+	return []play.FuritenChanged{{Seat: seat(t, waitingSeat), Furiten: false}}
 }
 
 func noFuritenChange() []play.FuritenChanged {
@@ -44,26 +49,22 @@ func lastChun(t *testing.T) tile.TileID {
 	return tileOf(t, 3, "7z")
 }
 
-func waitingSeatAfterOneGoAround(t *testing.T, waitingSeatDiscard, waitingSeatDraw tile.TileID, riichi bool) (game.Game, []play.Emitted) {
+func waitingSeatAfterOneGoAround(t *testing.T, waitingSeatDiscard, waitingSeatDraw tile.TileID, first func(tile.TileID) play.Action) (game.Game, []play.Emitted) {
 	t.Helper()
 	w := furitenStartWall(t)
 	w.Draws = []tile.TileID{
 		tileOf(t, 2, "7z"), waitingSeatDiscard, tileOf(t, 1, "9s"), tileOf(t, 3, "9s"), dealerThreeMan(t), waitingSeatDraw,
 	}
 	g, events := discardDrawn(t, begun(t, w, noStart()), 1)
-	first := play.DiscardAction(waitingSeatDiscard)
-	if riichi {
-		first = play.RiichiAction(waitingSeatDiscard)
-	}
-	g, discarded := script(t, g, act(seat(t, waitingSeat), first))
+	g, discarded := script(t, g, act(seat(t, waitingSeat), first(waitingSeatDiscard)))
 	g, goneAround := discardDrawn(t, g, 2)
 	return g, slices.Concat(events, discarded, goneAround)
 }
 
 func discardFuritenSeat(t *testing.T, waitingSeatDraw tile.TileID) game.Game {
 	t.Helper()
-	g, events := waitingSeatAfterOneGoAround(t, tileOf(t, 0, "3m"), waitingSeatDraw, false)
-	assertEqual(t, "furiten", testkit.FuritenChanges(events), waitingSeatFuriten(t, true))
+	g, events := waitingSeatAfterOneGoAround(t, tileOf(t, 0, "3m"), waitingSeatDraw, play.DiscardAction)
+	assertEqual(t, "furiten", testkit.FuritenChanges(events), waitingSeatFuriten(t))
 	return g
 }
 
@@ -74,16 +75,14 @@ func TestFuritenEvents_WhenTheGameStarts_ShouldEmitNone(t *testing.T) {
 	}
 
 	_, started := newGame(t, source, noStart())
-
 	assertEqual(t, "furiten", testkit.FuritenChanges(started), noFuritenChange())
 }
 
 func TestFuritenEvents_WhenAnActionLeavesFuritenUnchanged_ShouldEmitNothing(t *testing.T) {
-	g, events := waitingSeatAfterOneGoAround(t, tileOf(t, 3, "5z"), lastChun(t), false)
+	g, events := waitingSeatAfterOneGoAround(t, tileOf(t, 3, "5z"), lastChun(t), play.DiscardAction)
 	assertEqual(t, "furiten before", testkit.FuritenChanges(events), noFuritenChange())
 
 	_, discarded := script(t, g, act(seat(t, 0), play.DiscardAction(dealerEast(t))))
-
 	assertEqual(t, "furiten", testkit.FuritenChanges(discarded), noFuritenChange())
 }
 
@@ -95,7 +94,6 @@ func TestFuritenEvents_WhenTheDiscardFuritenSeatDraws_ShouldKeepFuritenThroughIt
 	assertEqual(t, "furiten on draw", testkit.FuritenChanges(drawn), noFuritenChange())
 
 	_, discarded := script(t, g, act(seat(t, waitingSeat), play.DiscardAction(lastChun(t))))
-
 	assertEqual(t, "furiten on discard", testkit.FuritenChanges(discarded), noFuritenChange())
 }
 
@@ -108,13 +106,12 @@ func TestFuritenEvents_WhenTheDiscardFuritenSeatCallsChi_ShouldKeepFuritenThroug
 
 	chi := play.ChiAction([2]tile.TileID{tileOf(t, 0, "1p"), tileOf(t, 0, "2p")})
 	g, called := script(t, g, act(seat(t, waitingSeat), chi))
-
 	assertEqual(t, "awaiting turn", g.Awaiting(), awaitingTurn(seat(t, waitingSeat)))
 	assertEqual(t, "furiten on chi", testkit.FuritenChanges(called), noFuritenChange())
 }
 
 func TestFuritenEvents_WhenTheSeatDeclinesRonWithAChi_ShouldShowFuritenThroughItsMeldTurn(t *testing.T) {
-	g, events := waitingSeatAfterOneGoAround(t, tileOf(t, 3, "5z"), lastChun(t), false)
+	g, events := waitingSeatAfterOneGoAround(t, tileOf(t, 3, "5z"), lastChun(t), play.DiscardAction)
 	assertEqual(t, "furiten before", testkit.FuritenChanges(events), noFuritenChange())
 	g, _ = script(t, g, act(seat(t, 0), play.DiscardAction(dealerThreeMan(t))))
 	chi := play.ChiAction([2]tile.TileID{tileOf(t, 0, "4m"), tileOf(t, 0, "5m")})
@@ -124,10 +121,9 @@ func TestFuritenEvents_WhenTheSeatDeclinesRonWithAChi_ShouldShowFuritenThroughIt
 	}
 
 	g, declined := script(t, g, act(seat(t, waitingSeat), chi))
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, waitingSeat)))
 	assertEqual(t, "hand size mod 3", len(g.Hand(seat(t, waitingSeat)))%3, 2)
-	assertEqual(t, "furiten", testkit.FuritenChanges(declined), waitingSeatFuriten(t, true))
+	assertEqual(t, "furiten", testkit.FuritenChanges(declined), waitingSeatFuriten(t))
 }
 
 func TestFuritenEvents_WhenTheOwnDiscardDropsTheDiscardedWait_ShouldClearFuriten(t *testing.T) {
@@ -135,36 +131,39 @@ func TestFuritenEvents_WhenTheOwnDiscardDropsTheDiscardedWait_ShouldClearFuriten
 	g, _ = script(t, g, act(seat(t, 0), play.DiscardAction(dealerEast(t))))
 
 	_, discarded := script(t, g, act(seat(t, waitingSeat), play.DiscardAction(tileOf(t, 0, "4m"))))
-
 	assertEqual(t, "last event", discarded[len(discarded)-1], play.Emitted{
 		To: play.ToSeat(seat(t, waitingSeat)), Event: play.FuritenChanged{Seat: seat(t, waitingSeat), Furiten: false},
 	})
-	assertEqual(t, "furiten", testkit.FuritenChanges(discarded), waitingSeatFuriten(t, false))
+	assertEqual(t, "furiten", testkit.FuritenChanges(discarded), waitingSeatFuritenCleared(t))
 }
 
 func TestFuritenEvents_WhenTheSeatDeclinesRonThenTakesItsTurn_ShouldShowFuritenThroughTheTurn(t *testing.T) {
-	for _, riichi := range []bool{false, true} {
-		g, events := waitingSeatAfterOneGoAround(t, tileOf(t, 3, "5z"), lastChun(t), riichi)
-		assertEqual(t, "furiten before", testkit.FuritenChanges(events), noFuritenChange())
-		g, _ = script(t, g, act(seat(t, 0), play.DiscardAction(dealerThreeMan(t))))
-		assertEqual(t, "awaiting call", g.Awaiting(), awaitingCall(seat(t, waitingSeat)))
+	for _, c := range []struct {
+		name                string
+		first               func(tile.TileID) play.Action
+		wantAfterOwnDiscard []play.FuritenChanged
+	}{
+		{name: "plain discard", first: play.DiscardAction, wantAfterOwnDiscard: waitingSeatFuritenCleared(t)},
+		{name: "riichi", first: play.RiichiAction, wantAfterOwnDiscard: noFuritenChange()},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			g, events := waitingSeatAfterOneGoAround(t, tileOf(t, 3, "5z"), lastChun(t), c.first)
+			assertEqual(t, "furiten before", testkit.FuritenChanges(events), noFuritenChange())
+			g, _ = script(t, g, act(seat(t, 0), play.DiscardAction(dealerThreeMan(t))))
+			assertEqual(t, "awaiting call", g.Awaiting(), awaitingCall(seat(t, waitingSeat)))
 
-		g, declined := script(t, g, act(seat(t, waitingSeat), play.PassAction()))
-
-		assertEqual(t, "awaiting turn", g.Awaiting(), awaitingTurn(seat(t, waitingSeat)))
-		assertEqual(t, "hand size mod 3", len(g.Hand(seat(t, waitingSeat)))%3, 2)
-		assertEqual(t, "furiten on pass", testkit.FuritenChanges(declined), waitingSeatFuriten(t, true))
-		_, afterTurn := discardDrawn(t, g, 1)
-		wantAfterOwnDiscard := waitingSeatFuriten(t, false)
-		if riichi {
-			wantAfterOwnDiscard = noFuritenChange()
-		}
-		assertEqual(t, "furiten after own discard", testkit.FuritenChanges(afterTurn), wantAfterOwnDiscard)
+			g, declined := script(t, g, act(seat(t, waitingSeat), play.PassAction()))
+			assertEqual(t, "awaiting turn", g.Awaiting(), awaitingTurn(seat(t, waitingSeat)))
+			assertEqual(t, "hand size mod 3", len(g.Hand(seat(t, waitingSeat)))%3, 2)
+			assertEqual(t, "furiten on pass", testkit.FuritenChanges(declined), waitingSeatFuriten(t))
+			_, afterTurn := discardDrawn(t, g, 1)
+			assertEqual(t, "furiten after own discard", testkit.FuritenChanges(afterTurn), c.wantAfterOwnDiscard)
+		})
 	}
 }
 
 func TestFuritenEvents_WhenFuritenStarts_ShouldTargetOnlyThatSeat(t *testing.T) {
-	g, _ := waitingSeatAfterOneGoAround(t, tileOf(t, 3, "5z"), lastChun(t), false)
+	g, _ := waitingSeatAfterOneGoAround(t, tileOf(t, 3, "5z"), lastChun(t), play.DiscardAction)
 	g, _ = script(t, g, act(seat(t, 0), play.DiscardAction(dealerThreeMan(t))))
 
 	_, declined := script(t, g, act(seat(t, waitingSeat), play.PassAction()))
@@ -184,24 +183,33 @@ func TestFuritenEvents_WhenTheRoundFinished_ShouldEmitNothing(t *testing.T) {
 	g, _ := script(t, threePinWithTwoRonCallers(t), act(seat(t, 3), play.RonAction()))
 
 	_, ended := script(t, g, act(seat(t, 0), play.PassAction()))
-
 	if _, ok := ended[len(ended)-1].Event.(play.RoundEnded); !ok {
 		t.Errorf("last event = %+v, want the round's end", ended[len(ended)-1].Event)
 	}
 	assertEqual(t, "furiten", testkit.FuritenChanges(ended), noFuritenChange())
 }
 
-func riichiSeatWaitingOnThreePin(t *testing.T, discardsTheWaitFirst bool) game.Game {
+type threePinHistory int
+
+const (
+	threePinNeverDiscarded threePinHistory = iota
+	threePinDiscardedFirst
+)
+
+func riichiSeatWaitingOnThreePin(t *testing.T, history threePinHistory) game.Game {
 	t.Helper()
+	discardsTheWaitFirst := history == threePinDiscardedFirst
 	riichiDiscard := tileOf(t, 0, "7z")
 	firstDiscard := riichiDiscard
 	if discardsTheWaitFirst {
 		firstDiscard = tileOf(t, 1, "3p")
 	}
+
 	goArounds := []tile.TileID{tileOf(t, 1, "4z"), firstDiscard, tileOf(t, 1, "5z"), tileOf(t, 2, "5z")}
 	if discardsTheWaitFirst {
 		goArounds = append(goArounds, tileOf(t, 3, "5z"), riichiDiscard, tileOf(t, 0, "6z"), tileOf(t, 1, "6z"))
 	}
+
 	w := testkit.StartWall{
 		Hands: [tile.SeatCount][]tile.TileID{
 			slices.Concat(copies(t, 2, "3p"), copies(t, 0, "123456789s"), copies(t, 1, "123z")),
@@ -222,27 +230,26 @@ func riichiSeatWaitingOnThreePin(t *testing.T, discardsTheWaitFirst bool) game.G
 }
 
 func TestRiichiFuriten_WhenTheRiichiSeatDiscardedTheWinningTile_ShouldOfferNoRon(t *testing.T) {
-	g := riichiSeatWaitingOnThreePin(t, true)
+	g := riichiSeatWaitingOnThreePin(t, threePinDiscardedFirst)
 
 	g, _ = script(t, g, act(seat(t, 0), play.DiscardAction(tileOf(t, 2, "3p"))))
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 }
 
 func TestRiichiFuriten_WhenTheRiichiSeatPassesTheWinningTile_ShouldBlockRonForTheRestOfTheHand(t *testing.T) {
-	g := riichiSeatWaitingOnThreePin(t, false)
+	g := riichiSeatWaitingOnThreePin(t, threePinNeverDiscarded)
 	g, _ = script(t, g, act(seat(t, 0), play.DiscardAction(tileOf(t, 2, "3p"))))
 	assertEqual(t, "awaiting call", g.Awaiting(), awaitingCall(seat(t, 1)))
 
 	g, passed := script(t, g, act(seat(t, 1), play.PassAction()))
-	assertEqual(t, "furiten on pass", testkit.FuritenChanges(passed), waitingSeatFuriten(t, true))
+	assertEqual(t, "furiten on pass", testkit.FuritenChanges(passed), waitingSeatFuriten(t))
 	if hand := g.Hand(seat(t, 1)); hand[len(hand)-1] != tileOf(t, 1, "7z") {
 		t.Fatalf("last drawn tile = %v, want the second chun", hand[len(hand)-1])
 	}
+
 	g, _ = discardDrawn(t, g, 1)
 
 	g, later := script(t, g, act(seat(t, 2), play.DiscardAction(tileOf(t, 3, "3p"))))
-
 	assertEqual(t, "awaiting turn", g.Awaiting(), awaitingTurn(seat(t, 3)))
 	assertEqual(t, "furiten later", testkit.FuritenChanges(later), noFuritenChange())
 }
@@ -265,14 +272,14 @@ func TestTemporaryFuriten_WhenAWinningTileWithoutYakuPasses_ShouldBlockRonUntilT
 
 	g, passed := discardDrawn(t, g, 1)
 	assertEqual(t, "awaiting after the yakuless wait", g.Awaiting(), awaitingTurn(seat(t, 3)))
-	assertEqual(t, "furiten on the yakuless wait", testkit.FuritenChanges(passed), waitingSeatFuriten(t, true))
+	assertEqual(t, "furiten on the yakuless wait", testkit.FuritenChanges(passed), waitingSeatFuriten(t))
 
 	g, _ = script(t, g, act(seat(t, 3), play.DiscardAction(sixManWithIttsu)))
 	assertEqual(t, "awaiting after the blocked ron", g.Awaiting(), awaitingTurn(seat(t, 0)))
 
 	g, _ = discardDrawn(t, g, 1)
 	g, ownDiscard := discardDrawn(t, g, 1)
-	assertEqual(t, "furiten on the own discard", testkit.FuritenChanges(ownDiscard), waitingSeatFuriten(t, false))
+	assertEqual(t, "furiten on the own discard", testkit.FuritenChanges(ownDiscard), waitingSeatFuritenCleared(t))
 
 	g, _ = discardDrawn(t, g, 1)
 	assertEqual(t, "awaiting the later ron", g.Awaiting(), awaitingCall(seat(t, 1)))
@@ -296,7 +303,7 @@ func ittsuSeatPassesThreeManThenSeatThreeDiscards(t *testing.T, seatThreeDraw ti
 	}
 
 	g, passed := script(t, g, act(seat(t, waitingSeat), play.PassAction()))
-	assertEqual(t, "furiten on pass", testkit.FuritenChanges(passed), waitingSeatFuriten(t, true))
+	assertEqual(t, "furiten on pass", testkit.FuritenChanges(passed), waitingSeatFuriten(t))
 
 	g, _ = discardDrawn(t, g, 1)
 	return g
@@ -311,7 +318,7 @@ func TestTemporaryFuriten_WhenTheSeatPonsAfterPassingRon_ShouldClearAtItsDiscard
 	assertEqual(t, "furiten on pon", testkit.FuritenChanges(called), noFuritenChange())
 
 	g, discarded := script(t, g, act(seat(t, waitingSeat), play.DiscardAction(tileOf(t, 0, "4m"))))
-	assertEqual(t, "furiten on discard", testkit.FuritenChanges(discarded), waitingSeatFuriten(t, false))
+	assertEqual(t, "furiten on discard", testkit.FuritenChanges(discarded), waitingSeatFuritenCleared(t))
 
 	g, _ = script(t, g, act(seat(t, 2), play.DiscardAction(fiveMan)))
 	assertEqual(t, "awaiting the ron", g.Awaiting(), awaitingCall(seat(t, waitingSeat)))
@@ -328,6 +335,5 @@ func TestTemporaryFuriten_WhenAPonSkipsTheSeatsTurn_ShouldStillBlockRon(t *testi
 	assertEqual(t, "furiten on pon", testkit.FuritenChanges(called), noFuritenChange())
 
 	g, _ = script(t, g, act(seat(t, 2), play.DiscardAction(tileOf(t, 0, "3m"))))
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 3)))
 }

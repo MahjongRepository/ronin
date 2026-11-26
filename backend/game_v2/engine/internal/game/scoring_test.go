@@ -62,7 +62,6 @@ func TestTsumo_WhenAClosedTankiWins_ShouldReturnTheScoredResult(t *testing.T) {
 	g := goAroundGame(t, ittsuDealerHands(t), []tile.TileID{fivePinWinTile(t)}, noStart(), twoManDoraIndicator(t))
 
 	win := winOf(t, g, seat(t, 0), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuIttsu})
 	assertEqual(t, "dora", win.Dora, play.DoraCount{Dora: 1, AkaDora: 2})
 	assertEqual[play.Value](t, "value", win.Value, play.Han{Han: 6, Fu: 30})
@@ -75,7 +74,6 @@ func TestTsumo_WhenTheWinnerIsInRiichi_ShouldIncludeTheRiichiYaku(t *testing.T) 
 	g := dealerRiichiOnSecondDiscard(t, []tile.TileID{fivePinWinTile(t)})
 
 	win := winOf(t, g, seat(t, 0), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuRiichi, play.YakuIttsu})
 	assertEqual[play.Value](t, "value", win.Value, play.Han{Han: 7, Fu: 30})
 }
@@ -128,7 +126,6 @@ func TestTsumo_WhenANonDealerWinsWithHonba_ShouldRoundThePaymentsUpAndAddTheHonb
 	g, _ = discardDrawn(t, g, 1)
 
 	win := winOf(t, g, seat(t, 1), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuIttsu})
 	assertEqual[play.Value](t, "value", win.Value, play.Han{Han: 3, Fu: 30})
 	assertEqual(t, "limit", win.Limit, play.Option[play.Limit]{})
@@ -150,6 +147,7 @@ func threePinDiscardedBy(t *testing.T, loser tile.Seat) game.Game {
 			hands[other.Index()] = manWithHonors(2)
 		}
 	}
+
 	threePin := tileOf(t, 0, "3p")
 	w := testkit.StartWall{
 		Hands: hands,
@@ -186,6 +184,7 @@ func TestRon_WhenHonbaAndRiichiSticksAreOnTheTable_ShouldChargeTheDiscarderAndGi
 	if len(ron.Wins) != 1 {
 		t.Fatalf("wins = %+v, want one", ron.Wins)
 	}
+
 	win := ron.Wins[0]
 	assertEqual(t, "winner", win.Winner, seat(t, 2))
 	assertEqual(t, "loser", win.Loser, play.Some(seat(t, 1)))
@@ -198,27 +197,42 @@ func TestRon_WhenHonbaAndRiichiSticksAreOnTheTable_ShouldChargeTheDiscarderAndGi
 
 func TestDoubleRon_ShouldChargeTheDiscarderBothHandsAndGiveHonbaAndSticksToTheCloserWinner(t *testing.T) {
 	for _, c := range []struct {
+		name                   string
 		loser, closer, farther tile.Seat
 		scoreChanges           [tile.SeatCount]int
 	}{
-		{seat(t, 1), seat(t, 2), seat(t, 0), [tile.SeatCount]int{7700, -16300, 10600, 0}},
-		{seat(t, 3), seat(t, 0), seat(t, 2), [tile.SeatCount]int{10300, 0, 8000, -16300}},
+		{
+			name:         "seat 1 discards",
+			loser:        seat(t, 1),
+			closer:       seat(t, 2),
+			farther:      seat(t, 0),
+			scoreChanges: [tile.SeatCount]int{7700, -16300, 10600, 0},
+		},
+		{
+			name:         "seat 3 discards",
+			loser:        seat(t, 3),
+			closer:       seat(t, 0),
+			farther:      seat(t, 2),
+			scoreChanges: [tile.SeatCount]int{10300, 0, 8000, -16300},
+		},
 	} {
-		g := threePinDiscardedBy(t, c.loser)
+		t.Run(c.name, func(t *testing.T) {
+			g := threePinDiscardedBy(t, c.loser)
 
-		_, events := script(t, g, act(seat(t, 0), play.RonAction()), act(seat(t, 2), play.RonAction()))
+			_, events := script(t, g, act(seat(t, 0), play.RonAction()), act(seat(t, 2), play.RonAction()))
 
-		ron := soleRon(t, events)
-		assertEqual(t, "winners", winners(ron), []tile.Seat{c.closer, c.farther})
-		for _, win := range ron.Wins {
-			want := []tile.TileID(nil)
-			if win.Winner == seat(t, 2) {
-				want = []tile.TileID{doraFreeUra(t)}
+			ron := soleRon(t, events)
+			assertEqual(t, "winners", winners(ron), []tile.Seat{c.closer, c.farther})
+			for _, win := range ron.Wins {
+				want := []tile.TileID(nil)
+				if win.Winner == seat(t, 2) {
+					want = []tile.TileID{doraFreeUra(t)}
+				}
+				assertEqual(t, "ura indicators", win.UraIndicators, want)
 			}
-			assertEqual(t, "ura indicators", win.UraIndicators, want)
-		}
-		assertEqual(t, "score changes", ron.TotalScoreChanges(), c.scoreChanges)
-		assertSticksCleared(t, events)
+			assertEqual(t, "score changes", ron.TotalScoreChanges(), c.scoreChanges)
+			assertSticksCleared(t, events)
+		})
 	}
 }
 
@@ -242,6 +256,7 @@ func fuOf(t *testing.T, value play.Value) int {
 	if !ok {
 		t.Fatalf("value = %v, want han and fu", value)
 	}
+
 	return han.Fu
 }
 
@@ -252,13 +267,11 @@ func souWithHighPinOf(t *testing.T) func(int) []tile.TileID {
 
 func TestFu_WhenThePairIsADoubleWind_ShouldAdd4(t *testing.T) {
 	win := dealerTsumoFu(t, copies(t, 0, "123456m789p23s11z"), tileOf(t, 0, "4s"), tile.East, souWithHighPinOf(t))
-
 	assertEqual(t, "fu", fuOf(t, win.Value), 30)
 }
 
 func TestFu_WhenThePairIsASingleWind_ShouldAdd2(t *testing.T) {
 	win := dealerTsumoFu(t, copies(t, 0, "123456m789p23s11z"), tileOf(t, 0, "4s"), tile.South, souWithHighPinOf(t))
-
 	assertEqual(t, "fu", fuOf(t, win.Value), 30)
 }
 
@@ -294,7 +307,6 @@ func TestPinfuTsumo_WhenThePairIsUnvalued_ShouldScore20FuWithoutTsumoFu(t *testi
 	g, _ = discardDrawn(t, g, 1)
 
 	win := winOf(t, g, seat(t, 1), play.TsumoAction())
-
 	if !hasYaku(win.Yaku, play.YakuPinfu) {
 		t.Errorf("yaku = %v, want pinfu", win.Yaku)
 	}
@@ -305,7 +317,6 @@ func TestChiitoitsu_ShouldScore25FuAndItsYaku(t *testing.T) {
 	bystander := func(first int) []tile.TileID { return copies(t, first, "456789m34568p49s") }
 
 	win := dealerTsumoFu(t, copies(t, 0, "1133m2277p5588s1z"), tileOf(t, 1, "1z"), tile.East, bystander)
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuChiitoitsu})
 	if han, ok := win.Value.(play.Han); !ok || han.Fu != 25 || han.Han < 3 {
 		t.Errorf("value = %v, want 3 han or more at 25 fu", win.Value)
@@ -396,6 +407,7 @@ func TestRon_WhenAnOpenPinfuShapeWins_ShouldScore30Fu(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DealerCallFromSeatThree error = %v", err)
 	}
+
 	g, _ = discardDrawn(t, g, 3)
 
 	_, events := script(t, g, act(seat(t, 0), play.RonAction()))

@@ -19,6 +19,7 @@ func TestTurnDiscards_WhenInRiichiAfterADraw_ShouldAllowOnlyTheDrawnTile(t *test
 	if want := []tile.TileID{drawn}; !slices.Equal(inRiichi, want) {
 		t.Errorf("TurnDiscards in riichi = %v, want %v", inRiichi, want)
 	}
+
 	if !slices.Equal(notInRiichi, hand) {
 		t.Errorf("TurnDiscards out of riichi = %v, want %v", notInRiichi, hand)
 	}
@@ -34,6 +35,7 @@ func TestTurnDiscards_WhenAfterACall_ShouldLeaveOutTheKuikaeKindsInHandOrder(t *
 	if want := []tile.TileID{hand[3]}; !slices.Equal(restricted, want) {
 		t.Errorf("TurnDiscards with kuikae = %v, want %v", restricted, want)
 	}
+
 	if !slices.Equal(free, hand) {
 		t.Errorf("TurnDiscards without kuikae = %v, want %v", free, hand)
 	}
@@ -43,6 +45,7 @@ func TestLastTileFlags_ShouldNeedAnEmptyLiveWallAndNoKanTile(t *testing.T) {
 	if !offer.IsHaitei(0, false) || offer.IsHaitei(0, true) || offer.IsHaitei(1, false) {
 		t.Error("IsHaitei is not true only for a live draw from an empty wall")
 	}
+
 	if !offer.IsHoutei(0, play.SourceDiscard) || offer.IsHoutei(0, play.SourceAddedKan) ||
 		offer.IsHoutei(0, play.SourceClosedKan) || offer.IsHoutei(1, play.SourceDiscard) {
 		t.Error("IsHoutei is not true only for a discard on an empty wall")

@@ -46,6 +46,7 @@ func (p *profile) validate(v Value, depth int) error {
 	case StrMap:
 		return errors.New("a string-keyed map belongs only under a score map or the rules envelope")
 	}
+
 	return nil
 }
 
@@ -55,9 +56,11 @@ func (p *profile) validateMap(m Map, depth int) error {
 		if int(f.Key) >= keyCount || !p.keys[f.Key] {
 			return unknownKeyError{raw: Int(f.Key)}
 		}
+
 		if seen[f.Key] {
 			return fmt.Errorf("duplicate metadata key %s", f.Key)
 		}
+
 		seen[f.Key] = true
 
 		err := p.validateField(f, depth+1)
@@ -65,6 +68,7 @@ func (p *profile) validateMap(m Map, depth int) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -72,12 +76,15 @@ func (p *profile) validateField(f Field, depth int) error {
 	if f.Key == KeyScores || f.Key == KeyScoreChanges {
 		return validateScoreMap(f.Value)
 	}
+
 	if f.Key == KeyGameSettings {
 		return validateSettings(f.Value)
 	}
+
 	if f.Key == KeySeed {
 		return validateSeed(f.Value)
 	}
+
 	return p.validate(f.Value, depth)
 }
 
@@ -93,9 +100,11 @@ func validateScoreMap(v Value) error {
 		if err != nil || seat < 0 || seat >= tile.SeatCount || strconv.Itoa(seat) != f.Key {
 			return fmt.Errorf("score map key %q is no seat", f.Key)
 		}
+
 		if seen[seat] {
 			return fmt.Errorf("score map has seat %s twice", f.Key)
 		}
+
 		seen[seat] = true
 
 		_, isInt := f.Value.(Int)
@@ -103,5 +112,6 @@ func validateScoreMap(v Value) error {
 			return fmt.Errorf("score map value of seat %s is no integer", f.Key)
 		}
 	}
+
 	return nil
 }

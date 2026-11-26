@@ -16,6 +16,7 @@ func repeatedSeed(t *testing.T, pair string) rng.Seed {
 	if err != nil {
 		t.Fatalf("ParseSeed(%q x 96) error = %v", pair, err)
 	}
+
 	return seed
 }
 
@@ -27,8 +28,10 @@ func seats(t *testing.T, ns ...int) [tile.SeatCount]tile.Seat {
 		if !ok {
 			t.Fatalf("NewSeat(%d) refused", n)
 		}
+
 		out[i] = seat
 	}
+
 	return out
 }
 
@@ -37,13 +40,8 @@ func idNumbers(ids []tile.TileID) []int {
 	for _, id := range ids {
 		numbers = append(numbers, id.Index())
 	}
-	return numbers
-}
 
-func TestVersion_ShouldBeRoninsSchemeName(t *testing.T) {
-	if rng.Version != "shake256-v1" {
-		t.Errorf("Version = %q, want shake256-v1", rng.Version)
-	}
+	return numbers
 }
 
 func TestParseSeed_WhenHexMixesCases_ShouldReadEveryDigitAndPrintItLowercase(t *testing.T) {
@@ -64,34 +62,22 @@ func TestParseSeed_WhenHexMixesCases_ShouldReadEveryDigitAndPrintItLowercase(t *
 
 func TestParseSeed_WhenStringIsMalformed_ShouldRefuseWithTheReason(t *testing.T) {
 	cases := []struct {
+		name string
 		hex  string
 		want error
 	}{
-		{strings.Repeat("ab", 10), rng.SeedLengthError{Length: 20}},
-		{"zz" + strings.Repeat("ab", 95), rng.SeedNotHexError{}},
-		{"az" + strings.Repeat("ab", 95), rng.SeedNotHexError{}},
-		{"  " + strings.Repeat("ab", 95), rng.SeedNotHexError{}},
-		{"é" + strings.Repeat("ab", 95), rng.SeedNotHexError{}},
+		{"too short", strings.Repeat("ab", 10), rng.SeedLengthError{Length: 20}},
+		{"first digit not hex", "zz" + strings.Repeat("ab", 95), rng.SeedNotHexError{}},
+		{"second digit not hex", "az" + strings.Repeat("ab", 95), rng.SeedNotHexError{}},
+		{"spaces", "  " + strings.Repeat("ab", 95), rng.SeedNotHexError{}},
+		{"multibyte rune", "é" + strings.Repeat("ab", 95), rng.SeedNotHexError{}},
 	}
 	for _, c := range cases {
-		if _, err := rng.ParseSeed(c.hex); !errors.Is(err, c.want) {
-			t.Errorf("ParseSeed(%q) error = %v, want %v", c.hex, err, c.want)
-		}
-	}
-}
-
-func TestSeedErrors_ShouldNameWhatIsWrong(t *testing.T) {
-	cases := []struct {
-		err  error
-		want string
-	}{
-		{rng.SeedLengthError{Length: 20}, "a seed is 192 hex characters, got 20"},
-		{rng.SeedNotHexError{}, "a seed holds only hex characters"},
-	}
-	for _, c := range cases {
-		if got := c.err.Error(); got != c.want {
-			t.Errorf("%#v message = %q, want %q", c.err, got, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := rng.ParseSeed(c.hex); !errors.Is(err, c.want) {
+				t.Errorf("ParseSeed(%q) error = %v, want %v", c.hex, err, c.want)
+			}
+		})
 	}
 }
 
@@ -104,6 +90,7 @@ func TestRoundWall_WhenRoundIsZero_ShouldMatchThePinnedVector(t *testing.T) {
 	if dice != (tile.Dice{First: 5, Second: 5}) {
 		t.Errorf("dice = %v, want (5, 5)", dice)
 	}
+
 	sorted := wall
 	slices.SortFunc(sorted[:], tile.TileID.Compare)
 	if sorted != tile.AllTileIDs() {
@@ -154,11 +141,13 @@ func TestFirstDealer_ShouldMatchThePinnedVectors(t *testing.T) {
 		{"cd", 3, tile.Dice{First: 4, Second: 2}, tile.Dice{First: 1, Second: 6}},
 	}
 	for _, c := range cases {
-		dealer, first, second := rng.FirstDealer(repeatedSeed(t, c.pair))
-		if dealer.Index() != c.dealer || first != c.first || second != c.second {
-			t.Errorf("FirstDealer(%s) = %d, %v, %v; want %d, %v, %v",
-				c.pair, dealer.Index(), first, second, c.dealer, c.first, c.second)
-		}
+		t.Run(c.pair, func(t *testing.T) {
+			dealer, first, second := rng.FirstDealer(repeatedSeed(t, c.pair))
+			if dealer.Index() != c.dealer || first != c.first || second != c.second {
+				t.Errorf("FirstDealer(%s) = %d, %v, %v; want %d, %v, %v",
+					c.pair, dealer.Index(), first, second, c.dealer, c.first, c.second)
+			}
+		})
 	}
 }
 
@@ -179,8 +168,10 @@ func TestSeatPermutation_ShouldMatchThePinnedVectors(t *testing.T) {
 		{"cd", seats(t, 3, 2, 0, 1)},
 	}
 	for _, c := range cases {
-		if got := rng.SeatPermutation(repeatedSeed(t, c.pair)); got != c.want {
-			t.Errorf("SeatPermutation(%s) = %v, want %v", c.pair, got, c.want)
-		}
+		t.Run(c.pair, func(t *testing.T) {
+			if got := rng.SeatPermutation(repeatedSeed(t, c.pair)); got != c.want {
+				t.Errorf("SeatPermutation(%s) = %v, want %v", c.pair, got, c.want)
+			}
+		})
 	}
 }

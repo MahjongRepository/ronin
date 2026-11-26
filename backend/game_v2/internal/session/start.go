@@ -37,6 +37,7 @@ func (g *game) join(conn Connection, ticket string) error {
 		sendSessionError(g.log, conn, b.refused.Value.code, b.refused.Value.message)
 		return nil
 	}
+
 	g.closeReplaced(b.participant, b.replaced, conn)
 	return g.admit(b.participant, conn)
 }
@@ -47,6 +48,7 @@ func (g *game) byTicket(ticket string) *participant {
 			return p
 		}
 	}
+
 	return nil
 }
 
@@ -54,6 +56,7 @@ func (g *game) closeReplaced(p *participant, replaced, conn Connection) {
 	if replaced == nil {
 		return
 	}
+
 	p.log.Info("replacing a participant's connection",
 		"old_connection_id", replaced.ID(), "new_connection_id", conn.ID())
 	replaced.Close(CloseReplaced, "replaced_by_new_connection")
@@ -72,6 +75,7 @@ func (g *game) admit(p *participant, conn Connection) error {
 	if connected < len(g.participants) {
 		return nil
 	}
+
 	g.pending.cancel()
 	return g.startGame()
 }
@@ -80,11 +84,13 @@ func (g *game) pendingTimedOut(token uint64) error {
 	if !g.pending.claim(token) || g.lifecycle != lifecyclePending {
 		return nil
 	}
+
 	if g.connectedCount() == 0 {
 		g.log.Warn("no players connected before timeout, cancelling game", "expected", len(g.participants))
 		g.endGame(endAbandoned, play.Option[store.Result]{})
 		return nil
 	}
+
 	return g.startGame()
 }
 
@@ -96,22 +102,27 @@ func (g *game) startGame() error {
 	for _, p := range g.participants {
 		names = append(names, p.spec.Name)
 	}
+
 	roster, seats := SeatPlayers(g.id, names, seed, g.seating)
 	for i, p := range g.participants {
 		p.seat, p.seated = seats[i], true
 		p.log = g.log.With("seat", p.seat.Index())
 	}
+
 	g.roster = roster
 
 	started, events, err := engine.NewGame(g.m.cfg.Setup(seed))
 	if err != nil {
 		return fmt.Errorf("start the engine game: %w", err)
 	}
+
 	err = g.recordStart()
 	if err != nil {
 		return fmt.Errorf("claim the game id: %w", err)
 	}
+
 	g.startRecorded = true
+
 	listed := StartedGame{
 		GameID:    g.id,
 		StartedAt: g.start.StartedAt,
@@ -120,6 +131,7 @@ func (g *game) startGame() error {
 	}
 	g.observed = newObserverTimeline(listed)
 	g.m.markPlaying(g, listed)
+
 	g.engine = started
 	g.replay = messaging.NewReplayLog(seed, g.roster)
 	g.log.Info("pending game completed")
@@ -131,9 +143,11 @@ func (g *game) recordStart() error {
 	for i, name := range g.roster.Names {
 		seats[i].Name = name
 	}
+
 	for _, p := range g.participants {
 		seats[p.seat.Index()].UserID = p.spec.UserID
 	}
+
 	g.start = store.GameStart{GameID: g.id, StartedAt: g.clock.Now(), GameType: gameTypeHanchan, Seats: seats}
 	return g.m.cfg.DB.RecordStart(g.m.storeCtx, g.start)
 }
@@ -144,6 +158,7 @@ func (g *game) openFirstWait(events []play.Emitted) error {
 		for p := range g.connected() {
 			opened.owing[p.seat.Index()] = true
 		}
+
 		g.pause = &opened
 	}
 
@@ -151,10 +166,12 @@ func (g *game) openFirstWait(events []play.Emitted) error {
 	if err != nil {
 		return err
 	}
+
 	err = g.applyUpdate(events, play.Option[tile.Seat]{})
 	if err != nil {
 		return err
 	}
+
 	for _, p := range g.participants {
 		if p.conn == nil {
 			err = g.handOver(p, play.Some(wire.SeatControlAbsent))
@@ -167,6 +184,7 @@ func (g *game) openFirstWait(events []play.Emitted) error {
 	if g.pause == nil {
 		return g.begin(play.Option[tile.Seat]{})
 	}
+
 	return nil
 }
 
@@ -175,6 +193,7 @@ func (g *game) begin(actor play.Option[tile.Seat]) error {
 	if refusal.OK {
 		return errRefusedBegin
 	}
+
 	g.engine = next
 	return g.followEngine(events, actor)
 }
@@ -185,6 +204,7 @@ func SeatPlayers(gameID string, names []string, seed engine.Seed, seating Seatin
 	for i := range roster.AI {
 		roster.AI[i] = true
 	}
+
 	for i, seat := range seats {
 		roster.Names[seat.Index()], roster.AI[seat.Index()] = names[i], false
 	}
@@ -194,12 +214,15 @@ func SeatPlayers(gameID string, names []string, seed engine.Seed, seating Seatin
 		if !roster.AI[i] {
 			continue
 		}
+
 		for slices.Contains(names, aiNamePrefix+strconv.Itoa(number)) {
 			number++
 		}
+
 		roster.Names[i] = aiNamePrefix + strconv.Itoa(number)
 		number++
 	}
+
 	return roster, seats
 }
 
@@ -210,8 +233,10 @@ func playerSeats(count int, seed engine.Seed, seating Seating) []tile.Seat {
 		for i := range seats {
 			seats[i], seat = seat, seat.Next()
 		}
+
 		return seats
 	}
+
 	permutation := engine.SeatPermutation(seed)
 	return permutation[:count]
 }
@@ -222,5 +247,6 @@ func namesFromEast(names [tile.SeatCount]string, seed engine.Seed) [tile.SeatCou
 	for i := range fromEast {
 		fromEast[i], seat = names[seat.Index()], seat.Next()
 	}
+
 	return fromEast
 }

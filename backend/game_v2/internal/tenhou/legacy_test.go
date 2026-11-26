@@ -29,6 +29,7 @@ func TestConvertEvents_WhenTheRewrittenChankanReplayConverts_ShouldWriteThePytho
 	if err != nil {
 		t.Fatalf("read %s: %v", rewrittenChankanPath, err)
 	}
+
 	records, err := wire.DecodeReplay(content)
 	if err != nil {
 		t.Fatalf("DecodeReplay error = %v", err)
@@ -38,6 +39,7 @@ func TestConvertEvents_WhenTheRewrittenChankanReplayConverts_ShouldWriteThePytho
 	if err != nil {
 		t.Fatalf("convertEvents error = %v", err)
 	}
+
 	if got != chankanExport {
 		t.Errorf("convertEvents =\n%s\nwant the Python export with Tenhou dice\n%s", got, chankanExport)
 	}

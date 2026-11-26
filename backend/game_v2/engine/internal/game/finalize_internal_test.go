@@ -13,6 +13,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -27,6 +28,7 @@ func ron(t *testing.T, winners []int, discarder int) play.RoundResult {
 	for _, winner := range winners {
 		wins = append(wins, play.WinResult{Winner: seat(t, winner)})
 	}
+
 	return play.Ron{Discarder: seat(t, discarder), Wins: wins}
 }
 
@@ -36,6 +38,7 @@ func drawWithNagashi(t *testing.T, tenpaiSeats []int, nagashi []play.NagashiRive
 	for _, n := range tenpaiSeats {
 		tenpai = append(tenpai, play.ShownHand{Seat: seat(t, n)})
 	}
+
 	return play.ExhaustiveDraw{Tenpai: tenpai, Nagashi: nagashi}
 }
 
@@ -226,6 +229,7 @@ func TestGameEndCause_WhenAWestRoundEndsWithASeatAtTheThreshold_ShouldEndByTarge
 	if westOne != endsBy(play.EndTargetReached) {
 		t.Errorf("end after West 1 = %+v, want by target", westOne)
 	}
+
 	westTwo := causeAfter(t, at(t, 10, tile.West, 1, 0), tsumo(t, 2), [tile.SeatCount]int{35000, 20000, 22000, 23000})
 	if westTwo != endsBy(play.EndTargetReached) {
 		t.Errorf("end after West 2 = %+v, want by target", westTwo)
@@ -251,6 +255,7 @@ func TestGameEndCause_WhenAWestDealerWinsAtTheThreshold_ShouldEndByTarget(t *tes
 	if next := ended.after(tsumo(t, 0)); next.uniqueDealers != 9 || next.dealer != seat(t, 0) {
 		t.Errorf("after = %+v, want dealer 0 again, 9 unique dealers", next)
 	}
+
 	got := causeAfter(t, ended, tsumo(t, 0), [tile.SeatCount]int{30000, 24000, 23000, 23000})
 	if got != endsBy(play.EndTargetReached) {
 		t.Errorf("end = %+v, want by target", got)
@@ -269,6 +274,7 @@ func TestGameEndCause_WhenAWestDealerIsTenpaiAtTheThreshold_ShouldEndByTarget(t 
 	if next := ended.after(draw(t, []int{1})); next.dealer != seat(t, 1) {
 		t.Errorf("after = %+v, want dealer 1 again", next)
 	}
+
 	got := causeAfter(t, ended, draw(t, []int{1}), [tile.SeatCount]int{24000, 31000, 22000, 23000})
 	if got != endsBy(play.EndTargetReached) {
 		t.Errorf("end = %+v, want by target", got)
@@ -284,24 +290,27 @@ func TestGameEndCause_WhenAWestDealerIsTenpaiBelowTheThreshold_ShouldPlayOn(t *t
 
 func TestGameEndCause_WhenTheDealerWinsFromSouthFourOn_ShouldEndOnlyInFirstPlaceAtTheThreshold(t *testing.T) {
 	cases := []struct {
+		name          string
 		uniqueDealers int
 		wind          tile.Wind
 		dealer        int
 		scores        [tile.SeatCount]int
 		want          ending
 	}{
-		{8, tile.South, 3, [tile.SeatCount]int{24000, 23000, 23000, 30000}, endsBy(play.EndLength)},
-		{8, tile.South, 3, [tile.SeatCount]int{24000, 23000, 23000, 29900}, playsOn()},
-		{8, tile.South, 3, [tile.SeatCount]int{24000, 32000, 23000, 31000}, playsOn()},
-		{8, tile.South, 3, [tile.SeatCount]int{30000, 23000, 23000, 30000}, playsOn()},
-		{9, tile.West, 0, [tile.SeatCount]int{30000, 30000, 20000, 20000}, endsBy(play.EndTargetReached)},
-		{12, tile.West, 3, [tile.SeatCount]int{31000, 23000, 23000, 23000}, playsOn()},
+		{name: "first place at the threshold", uniqueDealers: 8, wind: tile.South, dealer: 3, scores: [tile.SeatCount]int{24000, 23000, 23000, 30000}, want: endsBy(play.EndLength)},
+		{name: "first place below the threshold", uniqueDealers: 8, wind: tile.South, dealer: 3, scores: [tile.SeatCount]int{24000, 23000, 23000, 29900}, want: playsOn()},
+		{name: "dealer not in first place", uniqueDealers: 8, wind: tile.South, dealer: 3, scores: [tile.SeatCount]int{24000, 32000, 23000, 31000}, want: playsOn()},
+		{name: "dealer tied for first place", uniqueDealers: 8, wind: tile.South, dealer: 3, scores: [tile.SeatCount]int{30000, 23000, 23000, 30000}, want: playsOn()},
+		{name: "west dealer reaches the target", uniqueDealers: 9, wind: tile.West, dealer: 0, scores: [tile.SeatCount]int{30000, 30000, 20000, 20000}, want: endsBy(play.EndTargetReached)},
+		{name: "west dealer first place below the threshold", uniqueDealers: 12, wind: tile.West, dealer: 3, scores: [tile.SeatCount]int{31000, 23000, 23000, 23000}, want: playsOn()},
 	}
 	for _, tc := range cases {
-		ended := at(t, tc.uniqueDealers, tc.wind, tc.dealer, 0)
-		if got := causeAfter(t, ended, tsumo(t, tc.dealer), tc.scores); got != tc.want {
-			t.Errorf("end with %v = %+v, want %+v", tc.scores, got, tc.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			ended := at(t, tc.uniqueDealers, tc.wind, tc.dealer, 0)
+			if got := causeAfter(t, ended, tsumo(t, tc.dealer), tc.scores); got != tc.want {
+				t.Errorf("end with %v = %+v, want %+v", tc.scores, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -311,6 +320,7 @@ func TestGameEndCause_WhenTheSouthFourDealerIsTenpaiInFirstPlaceAtTheThreshold_S
 	if got := causeAfter(t, ended, draw(t, []int{3}), scores); got != endsBy(play.EndLength) {
 		t.Errorf("end after a draw = %+v, want by length", got)
 	}
+
 	if got := causeAfter(t, ended, nagashi(t, []int{3}), scores); got != endsBy(play.EndLength) {
 		t.Errorf("end after nagashi mangan = %+v, want by length", got)
 	}
@@ -342,6 +352,7 @@ func TestGameEndCause_WhenANonDealerWinsWestFour_ShouldEndByExtensionLimit(t *te
 	if next := ended.after(tsumo(t, 1)); next.uniqueDealers != 13 {
 		t.Errorf("unique dealers after = %d, want 13", next.uniqueDealers)
 	}
+
 	got := causeAfter(t, ended, tsumo(t, 1), [tile.SeatCount]int{25000, 25000, 25000, 25000})
 	if got != endsBy(play.EndExtensionLimit) {
 		t.Errorf("end = %+v, want by extension limit", got)
@@ -360,6 +371,7 @@ func TestGameEndCause_WhenTheWestFourDealerWinsBelowTheThreshold_ShouldPlayOn(t 
 	if next := ended.after(tsumo(t, 3)); next.uniqueDealers != 12 || next.dealer != seat(t, 3) {
 		t.Errorf("after = %+v, want dealer 3 again, 12 unique dealers", next)
 	}
+
 	got := causeAfter(t, ended, tsumo(t, 3), [tile.SeatCount]int{29000, 24000, 24000, 23000})
 	if got != playsOn() {
 		t.Errorf("end = %+v, want play on", got)
@@ -413,6 +425,7 @@ func TestFinalStandings_WhenSeatsAreOutOfOrder_ShouldPlaceThemByScore(t *testing
 	if want := [tile.SeatCount]int{2, 4, 1, 3}; standings.Placements != want {
 		t.Errorf("placements = %v, want %v", standings.Placements, want)
 	}
+
 	if want := [tile.SeatCount]int{81, -390, 523, -214}; standings.Points != want {
 		t.Errorf("points = %v, want %v", standings.Points, want)
 	}
@@ -423,6 +436,7 @@ func TestFinalStandings_WhenRiichiSticksAreLeft_ShouldGiveThemToTheTopPlayer(t *
 	if want := [tile.SeatCount]int{32000, 25000, 22000, 23000}; standings.Scores != want {
 		t.Errorf("scores = %v, want %v", standings.Scores, want)
 	}
+
 	if want := [tile.SeatCount]int{1, 2, 4, 3}; standings.Placements != want {
 		t.Errorf("placements = %v, want %v", standings.Placements, want)
 	}
@@ -433,6 +447,7 @@ func TestFinalStandings_WhenScoresAreEqual_ShouldRankBySeatFromTheFirstDealer(t 
 	if got, want := finalStandings(equal, 0, seat(t, 0), play.EndLength).Placements, [tile.SeatCount]int{1, 2, 3, 4}; got != want {
 		t.Errorf("placements from seat 0 = %v, want %v", got, want)
 	}
+
 	if got, want := finalStandings(equal, 0, seat(t, 2), play.EndLength).Placements, [tile.SeatCount]int{3, 4, 1, 2}; got != want {
 		t.Errorf("placements from seat 2 = %v, want %v", got, want)
 	}
@@ -447,21 +462,25 @@ func TestFinalStandings_WhenScoresDiffer_ShouldRankByScoreBeforeSeatOrder(t *tes
 
 func TestPlacementOrder_WhenScoresTie_ShouldPlaceTheSeatNearerAfterTheFirstDealerFirst(t *testing.T) {
 	cases := []struct {
+		name        string
 		scores      [tile.SeatCount]int
 		firstDealer int
 		want        [tile.SeatCount]int
 	}{
-		{[tile.SeatCount]int{25000, 30000, 25000, 25000}, 3, [tile.SeatCount]int{1, 3, 0, 2}},
-		{[tile.SeatCount]int{24000, 24000, 26000, 26000}, 1, [tile.SeatCount]int{2, 3, 1, 0}},
+		{name: "first dealer seat 3", scores: [tile.SeatCount]int{25000, 30000, 25000, 25000}, firstDealer: 3, want: [tile.SeatCount]int{1, 3, 0, 2}},
+		{name: "first dealer seat 1", scores: [tile.SeatCount]int{24000, 24000, 26000, 26000}, firstDealer: 1, want: [tile.SeatCount]int{2, 3, 1, 0}},
 	}
 	for _, tc := range cases {
-		order := placementOrder(tc.scores, seat(t, tc.firstDealer))
-		var got [tile.SeatCount]int
-		for place, placed := range order {
-			got[place] = placed.Index()
-		}
-		if got != tc.want {
-			t.Errorf("placementOrder(%v, %d) = %v, want %v", tc.scores, tc.firstDealer, got, tc.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			order := placementOrder(tc.scores, seat(t, tc.firstDealer))
+			var got [tile.SeatCount]int
+			for place, placed := range order {
+				got[place] = placed.Index()
+			}
+
+			if got != tc.want {
+				t.Errorf("placementOrder(%v, %d) = %v, want %v", tc.scores, tc.firstDealer, got, tc.want)
+			}
+		})
 	}
 }

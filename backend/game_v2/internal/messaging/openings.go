@@ -25,6 +25,7 @@ func BuildOpening(decision play.Decision) Opening {
 		if offers := drawOffers(decision.Legal); len(offers) > 0 {
 			payload = append(payload, wire.Field{Key: wire.KeyAvailableActions, Value: offers})
 		}
+
 		return Opening{Seat: decision.Seat, Payload: payload, ReplacesDraw: true}
 	case play.TurnAfterCall:
 		return Opening{Seat: decision.Seat, Payload: wire.Map{
@@ -34,6 +35,7 @@ func BuildOpening(decision play.Decision) Opening {
 	case play.Call:
 		return Opening{Seat: decision.Seat, Payload: callPrompt(decision, context)}
 	}
+
 	return Opening{Seat: decision.Seat}
 }
 
@@ -64,6 +66,7 @@ func callPrompt(decision play.Decision, context play.Call) wire.Map {
 	if calls := availableCalls(decision.Legal); len(calls) > 0 {
 		payload = append(payload, wire.Field{Key: wire.KeyAvailableCalls, Value: calls})
 	}
+
 	return payload
 }
 
@@ -79,18 +82,23 @@ func drawOffers(legal []play.Action) wire.Array {
 	if len(riichi) > 0 {
 		offers = append(offers, offer(wire.ActionRiichi, tilesValue(riichi)))
 	}
+
 	if slices.Contains(legal, play.TsumoAction()) {
 		offers = append(offers, offer(wire.ActionTsumo, nil))
 	}
+
 	if kinds := kanKinds(legal, play.KanClosed); len(kinds) > 0 {
 		offers = append(offers, offer(wire.ActionKan, kinds))
 	}
+
 	if kinds := kanKinds(legal, play.KanAdded); len(kinds) > 0 {
 		offers = append(offers, offer(wire.ActionAddedKan, kinds))
 	}
+
 	if slices.Contains(legal, play.KyuushuAction()) {
 		offers = append(offers, offer(wire.ActionKyuushu, nil))
 	}
+
 	return offers
 }
 
@@ -99,6 +107,7 @@ func offer(action wire.PlayerAction, tiles wire.Array) wire.Map {
 	if tiles != nil {
 		m = append(m, wire.Field{Key: wire.KeyTiles, Value: tiles})
 	}
+
 	return m
 }
 
@@ -111,6 +120,7 @@ func kanKinds(legal []play.Action, kind play.KanKind) wire.Array {
 			kinds = append(kinds, wire.Int(id.Kind()))
 		}
 	}
+
 	return kinds
 }
 
@@ -130,6 +140,7 @@ func availableCalls(legal []play.Action) wire.Array {
 	if len(kanKinds(legal, play.KanOpen)) > 0 {
 		calls = append(calls, wire.Map{{Key: wire.KeyCallType, Value: wire.Int(wire.MeldCallOpenKan)}})
 	}
+
 	for _, option := range []struct {
 		call    wire.MeldCallType
 		options wire.Array
@@ -157,11 +168,13 @@ func PlaceOpenings(events []play.Emitted, openings []Opening) iter.Seq[Placed] {
 				draws[o.Seat.Index()] = play.Some(o)
 			}
 		}
+
 		for _, e := range events {
 			placed := Placed{Event: e}
 			if drew, ok := e.Event.(play.Drew); ok && draws[drew.Seat.Index()].OK {
 				placed = Placed{Opening: draws[drew.Seat.Index()]}
 			}
+
 			if !yield(placed) {
 				return
 			}
@@ -184,5 +197,6 @@ func StampOpening(payload wire.Map, waitID int, bank Seconds, elapsed play.Optio
 	if !elapsed.OK {
 		stamps = stamps[1:]
 	}
+
 	return withAll(payload, stamps...)
 }

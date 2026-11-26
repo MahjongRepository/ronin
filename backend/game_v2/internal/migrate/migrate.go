@@ -19,7 +19,7 @@ type Config struct {
 }
 
 func Run(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) (ok bool, err error) {
-	err = errors.Join(checkExists(cfg.ReplayDir, true), checkExists(cfg.DatabasePath, false))
+	err = errors.Join(checkDir(cfg.ReplayDir), checkFile(cfg.DatabasePath))
 	if err != nil {
 		return false, err
 	}
@@ -34,6 +34,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) (o
 		return false, err
 	}
 	defer func() { err = errors.Join(err, db.Close()) }()
+
 	scores, err := db.MigrateFinalScores(ctx, cfg.Apply)
 	if err != nil {
 		return false, err
@@ -43,19 +44,33 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) (o
 	if err != nil {
 		return false, fmt.Errorf("write the report: %w", err)
 	}
+
 	return len(replays.Failed) == 0 && len(scores.Failed) == 0, nil
 }
 
-func checkExists(path string, dir bool) error {
+func checkDir(path string) error {
 	info, err := os.Stat(path)
-	switch {
-	case err != nil:
+	if err != nil {
 		return err
-	case dir && !info.IsDir():
+	}
+
+	if !info.IsDir() {
 		return fmt.Errorf("%s is no directory", path)
-	case !dir && info.IsDir():
+	}
+
+	return nil
+}
+
+func checkFile(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
 		return fmt.Errorf("%s is a directory", path)
 	}
+
 	return nil
 }
 
@@ -66,15 +81,18 @@ func report(cfg Config, replays replayReport, scores store.ScoreMigration) strin
 	for t, n := range replays.Transforms {
 		fmt.Fprintf(&b, "  %s: %d\n", Transform(t), n)
 	}
+
 	fmt.Fprintf(&b, "  without a game end: %d, of them cut inside a record: %d\n", replays.Unfinished, replays.Cut)
 	for kind, n := range replays.Kinds() {
 		if n > 0 {
 			fmt.Fprintf(&b, "  failed as %s: %d\n", FailureKind(kind), n)
 		}
 	}
+
 	for _, f := range replays.Failed {
 		fmt.Fprintf(&b, "  failed %s\n", f.Error())
 	}
+
 	for _, name := range replays.Ignored {
 		fmt.Fprintf(&b, "  ignored %s\n", name)
 	}
@@ -90,5 +108,6 @@ func report(cfg Config, replays replayReport, scores store.ScoreMigration) strin
 	} else {
 		b.WriteString("dry run: nothing written\n")
 	}
+
 	return b.String()
 }

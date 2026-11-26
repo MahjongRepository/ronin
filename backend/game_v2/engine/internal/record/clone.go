@@ -12,6 +12,7 @@ func Clone(r play.SeatRecord) play.SeatRecord {
 		r.Players[i].River = cloneSlice(r.Players[i].River)
 		r.Players[i].Melds = cloneMelds(r.Players[i].Melds)
 	}
+
 	r.DoraIndicators = cloneSlice(r.DoraIndicators)
 	r.Result = CloneResult(r.Result)
 	r.History = cloneSlice(r.History)
@@ -19,6 +20,7 @@ func Clone(r play.SeatRecord) play.SeatRecord {
 		r.History[i].Result = CloneResult(r.History[i].Result)
 		r.History[i].RiichiSeats = cloneSlice(r.History[i].RiichiSeats)
 	}
+
 	return r
 }
 
@@ -26,6 +28,7 @@ func cloneSlice[S ~[]E, E any](s S) S {
 	if len(s) == 0 {
 		return nil
 	}
+
 	return slices.Clone(s)
 }
 
@@ -38,10 +41,12 @@ func cloneMelds(melds []play.MeldView) []play.MeldView {
 	if len(melds) == 0 {
 		return nil
 	}
+
 	cloned := make([]play.MeldView, len(melds))
 	for i, m := range melds {
 		cloned[i] = cloneMeld(m)
 	}
+
 	return cloned
 }
 
@@ -51,6 +56,7 @@ func cloneShown(hands []play.ShownHand) []play.ShownHand {
 		hands[i].Hand = cloneSlice(hands[i].Hand)
 		hands[i].Melds = cloneMelds(hands[i].Melds)
 	}
+
 	return hands
 }
 
@@ -72,6 +78,7 @@ func CloneResult(result play.RoundResult) play.RoundResult {
 		for i := range r.Nagashi {
 			r.Nagashi[i].River = cloneSlice(r.Nagashi[i].River)
 		}
+
 		return r
 	case play.Tsumo:
 		r.Win = cloneWin(r.Win)
@@ -81,12 +88,14 @@ func CloneResult(result play.RoundResult) play.RoundResult {
 		for i := range r.Wins {
 			r.Wins[i] = cloneWin(r.Wins[i])
 		}
+
 		r.HeadBumped = cloneSlice(r.HeadBumped)
 		return r
 	case play.Abortive:
 		r.Kind = cloneAbort(r.Kind)
 		return r
 	}
+
 	return nil
 }
 
@@ -103,5 +112,6 @@ func cloneAbort(kind play.AbortKind) play.AbortKind {
 		return k
 	case play.FourWinds, play.FourKans:
 	}
+
 	return kind
 }

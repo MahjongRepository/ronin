@@ -61,6 +61,7 @@ func openDB(t *testing.T, logs *bytes.Buffer) (*store.DB, string) {
 	if err != nil {
 		t.Fatalf("Open(%s): %v", path, err)
 	}
+
 	t.Cleanup(func() {
 		closeErr := db.Close()
 		if closeErr != nil {
@@ -101,9 +102,11 @@ func readRows(t *testing.T, path string) map[string]playedGameRow {
 		}
 		byID[r.ID] = r
 	}
+
 	if rows.Err() != nil {
 		t.Fatalf("read played_games: %v", rows.Err())
 	}
+
 	return byID
 }
 
@@ -122,14 +125,17 @@ func TestOpen_WhenTheDatabaseIsNew_ShouldCreateOnlyPlayedGamesWithOwnerOnlyFiles
 		t.Fatalf("select sqlite_master: %v", err)
 	}
 	defer closeChecked(t, rows)
+
 	for rows.Next() {
 		var name string
 		err = rows.Scan(&name)
 		if err != nil {
 			t.Fatalf("scan sqlite_master: %v", err)
 		}
+
 		names = append(names, name)
 	}
+
 	if want := []string{"idx_played_games_started_at", "played_games"}; !slices.Equal(names, want) {
 		t.Errorf("schema objects = %v, want %v", names, want)
 	}
@@ -160,6 +166,7 @@ func TestDB_WhenPlayingThePythonFixtureGames_ShouldWriteThePythonRowsMarkedInTen
 	if err != nil {
 		t.Fatalf("read %s: %v", pythonRowsPath, err)
 	}
+
 	var fixtures []struct {
 		Name string        `json:"name"`
 		Row  playedGameRow `json:"row"`
@@ -215,6 +222,7 @@ func TestRecordStart_WhenTheGameIsAlreadyRecorded_ShouldRefuseItWithErrGameRecor
 	if err != nil {
 		t.Fatalf("first RecordStart: %v", err)
 	}
+
 	err = db.RecordStart(t.Context(), second)
 	if !errors.Is(err, store.ErrGameRecorded) {
 		t.Errorf("second RecordStart error = %v, want ErrGameRecorded", err)
@@ -284,6 +292,7 @@ func rowOf(t *testing.T, path, gameID string) playedGameRow {
 	if !ok {
 		t.Fatalf("no row for %s", gameID)
 	}
+
 	return row
 }
 
@@ -301,10 +310,10 @@ func TestCloseUnfinished_ShouldFinishOnlyTheUnfinishedRowsAsRecordFailedWould(t 
 	if err != nil {
 		t.Fatalf("record: %v", err)
 	}
+
 	completedBefore := rowOf(t, path, "game-completed")
 
 	closed, err := db.CloseUnfinished(t.Context(), fixtureEndedAt)
-
 	if err != nil || closed != 1 {
 		t.Errorf("CloseUnfinished = %d, %v, want 1, nil", closed, err)
 	}

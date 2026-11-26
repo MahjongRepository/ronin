@@ -35,6 +35,7 @@ func HandValue(concealed []tile.TileID, winTile tile.TileID, scoring Scoring) (s
 		if !ok {
 			return score.HandValue{}, meld.MisfitMeldError{Index: index}
 		}
+
 		melds = append(melds, m)
 	}
 
@@ -48,9 +49,11 @@ func OfferedValue(concealed []tile.TileID, winTile tile.TileID, scoring Scoring)
 	if errors.Is(err, score.NoYakuError{}) {
 		return score.HandValue{}, false
 	}
+
 	if err != nil {
 		panic(play.EngineFaultError{Err: err})
 	}
+
 	return value, true
 }
 
@@ -61,6 +64,7 @@ func SettledValue(concealed []tile.TileID, winTile tile.TileID, scoring Scoring)
 	if err != nil {
 		panic(play.EngineFaultError{Err: err})
 	}
+
 	return value
 }
 
@@ -77,6 +81,7 @@ func tilesOf(ids []tile.TileID) []tile.Tile {
 	for i, id := range ids {
 		tiles[i] = id.Tile(rules.AkaDora)
 	}
+
 	return tiles
 }
 
@@ -95,10 +100,12 @@ func TsumoScoreChanges(
 		if payer == dealer {
 			paid = dealerShare + honbaPerPayer
 		}
+
 		charged := payer
 		if pao.OK {
 			charged = pao.Value
 		}
+
 		changes[charged.Index()] -= paid
 		changes[winner.Index()] += paid
 	}
@@ -119,6 +126,7 @@ func tsumoShares(payment play.Payment, winnerIsDealer bool) (dealerShare, nonDea
 		}
 	case play.RonPayment:
 	}
+
 	panic(play.EngineFaultError{Err: MisfitPaymentError{Payment: payment}})
 }
 
@@ -126,6 +134,7 @@ func RonTableShare(position, honba, riichiSticks int) (tableHonba, tableSticks i
 	if position != 0 {
 		return 0, 0
 	}
+
 	return honba, riichiSticks
 }
 
@@ -139,6 +148,7 @@ func (e MisfitWinError) Error() string {
 	if e.Win.IsTsumo() {
 		return "a tsumo win cannot be settled as a ron"
 	}
+
 	return "a ron win cannot be settled as a tsumo"
 }
 
@@ -149,6 +159,7 @@ func RonScoreChanges(
 	if !ok {
 		panic(play.EngineFaultError{Err: MisfitPaymentError{Payment: payment}})
 	}
+
 	handPoints, honbaPoints := ron.Discarder, score.HonbaBonus(score.WinRon, honba)
 
 	var changes [tile.SeatCount]int
@@ -170,9 +181,11 @@ func RonWin(source play.CallSource, liveTiles int) score.Win {
 	if IsHoutei(liveTiles, source) {
 		return score.WinHoutei
 	}
+
 	if source == play.SourceDiscard {
 		return score.WinRon
 	}
+
 	return score.WinChankan
 }
 

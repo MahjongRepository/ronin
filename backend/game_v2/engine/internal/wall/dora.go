@@ -8,6 +8,7 @@ func (w *Wall) AddDoraIndicator() (tile.TileID, error) {
 	if w.revealed+w.pending >= indicatorStacks {
 		return tile.TileID{}, IndicatorsExhaustedError{}
 	}
+
 	w.revealed++
 	return w.indicators[w.revealed-1].Top, nil
 }
@@ -16,6 +17,7 @@ func (w *Wall) IncrementPendingDora() error {
 	if w.revealed+w.pending >= indicatorStacks {
 		return IndicatorsExhaustedError{}
 	}
+
 	w.pending++
 	return nil
 }
@@ -46,6 +48,7 @@ func (w Wall) UraIndicators() []tile.TileID {
 	for _, s := range w.indicators[:w.revealed] {
 		ura = append(ura, s.Bottom)
 	}
+
 	return ura
 }
 
@@ -54,5 +57,6 @@ func tops(stacks []Stack) []tile.TileID {
 	for _, s := range stacks {
 		ids = append(ids, s.Top)
 	}
+
 	return ids
 }

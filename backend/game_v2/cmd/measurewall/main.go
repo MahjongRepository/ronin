@@ -50,20 +50,28 @@ func run(args []string, stdout, stderr io.Writer) int {
 		if baselineErr != nil {
 			return fail(stderr, baselineErr)
 		}
+
 		text += "\n" + comparison + "\n"
 	}
+
 	if opts.jsonPath != "" {
 		writeErr := writeJSON(opts.jsonPath, toJSON(r, m.familyJSON()))
 		if writeErr != nil {
 			return fail(stderr, writeErr)
 		}
+
 		text += "\nJSON written to " + opts.jsonPath + "\n"
 	}
 
 	_, err = io.WriteString(stdout, text)
-	if err != nil || len(r.errors) > 0 {
+	if err != nil {
+		return fail(stderr, err)
+	}
+
+	if len(r.errors) > 0 {
 		return exitFailed
 	}
+
 	return 0
 }
 
@@ -85,12 +93,15 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 	if flags.NArg() > 0 {
 		err = fmt.Errorf("unexpected arguments: %v", flags.Args())
 	}
+
 	if opts.games < 1 || opts.rounds < 1 {
 		err = errors.New("-games and -rounds must be at least 1")
 	}
+
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 	}
+
 	return opts, err
 }
 
@@ -103,9 +114,11 @@ func measure(opts options) (*measurement, metadata, error) {
 		if err != nil {
 			return nil, metadata{}, err
 		}
+
 		if first == nil {
 			first = &game
 		}
+
 		err = m.observeEngine(game)
 		if err != nil {
 			return nil, metadata{}, err
@@ -130,6 +143,7 @@ func measure(opts options) (*measurement, metadata, error) {
 	if elapsed > 0 {
 		wallsPerSecond = float64(m.walls) / elapsed
 	}
+
 	meta := metadata{
 		RNGVersion:     engine.RNGVersion,
 		SeedBytes:      engine.SeedBytes,
@@ -150,10 +164,12 @@ func writeJSON(path string, report reportJSON) error {
 	if err != nil {
 		return fmt.Errorf("encode the report: %w", err)
 	}
+
 	err = os.WriteFile(path, data, 0o600)
 	if err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
+
 	return nil
 }
 

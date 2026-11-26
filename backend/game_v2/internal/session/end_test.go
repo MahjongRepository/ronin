@@ -38,7 +38,6 @@ func TestGameEnd_WhenTheLastWallIsDealt_ShouldSaveTheReplayRecordTheFinishAndClo
 	synctest.Test(t, func(t *testing.T) {
 		h := oneWallHarness(t)
 		alice := playOneWallGame(t, h)
-
 		if code, closed := alice.closeCode(); !closed || code != session.CloseGameEnded {
 			t.Fatalf("alice close = %v, %v, want 1000", code, closed)
 		}
@@ -53,6 +52,7 @@ func TestGameEnd_WhenTheLastWallIsDealt_ShouldSaveTheReplayRecordTheFinishAndClo
 		if reason.String != "completed" {
 			t.Errorf("end_reason = %q, want completed", reason.String)
 		}
+
 		var row struct {
 			Rounds    int `json:"num_rounds_played"`
 			Standings []struct {
@@ -74,6 +74,7 @@ func TestGameEnd_WhenTheLastWallIsDealt_ShouldSaveTheReplayRecordTheFinishAndClo
 			typ, _ := eventType(record)
 			kinds = append(kinds, typ)
 		}
+
 		want := []wire.EventType{wire.EventGameStarted, wire.EventRoundStarted, wire.EventSeatControl, wire.EventDraw}
 		if diff := cmp.Diff(want, kinds); diff != "" {
 			t.Errorf("replay start differs (-want +got):\n%s", diff)
@@ -91,7 +92,6 @@ func TestGameEnd_WhenTheReplayCannotBeSaved_ShouldEndAsAFailureAndClose1011(t *t
 		}
 
 		alice := playOneWallGame(t, h)
-
 		if code, closed := alice.closeCode(); !closed || code != session.CloseInternalError {
 			t.Errorf("alice close = %v, %v, want 1011", code, closed)
 		}
@@ -144,6 +144,7 @@ func TestGameFailure_WhenASendPanicsMidGameAndAgainInTheFinalizer_ShouldEndOnceA
 		if got := sessionErrorCode(t, alice); got != wire.Str(messaging.SessionInternalError) {
 			t.Errorf("alice session error = %v, want internal_error", got)
 		}
+
 		logs := h.logs.String()
 		if got := strings.Count(logs, "game failed"); got != 1 {
 			t.Errorf("logged %d game failures, want 1", got)
@@ -262,8 +263,8 @@ func TestShutdown_WhenAGameIsStillPending_ShouldEndItUnrecordedAndRefuseNewGames
 		if err != nil {
 			t.Fatalf("Shutdown error = %v", err)
 		}
-		sleep(time.Hour)
 
+		sleep(time.Hour)
 		if _, closed := idle.closeCode(); closed {
 			t.Error("the unauthenticated connection was closed after Shutdown")
 		}
@@ -282,6 +283,7 @@ func TestShutdown_WhenAGameIsStillPending_ShouldEndItUnrecordedAndRefuseNewGames
 		if !h.m.WithdrawGame(testGameID) {
 			t.Error("WithdrawGame after Shutdown kept the vanished game")
 		}
+
 		err = h.m.CreatePendingGame("game-0002", specs("Carol"), session.SeatingShuffled)
 		if !errors.Is(err, session.ErrShuttingDown) {
 			t.Errorf("CreatePendingGame after Shutdown error = %v, want ErrShuttingDown", err)

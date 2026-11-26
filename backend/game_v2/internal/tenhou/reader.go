@@ -33,6 +33,7 @@ func field[T wire.Value](r *reader, m wire.Map, k wire.Key, want string) T {
 	if !ok {
 		r.fail(fieldError{key: k, want: want})
 	}
+
 	return value
 }
 
@@ -61,6 +62,7 @@ func (r *reader) seat(m wire.Map, k wire.Key) tile.Seat {
 	if !ok {
 		r.fail(fieldError{key: k, want: "a seat"})
 	}
+
 	return s
 }
 
@@ -69,6 +71,7 @@ func (r *reader) tileID(m wire.Map, k wire.Key) int {
 	if !ok {
 		r.fail(fieldError{key: k, want: "a tile"})
 	}
+
 	return id.Index()
 }
 
@@ -80,8 +83,10 @@ func (r *reader) ints(m wire.Map, k wire.Key) []int {
 		if !ok {
 			r.fail(fieldError{key: k, want: "an array of integers"})
 		}
+
 		values = append(values, int(n))
 	}
+
 	return values
 }
 
@@ -91,6 +96,7 @@ func (r *reader) pair(m wire.Map, k wire.Key) [2]int {
 		r.fail(fieldError{key: k, want: "a pair"})
 		return [2]int{}
 	}
+
 	return [2]int(values)
 }
 
@@ -102,8 +108,10 @@ func (r *reader) objects(m wire.Map, k wire.Key) []wire.Map {
 		if !ok {
 			r.fail(fieldError{key: k, want: "an array of objects"})
 		}
+
 		objects = append(objects, object)
 	}
+
 	return objects
 }
 
@@ -116,7 +124,9 @@ func (r *reader) scoreMap(m wire.Map, k wire.Key) [tile.SeatCount]int {
 		if !ok {
 			r.fail(fmt.Errorf("score map %s has no score of seat %d", k, i))
 		}
+
 		bySeat[i] = int(n)
 	}
+
 	return bySeat
 }

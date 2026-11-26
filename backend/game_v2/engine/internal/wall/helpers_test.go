@@ -16,6 +16,7 @@ func id(t *testing.T, n int) tile.TileID {
 	if !ok {
 		t.Fatalf("NewTileID(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -25,6 +26,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -38,6 +40,7 @@ func numbers(tiles []tile.TileID) []int {
 	for _, tileID := range tiles {
 		out = append(out, tileID.Index())
 	}
+
 	return out
 }
 
@@ -46,6 +49,7 @@ func numberRange(from, to int) []int {
 	for n := from; n < to; n++ {
 		out = append(out, n)
 	}
+
 	return out
 }
 
@@ -55,6 +59,7 @@ func seedOf(t *testing.T, pair string) rng.Seed {
 	if err != nil {
 		t.Fatalf("ParseSeed(%q x 96) error = %v", pair, err)
 	}
+
 	return seed
 }
 
@@ -69,6 +74,7 @@ func orderedWall(t *testing.T) wall.Wall {
 	if err != nil {
 		t.Fatalf("FromTiles(every id once) error = %v", err)
 	}
+
 	return w
 }
 
@@ -83,6 +89,7 @@ func dealtTiles(hands [tile.SeatCount][wall.StartingHandSize]tile.TileID) []tile
 	for _, hand := range hands {
 		dealt = append(dealt, hand[:]...)
 	}
+
 	return dealt
 }
 
@@ -92,6 +99,7 @@ func mustDrawRinshan(t *testing.T, w *wall.Wall) tile.TileID {
 	if err != nil {
 		t.Fatalf("DrawRinshan error = %v", err)
 	}
+
 	return drawn
 }
 
@@ -101,6 +109,7 @@ func mustAddDoraIndicator(t *testing.T, w *wall.Wall) tile.TileID {
 	if err != nil {
 		t.Fatalf("AddDoraIndicator error = %v", err)
 	}
+
 	return indicator
 }
 

@@ -39,6 +39,7 @@ func (p Points) Total() int {
 	for _, score := range p.scores {
 		total += score
 	}
+
 	return total
 }
 

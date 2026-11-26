@@ -17,6 +17,7 @@ func Float(f float64) string {
 	if !strings.Contains(fixed, ".") {
 		fixed += ".0"
 	}
+
 	return fixed
 }
 
@@ -50,6 +51,7 @@ func Quote(s string) string {
 			writeUnicodeEscape(&b, r)
 		}
 	}
+
 	b.WriteByte('"')
 	return b.String()
 }

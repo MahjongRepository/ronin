@@ -19,15 +19,16 @@ const (
 	maxKuikaeKinds  = 2
 )
 
-// CheckedMeldOffers returns MeldOffers for a hand given from outside the engine; a
+// checkedMeldOffers returns MeldOffers for a hand given from outside the engine; a
 // meld.DuplicateTileError for the first tile id held twice in hand.
-func CheckedMeldOffers(
+func checkedMeldOffers(
 	hand []tile.TileID, inRiichi bool, seat, from tile.Seat, discard tile.TileID,
 	kans [tile.SeatCount]int, liveTiles int,
 ) ([]play.Action, error) {
 	if err := meld.CheckHandInput(hand, nil); err != nil {
 		return nil, err
 	}
+
 	return MeldOffers(hand, inRiichi, seat, from, discard, kans, liveTiles), nil
 }
 
@@ -39,17 +40,20 @@ func MeldOffers(
 		return nil
 	}
 
-	openKan := holdsOpenKan(hand, inRiichi, discard) && MayAddKan(kans, liveTiles)
-	pons := PonOptions(hand, inRiichi, discard)
-	var chiOptions [maxChiOptions][2]tile.TileID
-	chis := chiOptions[:0]
+	openKan := holdsOpenKan(hand, inRiichi, discard) && mayAddKan(kans, liveTiles)
+	pons := ponOptions(hand, inRiichi, discard)
+
+	var chiBuffer [maxChiOptions][2]tile.TileID
+	chis := chiBuffer[:0]
 	if seat.Kamicha() == from {
 		chis = appendChiOptions(chis, hand, inRiichi, discard)
 	}
+
 	count := len(pons) + len(chis)
 	if openKan {
 		count++
 	}
+
 	if count == 0 {
 		return nil
 	}
@@ -58,16 +62,19 @@ func MeldOffers(
 	if openKan {
 		offers = append(offers, play.KanAction(play.KanOpen, discard))
 	}
+
 	for _, pair := range pons {
 		offers = append(offers, play.PonAction(pair))
 	}
+
 	for _, pair := range chis {
 		offers = append(offers, play.ChiAction(pair))
 	}
+
 	return offers
 }
 
-func PonOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]tile.TileID {
+func ponOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]tile.TileID {
 	if inRiichi {
 		return nil
 	}
@@ -85,9 +92,11 @@ func PonOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]til
 	if len(red) > 0 && len(plain) > 0 {
 		options = append(options, [2]tile.TileID{red[0], plain[0]})
 	}
+
 	if len(plain) >= ponHandTiles {
 		options = append(options, [2]tile.TileID{plain[0], plain[1]})
 	}
+
 	return options
 }
 
@@ -100,10 +109,11 @@ func heldCount(hand []tile.TileID, kind tile.Kind) int {
 	for range tile.HeldCopies(hand, kind) {
 		count++
 	}
+
 	return count
 }
 
-func ChiOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]tile.TileID {
+func chiOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]tile.TileID {
 	return appendChiOptions(nil, hand, inRiichi, discard)
 }
 
@@ -121,9 +131,11 @@ func appendChiOptions(
 	if value+2 <= lastSuitValue {
 		shapes = append(shapes, [2]tile.Kind{kind + 1, kind + 2})
 	}
+
 	if value >= 1 && value < lastSuitValue {
 		shapes = append(shapes, [2]tile.Kind{kind - 1, kind + 1})
 	}
+
 	if value >= 2 {
 		shapes = append(shapes, [2]tile.Kind{kind - 2, kind - 1})
 	}
@@ -140,6 +152,7 @@ func appendChiOptions(
 			}
 		}
 	}
+
 	return options
 }
 
@@ -150,6 +163,7 @@ func appendLooks(found, hand []tile.TileID, kind tile.Kind) []tile.TileID {
 			found = append(found, held)
 		}
 	}
+
 	return found
 }
 
@@ -161,6 +175,7 @@ func leavesLegalDiscard(hand []tile.TileID, discard tile.TileID, pair [2]tile.Ti
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -177,6 +192,7 @@ func KuikaeKinds(discard tile.TileID, call play.MeldCall) []tile.Kind {
 	case play.ChiCall:
 		pair = c.Held
 	}
+
 	return appendChiKuikaeKinds(nil, called, pair)
 }
 
@@ -190,6 +206,7 @@ func appendChiKuikaeKinds(kinds []tile.Kind, called tile.Kind, pair [2]tile.Tile
 	case called == highest && lowest.Simplify() > 0:
 		kinds = append(kinds, lowest-1)
 	}
+
 	return kinds
 }
 
@@ -211,9 +228,11 @@ func paoSeat(melds []play.MeldView, calledKind tile.Kind, discarder tile.Seat) p
 			heldSets++
 		}
 	}
+
 	if heldSets != len(set)-1 {
 		return play.Option[tile.Seat]{}
 	}
+
 	return play.Some(discarder)
 }
 
@@ -222,6 +241,7 @@ func PaoOfMeld(earlier []play.MeldView, view play.MeldView) play.Option[tile.Sea
 	if !view.From.OK || !isPonOrOpenKan || len(view.Tiles) == 0 {
 		return play.Option[tile.Seat]{}
 	}
+
 	return paoSeat(earlier, view.Tiles[0].Kind(), view.From.Value)
 }
 

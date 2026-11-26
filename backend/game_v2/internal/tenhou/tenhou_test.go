@@ -20,10 +20,12 @@ func TestConvertEvents_WhenASeatDiscardsATileItDoesNotHold_ShouldFailAtThatRecor
 	if err != nil {
 		t.Fatalf("read %s: %v", rewrittenChankanPath, err)
 	}
+
 	records, err := wire.DecodeReplay(content)
 	if err != nil {
 		t.Fatalf("DecodeReplay error = %v", err)
 	}
+
 	const dealersFirstDiscard = 4
 	unheld, _ := tile.NewTileID(135)
 	records[dealersFirstDiscard] = wire.Map{

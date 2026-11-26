@@ -1,6 +1,7 @@
 package tenhoulog_test
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhou/tenhoulog"
@@ -61,14 +62,21 @@ func doubleRonWithHonba() []tenhoulog.Win {
 }
 
 func TestCompare_WhenTheEngineScoresAsTenhouPaid_ShouldReportNothing(t *testing.T) {
-	for name, round := range map[string][]tenhoulog.Win{
-		"ron":               {pinfuTanyaoRon()},
-		"tsumo":             {pinfuTanyaoTsumo()},
-		"double ron, honba": doubleRonWithHonba(),
-	} {
-		if got := tenhoulog.Compare(round); len(got) != 0 {
-			t.Errorf("%s: Compare = %v, want no mismatch", name, got)
-		}
+	tests := []struct {
+		name  string
+		round []tenhoulog.Win
+	}{
+		{name: "ron", round: []tenhoulog.Win{pinfuTanyaoRon()}},
+		{name: "tsumo", round: []tenhoulog.Win{pinfuTanyaoTsumo()}},
+		{name: "double ron, honba", round: doubleRonWithHonba()},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tenhoulog.Compare(tc.round); len(got) != 0 {
+				t.Errorf("Compare = %v, want no mismatch", got)
+			}
+		})
 	}
 }
 
@@ -83,17 +91,13 @@ func TestCompare_WhenTenhouPaidOtherwise_ShouldReportEachDisagreement(t *testing
 	for _, mismatch := range tenhoulog.Compare([]tenhoulog.Win{win}) {
 		got[mismatch.Check] = true
 	}
+
 	want := map[tenhoulog.Check]bool{
 		tenhoulog.CheckHanFu: true, tenhoulog.CheckYaku: true, tenhoulog.CheckLimit: true,
 		tenhoulog.CheckPoints: true, tenhoulog.CheckDeltas: true,
 	}
-	if len(got) != len(want) {
+	if !maps.Equal(got, want) {
 		t.Errorf("Compare reported %v, want %v", got, want)
-	}
-	for check := range want {
-		if !got[check] {
-			t.Errorf("Compare reported %v, want %v", got, want)
-		}
 	}
 }
 
@@ -118,20 +122,25 @@ func TestCompare_WhenTheRoundIsNoneTheEngineSettles_ShouldReportIt(t *testing.T)
 	misfitTsumo := tsumo
 	misfitTsumo.Melds = misfit.Melds
 
-	for name, c := range map[string]struct {
+	tests := []struct {
+		name  string
 		round []tenhoulog.Win
 		want  tenhoulog.Check
 	}{
-		"no wins":           {nil, tenhoulog.CheckInput},
-		"other rules":       {[]tenhoulog.Win{noAka}, tenhoulog.CheckInput},
-		"no win tile":       {[]tenhoulog.Win{noWinTile}, tenhoulog.CheckInput},
-		"two tsumo":         {[]tenhoulog.Win{tsumo, tsumo}, tenhoulog.CheckInput},
-		"misfit ron meld":   {[]tenhoulog.Win{misfit}, tenhoulog.CheckScore},
-		"misfit tsumo meld": {[]tenhoulog.Win{misfitTsumo}, tenhoulog.CheckScore},
-	} {
-		got := tenhoulog.Compare(c.round)
-		if len(got) != 1 || got[0].Check != c.want {
-			t.Errorf("%s: Compare = %v, want one %s", name, got, c.want)
-		}
+		{name: "no wins", round: nil, want: tenhoulog.CheckInput},
+		{name: "other rules", round: []tenhoulog.Win{noAka}, want: tenhoulog.CheckInput},
+		{name: "no win tile", round: []tenhoulog.Win{noWinTile}, want: tenhoulog.CheckInput},
+		{name: "two tsumo", round: []tenhoulog.Win{tsumo, tsumo}, want: tenhoulog.CheckInput},
+		{name: "misfit ron meld", round: []tenhoulog.Win{misfit}, want: tenhoulog.CheckScore},
+		{name: "misfit tsumo meld", round: []tenhoulog.Win{misfitTsumo}, want: tenhoulog.CheckScore},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tenhoulog.Compare(tc.round)
+			if len(got) != 1 || got[0].Check != tc.want {
+				t.Errorf("Compare = %v, want one %s", got, tc.want)
+			}
+		})
 	}
 }

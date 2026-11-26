@@ -55,6 +55,7 @@ func Mask(kinds ...Kind) uint64 {
 	for _, kind := range kinds {
 		mask |= 1 << kind
 	}
+
 	return mask
 }
 

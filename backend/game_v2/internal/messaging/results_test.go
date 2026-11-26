@@ -21,6 +21,7 @@ func idsOf(ns []int) []tile.TileID {
 	for _, n := range ns {
 		got = append(got, tile.AllTileIDs()[n])
 	}
+
 	return got
 }
 
@@ -104,7 +105,9 @@ func TestRoundEndPayload_WhenAYakumanTsumoHasPaoHonbaAndUra_ShouldNameWhatTheLia
 		}},
 		{wire.KeyUraDora, intArray(10)},
 	} {
-		assertMap(t, c.key.String(), wire.Map{{Key: c.key, Value: field(t, m, c.key)}}, wire.Map{{Key: c.key, Value: c.want}})
+		t.Run(c.key.String(), func(t *testing.T) {
+			assertMap(t, c.key.String(), wire.Map{{Key: c.key, Value: field(t, m, c.key)}}, wire.Map{{Key: c.key, Value: c.want}})
+		})
 	}
 }
 
@@ -154,7 +157,9 @@ func TestRoundEndPayload_WhenARonHasTwoWins_ShouldGiveTheCloserWinnerTheHonbaAnd
 		{"farther sticks", field(t, second, wire.KeyRiichiCollected), wire.Int(0)},
 		{"farther open yaku", field(t, handResult(t, second), wire.KeyYaku), wire.Array{yakuEntry(36, 2, 0), yakuEntry(15, 1, 0)}},
 	} {
-		assertMap(t, c.name, wire.Map{{Key: wire.KeyHan, Value: c.got}}, wire.Map{{Key: wire.KeyHan, Value: c.want}})
+		t.Run(c.name, func(t *testing.T) {
+			assertMap(t, c.name, wire.Map{{Key: wire.KeyHan, Value: c.got}}, wire.Map{{Key: wire.KeyHan, Value: c.want}})
+		})
 	}
 	if _, ok := second.Get(wire.KeyUraDora); ok {
 		t.Error("the farther win names ura dora it never counted")
@@ -200,15 +205,17 @@ func TestRoundEndPayload_WhenAHandIsPaidAtALimit_ShouldNameTheLimitAndKazoeApart
 		{"kazoe yakuman", play.Han{Han: 13, Fu: 40}, play.Some(play.LimitYakuman), "kazoe_yakuman", play.Some(1)},
 		{"double yakuman", play.Yakuman{Count: 2}, play.Some(play.LimitYakuman), "yakuman", play.Some(2)},
 	} {
-		win := play.WinResult{Winner: seat(t, 0), Value: c.value, Limit: c.limit, ScoreChanges: [tile.SeatCount]int{12000, -4000, -4000, -4000}}
+		t.Run(c.name, func(t *testing.T) {
+			win := play.WinResult{Winner: seat(t, 0), Value: c.value, Limit: c.limit, ScoreChanges: [tile.SeatCount]int{12000, -4000, -4000, -4000}}
 
-		hand := handResult(t, payload(t, roundEnd(play.Tsumo{Win: win}, 0, 37000, 21000, 21000, 21000), endedRound(0)))
+			hand := handResult(t, payload(t, roundEnd(play.Tsumo{Win: win}, 0, 37000, 21000, 21000, 21000), endedRound(0)))
 
-		count, hasCount := hand.Get(wire.KeyYakumanCount)
-		if field(t, hand, wire.KeyHandLimit) != wire.Str(c.want) || hasCount != c.yakuman.OK ||
-			(hasCount && count != wire.Int(c.yakuman.Value)) {
-			t.Errorf("%s: hand result = %v, want limit %q and yakuman count %v", c.name, hand, c.want, c.yakuman)
-		}
+			count, hasCount := hand.Get(wire.KeyYakumanCount)
+			if field(t, hand, wire.KeyHandLimit) != wire.Str(c.want) || hasCount != c.yakuman.OK ||
+				(hasCount && count != wire.Int(c.yakuman.Value)) {
+				t.Errorf("%s: hand result = %v, want limit %q and yakuman count %v", c.name, hand, c.want, c.yakuman)
+			}
+		})
 	}
 }
 
@@ -259,6 +266,7 @@ func TestRoundEndPayload_WhenARoundIsAborted_ShouldShowTheHandsThatCausedItSorte
 	shown := func(hands ...wire.Value) wire.Field {
 		return wire.Field{Key: wire.KeyShownHands, Value: wire.Array(hands)}
 	}
+
 	hand := func(s int, tiles wire.Array) wire.Map {
 		return wire.Map{
 			{Key: wire.KeySeat, Value: wire.Int(s)},
@@ -266,6 +274,7 @@ func TestRoundEndPayload_WhenARoundIsAborted_ShouldShowTheHandsThatCausedItSorte
 			{Key: wire.KeyMelds, Value: wire.Array{}},
 		}
 	}
+
 	head := func(reason string) wire.Map {
 		return wire.Map{
 			{Key: wire.KeyAbortiveReason, Value: wire.Str(reason)},
@@ -273,6 +282,7 @@ func TestRoundEndPayload_WhenARoundIsAborted_ShouldShowTheHandsThatCausedItSorte
 			{Key: wire.KeyScoreChanges, Value: scores(0, 0, 0, 0)},
 		}
 	}
+
 	for _, c := range []struct {
 		kind play.AbortKind
 		want wire.Map
@@ -287,8 +297,10 @@ func TestRoundEndPayload_WhenARoundIsAborted_ShouldShowTheHandsThatCausedItSorte
 			wire.Field{Key: wire.KeyRonCallers, Value: intArray(3, 0)},
 			shown(hand(3, intArray(6)), hand(0, intArray(7))))},
 	} {
-		m := payload(t, roundEnd(play.Abortive{Kind: c.kind}, 0, 25000, 25000, 25000, 25000), endedRound(0))
-
-		assertMap(t, string(field(t, c.want, wire.KeyAbortiveReason).(wire.Str)), m[5:], c.want)
+		reason := string(field(t, c.want, wire.KeyAbortiveReason).(wire.Str))
+		t.Run(reason, func(t *testing.T) {
+			m := payload(t, roundEnd(play.Abortive{Kind: c.kind}, 0, 25000, 25000, 25000, 25000), endedRound(0))
+			assertMap(t, reason, m[5:], c.want)
+		})
 	}
 }

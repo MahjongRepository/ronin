@@ -19,6 +19,7 @@ func TestPythonRandom_WhenSeededWithAString_ShouldYieldPythonsBytes(t *testing.T
 	if first != want {
 		t.Errorf("first randBytes(96) = %s, want %s", first, want)
 	}
+
 	if second[:32] != "ea4716b130ac7090457e87f5e84297bf" {
 		t.Errorf("second randBytes(96) starts %s, want ea4716b130ac7090457e87f5e84297bf", second[:32])
 	}
@@ -36,6 +37,7 @@ func TestPythonRandom_WhenShufflingTheTileIDs_ShouldDealPythonsPermutations(t *t
 	if !slices.Equal(first[:20], wantHead) || !slices.Equal(first[131:], []int{78, 102, 118, 60, 133}) {
 		t.Errorf("first shuffle = %v, want head %v and tail [78 102 118 60 133]", first, wantHead)
 	}
+
 	if want := []int{101, 53, 130, 26, 69, 129, 47, 94, 23, 61}; !slices.Equal(second[:10], want) {
 		t.Errorf("second shuffle head = %v, want %v", second[:10], want)
 	}

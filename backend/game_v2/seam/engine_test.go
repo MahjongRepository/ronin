@@ -25,6 +25,7 @@ func TestNewGame_WhenTheSetupHasNoWall_ShouldReturnNoGameAndANoFixedWallError(t 
 	if _, ok := errors.AsType[engine.NoFixedWallError](err); !ok {
 		t.Errorf("NewGame error = %v, want a NoFixedWallError", err)
 	}
+
 	assertEqual(t, "events", events, nil)
 	assertSameGame(t, "game", g, engine.Game{})
 }
@@ -36,12 +37,12 @@ func TestSeedFunctions_WhenGivenTheSeedOfAGame_ShouldDescribeItsStartAndSeating(
 	dealer, first, second := engine.FirstDealer(seed)
 	_, dice := engine.RoundWall(seed, 0)
 	permutation := engine.SeatPermutation(seed)
-
 	assertEqual[play.Event](t, "game started", events[0].Event, play.GameStarted{FirstDealer: dealer, Dice: [2]tile.Dice{first, second}})
 	started, ok := events[1].Event.(play.RoundStarted)
 	if !ok {
 		t.Fatalf("second event = %#v, want a RoundStarted", events[1].Event)
 	}
+
 	assertEqual(t, "first round dice", started.Header.Dice, dice)
 	sorted := permutation
 	slices.SortFunc(sorted[:], func(a, b tile.Seat) int { return cmp.Compare(a.Index(), b.Index()) })
@@ -63,6 +64,7 @@ func TestDealRound_WhenGivenTheSeedOfAGame_ShouldDealItsFirstRound(t *testing.T)
 			hands[started.Seat.Index()] = started.Hand
 			assertEqual(t, "dora indicators", started.DoraIndicators, []tile.TileID{deal.DoraIndicator})
 		}
+
 		if drew, ok := e.Event.(play.Drew); ok {
 			draws = append(draws, drew)
 		}
@@ -79,13 +81,13 @@ func TestTsumogiriAgents_WhenTheyPlayASeededGame_ShouldReachItsStandingsWithTheL
 	sink := &recorder{}
 
 	standings, err := playGame(&g, initial, tsumogiriAgents(), sink, maxGameSteps)
-
 	assertEqual(t, "error", err, nil)
 	assertEqual(t, "standings", g.Standings(), play.Some(standings))
 	points := 0
 	for _, p := range standings.Points {
 		points += p
 	}
+
 	assertEqual(t, "totals", [2]int{scoreTotal(standings.Scores), points}, [2]int{tablePoints, 0})
 	ends := slices.IndexFunc(sink.events, func(e play.Emitted) bool { _, ok := e.Event.(play.GameEnded); return ok })
 	assertEqual(t, "game end index", ends, len(sink.events)-1)
@@ -122,6 +124,7 @@ func TestDecision_ShouldCarryTheLegalActionsAndDefaultActionOfItsSeat(t *testing
 			if steps >= maxGameSteps {
 				t.Fatalf("game %d does not end", gameIndex)
 			}
+
 			for _, s := range tile.Seats() {
 				decision, ok := g.Decision(s)
 				fallback, hasDefault := g.DefaultAction(s)
@@ -129,13 +132,16 @@ func TestDecision_ShouldCarryTheLegalActionsAndDefaultActionOfItsSeat(t *testing
 					if hasDefault || len(g.LegalActions(s)) != 0 {
 						t.Fatalf("seat %d without a decision has actions", s.Index())
 					}
+
 					continue
 				}
+
 				assertEqual(t, "default", [2]any{fallback, hasDefault}, [2]any{decision.Default, true})
 				assertEqual(t, "legal", g.LegalActions(s), decision.Legal)
 				if !slices.Contains(decision.Legal, decision.Default) {
 					t.Fatalf("default %v is not legal", decision.Default)
 				}
+
 				switch decision.Context.(type) {
 				case play.TurnAfterDraw:
 					contexts[0] = true
@@ -149,11 +155,13 @@ func TestDecision_ShouldCarryTheLegalActionsAndDefaultActionOfItsSeat(t *testing
 			if _, over := g.Awaiting().(play.AwaitingGameOver); over {
 				break
 			}
+
 			s, ok := firstAwaited(g)
 			if !ok {
 				g, _ = dealOrBegin(t, g)
 				continue
 			}
+
 			decision, _ := g.Decision(s)
 			action, _ := picker.decide(decision)
 			g, _ = act(t, g, s, action)
@@ -170,6 +178,7 @@ func firstAwaited(g engine.Game) (tile.Seat, bool) {
 		return awaiting.Seats[0], true
 	case play.AwaitingDealt, play.AwaitingRoundOver, play.AwaitingGameOver:
 	}
+
 	return tile.Seat{}, false
 }
 
@@ -184,6 +193,7 @@ func twinCases(t *testing.T) []twinCase {
 	for game := range uint64(twinGames) {
 		cases = append(cases, twinCase{setup: seededSetup(t, fmt.Sprintf("%02x", game+0x10)), seated: selfPlayAgents(game + 1)})
 	}
+
 	return cases
 }
 
@@ -201,12 +211,14 @@ func playTwins(t *testing.T, c twinCase, probe func(g engine.Game, events []play
 		if _, over := twin.Awaiting().(play.AwaitingGameOver); over {
 			return
 		}
+
 		s, ok := firstAwaited(twin)
 		if !ok {
 			probed, events = dealOrBegin(t, probed)
 			twin, _ = dealOrBegin(t, twin)
 			continue
 		}
+
 		decision, _ := twin.Decision(s)
 		action, _ := c.seated[s.Index()].decide(decision)
 		probed, events = act(t, probed, s, action)
@@ -224,6 +236,7 @@ func (s *scribbled) note(value any) {
 		if _, called := v.Event.(play.Called); called {
 			s.called = true
 		}
+
 		if ended, ok := v.Event.(play.RoundEnded); ok {
 			_, ron := ended.Result.(play.Ron)
 			_, tsumo := ended.Result.(play.Tsumo)
@@ -286,17 +299,21 @@ func TestGame_WhenACallerWritesIntoEverySliceItReturns_ShouldStayAsItsTwin(t *te
 			for _, e := range events {
 				returned = append(returned, e)
 			}
+
 			returned = append(returned, events, g.Awaiting())
 			for _, s := range tile.Seats() {
 				decision, _ := g.Decision(s)
 				returned = append(returned, decision, g.LegalActions(s), g.View(s))
 			}
+
 			for _, value := range returned {
 				seen.note(value)
 			}
+
 			for _, value := range returned {
 				scribble(reflect.ValueOf(value))
 			}
+
 			return g
 		})
 	})
@@ -310,6 +327,7 @@ func TestGame_WhenACallerWritesIntoEverySliceItReturns_ShouldStayAsItsTwin(t *te
 			win:       seen.win || s.win,
 		}
 	}
+
 	assertEqual(t, "scribbled", seen, scribbled{called: true, afterCall: true, prompt: true, win: true})
 }
 
@@ -319,15 +337,18 @@ func refusalProbes(g engine.Game, s tile.Seat) []play.Action {
 	for _, held := range record.Hand {
 		probes = append(probes, play.DiscardAction(held), play.RiichiAction(held))
 	}
+
 	if len(record.Hand) >= 2 {
 		pair := [2]tile.TileID{record.Hand[0], record.Hand[1]}
 		probes = append(probes, play.PonAction(pair), play.ChiAction(pair))
 	}
+
 	for _, unheld := range tile.AllTileIDs() {
 		if !slices.Contains(record.Hand, unheld) {
 			return append(probes, play.DiscardAction(unheld))
 		}
 	}
+
 	return probes
 }
 
@@ -336,6 +357,7 @@ func isOffered(legal []play.Action, action play.Action) bool {
 	if !holds {
 		return slices.Contains(legal, action)
 	}
+
 	reversed := [2]tile.TileID{held[1], held[0]}
 	return slices.Contains(legal, action) || slices.Contains(legal, play.PonAction(reversed)) && action.Kind() == play.ActionPon ||
 		slices.Contains(legal, play.ChiAction(reversed)) && action.Kind() == play.ActionChi
@@ -355,21 +377,26 @@ func TestAct_WhenRefused_ShouldChangeNothing(t *testing.T) {
 					if isOffered(legal, action) {
 						continue
 					}
+
 					next, events, refusal := g.Act(s, action)
 					if !refusal.OK || events != nil {
 						t.Fatalf("Act(seat %d, %v) = %v, %v; want a refusal and no events", s.Index(), action, events, refusal)
 					}
+
 					kinds[refusal.Value.Kind] = true
 					g = next
 				}
 			}
+
 			if _, roundOver := g.Awaiting().(play.AwaitingRoundOver); !roundOver {
 				next, events, refusal := g.DealNextRound()
 				if !refusal.OK || events != nil {
 					t.Fatalf("DealNextRound = %v, %v; want a refusal and no events", events, refusal)
 				}
+
 				g = next
 			}
+
 			return g
 		})
 	})
@@ -390,7 +417,6 @@ func TestShanten_WhenOnlySevenPairsIsReady_ShouldCountThatShape(t *testing.T) {
 	}
 
 	got, err := engine.Shanten(hand)
-
 	if err != nil || got != 0 {
 		t.Errorf("Shanten = %d, %v, want 0, nil", got, err)
 	}
@@ -414,7 +440,6 @@ func TestDisguised_ShouldPickAmongTheHeldCopiesThatLookTheSameAndLeaveEveryOther
 	halfHeld := play.ChiAction([2]tile.TileID{copyOf(t, 0, "2m"), copyOf(t, 3, "3m")})
 
 	kan := g.Disguised(dealer, play.KanAction(play.KanClosed, copyOf(t, 0, "1z")), last)
-
 	assertEqual(t, "closed kan", kan, play.KanAction(play.KanClosed, copyOf(t, 3, "1z")))
 	assertEqual(t, "chi", g.Disguised(dealer, chi, last),
 		play.ChiAction([2]tile.TileID{copyOf(t, 1, "2m"), copyOf(t, 0, "3m")}))

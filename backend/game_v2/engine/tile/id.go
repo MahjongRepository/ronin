@@ -25,6 +25,7 @@ func NewTileID(n int) (TileID, bool) {
 	if n < 0 || n >= TileIDCount {
 		return TileID{}, false
 	}
+
 	return TileID{n: uint8(n)}, true
 }
 
@@ -34,6 +35,7 @@ func AllTileIDs() [TileIDCount]TileID {
 	for i := range ids {
 		ids[i] = TileID{n: uint8(i)}
 	}
+
 	return ids
 }
 
@@ -57,6 +59,7 @@ func (id TileID) Tile(aka AkaDora) Tile {
 	if aka == AkaDoraEnabled && (id.n == redFiveManID || id.n == redFivePinID || id.n == redFiveSouID) {
 		return redFiveOfSuit(int(id.Kind() / 9))
 	}
+
 	return Tile{code: uint8(id.Kind())}
 }
 
@@ -67,6 +70,7 @@ func KindCounts(ids []TileID) (Counts, error) {
 	for _, id := range ids {
 		counts[id.Kind()]++
 	}
+
 	return newCounts(counts)
 }
 

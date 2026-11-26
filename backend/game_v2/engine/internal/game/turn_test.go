@@ -20,6 +20,7 @@ func fixedSeed(t *testing.T) rng.Seed {
 	if err != nil {
 		t.Fatalf("ParseSeed error = %v", err)
 	}
+
 	return seed
 }
 
@@ -125,15 +126,18 @@ func TestNew_WhenTheWallIsFixedWithAStartPosition_ShouldDealTheStagedHandsFromIt
 	assertEqual(t, "round in wind", g.Header().RoundInWind, 3)
 }
 
-func TestNew_WhenTheFixedSetupIsMalformed_ShouldRefuseIt(t *testing.T) {
+func TestNew_WhenTheFixedSetupHasNoWalls_ShouldRefuseIt(t *testing.T) {
 	_, _, err := game.New(fixed(), noStart())
 	if !errors.Is(err, game.NoFixedWallError{}) {
 		t.Errorf("New(no walls) error = %v, want NoFixedWallError", err)
 	}
+}
 
+func TestNew_WhenTheFixedSetupRepeatsATile_ShouldRefuseIt(t *testing.T) {
 	repeated := tile.AllTileIDs()
 	repeated[1] = id(t, 0)
-	_, _, err = game.New(fixed(repeated), noStart())
+
+	_, _, err := game.New(fixed(repeated), noStart())
 	if !errors.Is(err, game.InvalidWallError{Err: wall.DuplicateTileError{Tile: id(t, 0)}}) ||
 		!errors.Is(err, wall.DuplicateTileError{Tile: id(t, 0)}) {
 		t.Errorf("New(repeated tile) error = %v, want InvalidWallError of tile 0", err)
@@ -169,45 +173,55 @@ func TestNew_WhenAStartScoreIsBelowTheTobiThreshold_ShouldRefuseIt(t *testing.T)
 
 func TestNew_WhenStartPointsAreOffTheTableTotal_ShouldRefuseThem(t *testing.T) {
 	for _, c := range []struct {
+		name         string
 		scores       [tile.SeatCount]int
 		riichiSticks int
 		found        int
 	}{
-		{[tile.SeatCount]int{25000, 25000, 25000, 25000}, 1, 101000},
-		{[tile.SeatCount]int{40000, 30000, 30000, 20000}, 0, 120000},
+		{name: "a riichi stick too many", scores: [tile.SeatCount]int{25000, 25000, 25000, 25000}, riichiSticks: 1, found: 101000},
+		{name: "scores over the total", scores: [tile.SeatCount]int{40000, 30000, 30000, 20000}, riichiSticks: 0, found: 120000},
 	} {
-		err := startError(t, c.scores, c.riichiSticks, tile.South)
-		if !errors.Is(err, game.StartPointsOffTotalError{Found: c.found, Expected: 100000}) {
-			t.Errorf("error = %v, want StartPointsOffTotalError found %d", err, c.found)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			err := startError(t, c.scores, c.riichiSticks, tile.South)
+			if !errors.Is(err, game.StartPointsOffTotalError{Found: c.found, Expected: 100000}) {
+				t.Errorf("error = %v, want StartPointsOffTotalError found %d", err, c.found)
+			}
+		})
 	}
 }
 
 func TestNew_WhenStartPointsOverflow_ShouldReportTheTotalSaturated(t *testing.T) {
 	largest := math.MaxInt - math.MaxInt%100
 	for _, c := range []struct {
+		name         string
 		scores       [tile.SeatCount]int
 		riichiSticks int
 	}{
-		{[tile.SeatCount]int{largest, largest, 0, 0}, 0},
-		{[tile.SeatCount]int{0, 0, 0, 100000}, math.MaxInt / 10},
+		{name: "scores overflow", scores: [tile.SeatCount]int{largest, largest, 0, 0}, riichiSticks: 0},
+		{name: "sticks overflow", scores: [tile.SeatCount]int{0, 0, 0, 100000}, riichiSticks: math.MaxInt / 10},
 	} {
-		err := startError(t, c.scores, c.riichiSticks, tile.East)
-		if !errors.Is(err, game.StartPointsOffTotalError{Found: math.MaxInt, Expected: 100000}) {
-			t.Errorf("error = %v, want StartPointsOffTotalError found MaxInt", err)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			err := startError(t, c.scores, c.riichiSticks, tile.East)
+			if !errors.Is(err, game.StartPointsOffTotalError{Found: math.MaxInt, Expected: 100000}) {
+				t.Errorf("error = %v, want StartPointsOffTotalError found MaxInt", err)
+			}
+		})
 	}
 }
 
-func TestNew_WhenAStartCountIsNegative_ShouldRefuseIt(t *testing.T) {
+func TestNew_WhenTheRiichiStickCountIsNegative_ShouldRefuseIt(t *testing.T) {
 	err := startError(t, [tile.SeatCount]int{25000, 25000, 25000, 26000}, -1, tile.East)
 	if !errors.Is(err, game.NegativeStartCountError{}) {
-		t.Errorf("negative sticks error = %v, want NegativeStartCountError", err)
+		t.Errorf("error = %v, want NegativeStartCountError", err)
 	}
+}
 
+func TestNew_WhenTheHonbaCountIsNegative_ShouldRefuseIt(t *testing.T) {
 	start := play.StartPosition{Scores: [tile.SeatCount]int{25000, 25000, 25000, 25000}, Honba: -1}
-	if _, _, err := game.New(seeded(t), play.Some(start)); !errors.Is(err, game.NegativeStartCountError{}) {
-		t.Errorf("negative honba error = %v, want NegativeStartCountError", err)
+
+	_, _, err := game.New(seeded(t), play.Some(start))
+	if !errors.Is(err, game.NegativeStartCountError{}) {
+		t.Errorf("error = %v, want NegativeStartCountError", err)
 	}
 }
 
@@ -231,6 +245,7 @@ func TestBegin_ShouldDrawForTheDealerAndNotifyTheOthers(t *testing.T) {
 	notice := func(to int) play.Emitted {
 		return play.Emitted{To: play.ToSeat(seat(t, to)), Event: play.DrewNotice{Seat: seat(t, 0)}}
 	}
+
 	drew := play.Emitted{To: play.ToSeat(seat(t, 0)), Event: play.Drew{Seat: seat(t, 0), Tile: id(t, 124)}}
 	assertEqual(t, "draw events", events[5:], []play.Emitted{drew, notice(1), notice(2), notice(3)})
 	assertEqual(t, "phase", g.Phase(), play.PhasePlaying)
@@ -242,7 +257,6 @@ func TestDealNextRound_WhenNoRoundIsOver_ShouldBeNotAwaitedAndChangeNothing(t *t
 	g := begun(t, stagedWall(t), noStart())
 
 	next, events, refused := g.DealNextRound()
-
 	assertEqual(t, "refusal", refused, play.Some(refusal(play.RefusalNotAwaited, play.CodeWrongPhase)))
 	assertEqual(t, "events", events, []play.Emitted(nil))
 	assertSameGame(t, next, g)
@@ -257,6 +271,7 @@ func TestLegalActions_WhenOnTurn_ShouldOfferEveryHeldTileAndDefaultToTheDrawnOne
 	if !ok || fallback != play.DiscardAction(id(t, 124)) {
 		t.Errorf("DefaultAction = %v, %t, want discard of 124", fallback, ok)
 	}
+
 	decision, _ := g.Decision(seat(t, 0))
 	assertEqual(t, "decision", decision, play.Decision{
 		Seat:    seat(t, 0),
@@ -277,7 +292,6 @@ func TestDiscard_ShouldRemoveTheTileAndDrawForTheNextSeat(t *testing.T) {
 	g := begun(t, stagedWall(t), noStart())
 
 	g, events := script(t, g, act(seat(t, 0), play.DiscardAction(id(t, 108))))
-
 	if containsAction(discards(g.Hand(seat(t, 0))), play.DiscardAction(id(t, 108))) || len(g.Hand(seat(t, 0))) != 13 {
 		t.Errorf("hand after discard = %v", g.Hand(seat(t, 0)))
 	}
@@ -295,7 +309,6 @@ func TestDiscard_WhenItIsTheDrawnTile_ShouldBeTsumogiri(t *testing.T) {
 	g := begun(t, stagedWall(t), noStart())
 
 	_, events := script(t, g, act(seat(t, 0), play.DiscardAction(id(t, 124))))
-
 	if discarded, ok := events[0].Event.(play.Discarded); !ok || !discarded.Tsumogiri {
 		t.Errorf("first event = %+v, want a tsumogiri discard", events[0].Event)
 	}

@@ -49,6 +49,7 @@ func (m Map) Get(k Key) (Value, bool) {
 			return f.Value, true
 		}
 	}
+
 	return nil, false
 }
 
@@ -70,5 +71,6 @@ func (m StrMap) Get(key string) (Value, bool) {
 			return f.Value, true
 		}
 	}
+
 	return nil, false
 }

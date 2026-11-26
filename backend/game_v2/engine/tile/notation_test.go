@@ -18,9 +18,11 @@ func TestNotationErrors_ShouldDescribeTheInput(t *testing.T) {
 		{tile.MissingSuitError{}, "the last ranks have no suit letter"},
 		{tile.NotOneTileError{Count: 2}, "the string holds 2 tiles, not exactly one"},
 	} {
-		if got := c.err.Error(); got != c.want {
-			t.Errorf("%#v message = %q, want %q", c.err, got, c.want)
-		}
+		t.Run(c.want, func(t *testing.T) {
+			if got := c.err.Error(); got != c.want {
+				t.Errorf("%#v message = %q, want %q", c.err, got, c.want)
+			}
+		})
 	}
 }
 
@@ -33,9 +35,11 @@ func TestParseTiles_ShouldKeepTheOrderWritten(t *testing.T) {
 		{"1m2m3m", []tile.Kind{0, 1, 2}},
 		{"", nil},
 	} {
-		if got, want := mustTiles(t, c.mpsz), plainTiles(t, c.want...); !slices.Equal(got, want) {
-			t.Errorf("ParseTiles(%q) = %v, want %v", c.mpsz, got, want)
-		}
+		t.Run(c.mpsz, func(t *testing.T) {
+			if got, want := mustTiles(t, c.mpsz), plainTiles(t, c.want...); !slices.Equal(got, want) {
+				t.Errorf("ParseTiles(%q) = %v, want %v", c.mpsz, got, want)
+			}
+		})
 	}
 }
 
@@ -44,6 +48,7 @@ func TestParseTiles_ShouldReadEveryKind(t *testing.T) {
 	for kind := range tile.Kind(tile.KindCount) {
 		kinds = append(kinds, kind)
 	}
+
 	got := mustTiles(t, "123456789m123456789p123456789s1234567z")
 	if want := plainTiles(t, kinds...); !slices.Equal(got, want) {
 		t.Errorf("ParseTiles = %v, want %v", got, want)
@@ -57,6 +62,7 @@ func TestParseTiles_WhenRankIsZeroOrR_ShouldReadTheRedFive(t *testing.T) {
 			t.Errorf("ParseTiles(%q) = %v, want %v", mpsz, got, redFives)
 		}
 	}
+
 	five := plainTiles(t, 4)[0]
 	want := []tile.Tile{five, redFive(t, 4), redFive(t, 4), five}
 	if got := mustTiles(t, "50r5m"); !slices.Equal(got, want) {
@@ -97,9 +103,11 @@ func TestParseTiles_WhenInputIsMalformed_ShouldNameTheError(t *testing.T) {
 		{"123m4", tile.MissingSuitError{}},
 		{"1m0", tile.MissingSuitError{}},
 	} {
-		if _, err := tile.ParseTiles(c.mpsz); !errors.Is(err, c.want) {
-			t.Errorf("ParseTiles(%q) error = %v, want %v", c.mpsz, err, c.want)
-		}
+		t.Run(c.mpsz, func(t *testing.T) {
+			if _, err := tile.ParseTiles(c.mpsz); !errors.Is(err, c.want) {
+				t.Errorf("ParseTiles(%q) error = %v, want %v", c.mpsz, err, c.want)
+			}
+		})
 	}
 }
 
@@ -114,9 +122,11 @@ func TestTilesString_ShouldSortAndGroupBySuit(t *testing.T) {
 		{"123456789m123456789p123456789s1234567z", "123456789m123456789p123456789s1234567z"},
 		{"", ""},
 	} {
-		if got := tile.TilesString(mustTiles(t, c.mpsz)); got != c.want {
-			t.Errorf("TilesString(%q) = %q, want %q", c.mpsz, got, c.want)
-		}
+		t.Run(c.mpsz, func(t *testing.T) {
+			if got := tile.TilesString(mustTiles(t, c.mpsz)); got != c.want {
+				t.Errorf("TilesString(%q) = %q, want %q", c.mpsz, got, c.want)
+			}
+		})
 	}
 }
 
@@ -132,6 +142,7 @@ func TestParseTile_ShouldTakeExactlyOneTile(t *testing.T) {
 	if got, err := tile.ParseTile("0p"); err != nil || got != redFive(t, 13) {
 		t.Errorf("ParseTile(0p) = %v, %v; want the red five of pin", got, err)
 	}
+
 	for _, c := range []struct {
 		mpsz string
 		want error
@@ -140,8 +151,10 @@ func TestParseTile_ShouldTakeExactlyOneTile(t *testing.T) {
 		{"12m", tile.NotOneTileError{Count: 2}},
 		{"x", tile.InvalidCharacterError{Character: 'x'}},
 	} {
-		if _, err := tile.ParseTile(c.mpsz); !errors.Is(err, c.want) {
-			t.Errorf("ParseTile(%q) error = %v, want %v", c.mpsz, err, c.want)
-		}
+		t.Run(c.mpsz, func(t *testing.T) {
+			if _, err := tile.ParseTile(c.mpsz); !errors.Is(err, c.want) {
+				t.Errorf("ParseTile(%q) error = %v, want %v", c.mpsz, err, c.want)
+			}
+		})
 	}
 }

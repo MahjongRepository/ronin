@@ -42,6 +42,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return report(stderr, "seat scenario failed: "+err.Error()+"\n", exitFailed)
 	}
+
 	replays, err := generateReplayFixtures()
 	if err != nil {
 		return report(stderr, "replay scenario failed: "+err.Error()+"\n", exitFailed)
@@ -59,6 +60,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			code = max(code, writeFixtures(set, stdout, stderr))
 		}
 	}
+
 	return code
 }
 
@@ -67,6 +69,7 @@ func checkFixtures(set fixtureSet, stdout, stderr io.Writer) int {
 	if err != nil {
 		return report(stderr, "read the "+set.kind+"s: "+err.Error()+"\n", exitFailed)
 	}
+
 	if len(problems) == 0 {
 		return report(stdout, fmt.Sprintf("%d %s(s) up to date\n", len(set.generated), set.kind), 0)
 	}
@@ -75,21 +78,28 @@ func checkFixtures(set fixtureSet, stdout, stderr io.Writer) int {
 	for _, problem := range problems {
 		lines.WriteString(problem + "\n")
 	}
+
 	lines.WriteString(set.kind + "s drifted: regenerate them and update the client\n")
 	return report(stdout, lines.String(), exitFailed)
 }
 
 func writeFixtures(set fixtureSet, stdout, stderr io.Writer) int {
 	removed, err := set.dir.write(set.generated)
+	if err != nil {
+		return report(stderr, removalLines(removed)+"write the "+set.kind+"s: "+err.Error()+"\n", exitFailed)
+	}
+
+	wrote := fmt.Sprintf("wrote %d %s(s) to %s\n", len(set.generated), set.kind, set.dir.path)
+	return report(stdout, removalLines(removed)+wrote, 0)
+}
+
+func removalLines(removed []string) string {
 	var lines strings.Builder
 	for _, name := range removed {
 		lines.WriteString("removed " + name + "\n")
 	}
-	if err != nil {
-		return report(stderr, lines.String()+"write the "+set.kind+"s: "+err.Error()+"\n", exitFailed)
-	}
-	fmt.Fprintf(&lines, "wrote %d %s(s) to %s\n", len(set.generated), set.kind, set.dir.path)
-	return report(stdout, lines.String(), 0)
+
+	return lines.String()
 }
 
 func report(w io.Writer, text string, code int) int {
@@ -97,5 +107,6 @@ func report(w io.Writer, text string, code int) int {
 	if err != nil {
 		return exitFailed
 	}
+
 	return code
 }

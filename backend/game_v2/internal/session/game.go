@@ -67,6 +67,7 @@ func (p pause) anyOwing() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -116,11 +117,13 @@ func newGame(m *Manager, id string, players []PlayerSpec, seating Seating) *game
 			game: g, spec: spec, log: g.log, timer: newTurnTimer(g.timing, g.clock),
 		})
 	}
+
 	g.pending.arm(g.clock, g.timing.PendingGame, func(token uint64) {
 		g.post(func() {
 			g.guard("pending game timeout failed", func() error { return g.pendingTimedOut(token) })
 		})
 	})
+
 	return g
 }
 
@@ -134,6 +137,7 @@ func (g *game) run() {
 		step()
 		g.m.inFlight.Done()
 	}
+
 	if g.lifecycle == lifecycleEnding {
 		g.finish()
 	}
@@ -168,6 +172,7 @@ func (g *game) postAndWait(step func()) bool {
 	if posted {
 		<-done
 	}
+
 	return posted
 }
 
@@ -184,6 +189,7 @@ func ask(g *game, question func() bool) (answer, answered bool) {
 	if !posted {
 		return false, false
 	}
+
 	return <-reply, true
 }
 
@@ -237,6 +243,7 @@ func (g *game) participantOf(conn Connection) *participant {
 			return p
 		}
 	}
+
 	return nil
 }
 
@@ -255,6 +262,7 @@ func (g *game) connectedCount() int {
 	for range g.connected() {
 		count++
 	}
+
 	return count
 }
 
@@ -274,6 +282,7 @@ func (g *game) atSeat(seat tile.Seat) *participant {
 			return p
 		}
 	}
+
 	return nil
 }
 

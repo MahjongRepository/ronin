@@ -52,7 +52,6 @@ func TestKuikae_WhenPon_ShouldForbidTheCalledKind(t *testing.T) {
 	pon := firstPon(t, g, seat(t, 2))
 
 	g, _ = script(t, g, act(seat(t, 1), play.PassAction()), act(seat(t, 2), pon))
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 2)))
 	assertEqual(t, "context", turnContext(t, g), play.DecisionContext(play.TurnAfterCall{
 		Kuikae: []tile.Kind{kindOf(t, "4m")},
@@ -61,7 +60,6 @@ func TestKuikae_WhenPon_ShouldForbidTheCalledKind(t *testing.T) {
 
 func TestKuikaeSuji_WhenChiOfTheLowestTile_ShouldForbidTheSujiTile(t *testing.T) {
 	g, events := fourManChied(t)
-
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"called"})
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{{Seat: seat(t, 1), Meld: play.MeldView{
 		Kind:   play.MeldChi,
@@ -94,12 +92,13 @@ func TestKuikae_WhenThePlayerDiscards_ShouldClearTheRestriction(t *testing.T) {
 	if d, ok := discarded[0].Event.(play.Discarded); !ok || d.Seat != seat(t, 1) || d.Tsumogiri {
 		t.Errorf("first event = %+v, want seat 1's hand discard", discarded[0].Event)
 	}
-	g, _ = discardDrawn(t, g, 3)
 
+	g, _ = discardDrawn(t, g, 3)
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 	if _, ok := turnContext(t, g).(play.TurnAfterDraw); !ok {
 		t.Errorf("context = %+v, want a turn after a draw", turnContext(t, g))
 	}
+
 	if !containsAction(g.LegalActions(seat(t, 1)), play.DiscardAction(tileOf(t, 0, "7m"))) {
 		t.Error("the suji tile is still forbidden")
 	}
@@ -121,7 +120,6 @@ func TestTsumo_WhenRightAfterTheSeatsOwnCall_ShouldBeNeitherOfferedNorAcceptedUn
 		return g
 	}
 	g := build()
-
 	if containsAction(g.LegalActions(seat(t, 1)), play.TsumoAction()) {
 		t.Error("tsumo is offered right after the call")
 	}
@@ -132,6 +130,7 @@ func TestTsumo_WhenRightAfterTheSeatsOwnCall_ShouldBeNeitherOfferedNorAcceptedUn
 	if !containsAction(g.LegalActions(seat(t, 1)), play.TsumoAction()) {
 		t.Error("tsumo is not offered after the next draw")
 	}
+
 	_, events := script(t, g, act(seat(t, 1), play.TsumoAction()))
 	tsumo, ok := roundResult(t, events).(play.Tsumo)
 	if !ok || len(tsumo.Win.Melds) != 1 || tsumo.Win.Melds[0].Kind != play.MeldPon {
@@ -175,7 +174,6 @@ func TestResolveCall_WhenPonIsDeclared_ShouldEmitTheMeldThenATurnForbiddingTheCa
 	assertEqual(t, "offers", g.LegalActions(seat(t, 2)), []play.Action{pon, play.PassAction()})
 
 	g, events := script(t, g, act(seat(t, 2), pon))
-
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"called"})
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{{Seat: seat(t, 2), Meld: play.MeldView{
 		Kind:   play.MeldPon,
@@ -212,7 +210,6 @@ func TestCallPrompt_WhenOpenKanOutranksAnUnansweredChi_ShouldDrawTheReplacement(
 	g := nineManPonAndChiSeats(t)
 	caller := seat(t, 2)
 	g, events := script(t, g, act(caller, play.KanAction(play.KanOpen, tileOf(t, 0, "9m"))))
-
 	assertEqual(t, "melds", meldKinds(events), []seatMeld{{caller, play.MeldOpenKan}})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(caller))
 }
@@ -221,14 +218,17 @@ func TestChiValidation_WhenTheTilesAreNotAnOfferedChi_ShouldBeNotOfferedAndChang
 	build := func() game.Game { return nineManPonAndChiSeats(t) }
 
 	for _, c := range []struct {
+		name string
 		pair [2]tile.TileID
 		code play.RefusalCode
 	}{
-		{[2]tile.TileID{tileOf(t, 0, "7m"), tileOf(t, 1, "8m")}, play.CodeTileNotHeld},
-		{[2]tile.TileID{tileOf(t, 0, "7m"), tileOf(t, 0, "7m")}, play.CodeTileNotHeld},
-		{[2]tile.TileID{tileOf(t, 0, "6m"), tileOf(t, 0, "8m")}, play.CodeNotOffered},
+		{name: "tile not held", pair: [2]tile.TileID{tileOf(t, 0, "7m"), tileOf(t, 1, "8m")}, code: play.CodeTileNotHeld},
+		{name: "same tile twice", pair: [2]tile.TileID{tileOf(t, 0, "7m"), tileOf(t, 0, "7m")}, code: play.CodeTileNotHeld},
+		{name: "gap shape", pair: [2]tile.TileID{tileOf(t, 0, "6m"), tileOf(t, 0, "8m")}, code: play.CodeNotOffered},
 	} {
-		assertRefused(t, build, seat(t, 1), play.ChiAction(c.pair), refusal(play.RefusalNotOffered, c.code))
+		t.Run(c.name, func(t *testing.T) {
+			assertRefused(t, build, seat(t, 1), play.ChiAction(c.pair), refusal(play.RefusalNotOffered, c.code))
+		})
 	}
 }
 
@@ -266,6 +266,7 @@ func offeredPons(g game.Game, s tile.Seat) []play.Action {
 			pons = append(pons, action)
 		}
 	}
+
 	return pons
 }
 
@@ -297,14 +298,17 @@ func TestPonValidation_ShouldAcceptAnyTwoHeldCopiesOfTheDiscardsKindAndRefuseThe
 	build := func() game.Game { return redFiveManDiscarded(t, ids(t, 16, 17, 18), id(t, 19)) }
 
 	for _, c := range []struct {
+		name string
 		pair [2]tile.TileID
 		code play.RefusalCode
 	}{
-		{[2]tile.TileID{id(t, 17), id(t, 19)}, play.CodeTileNotHeld},
-		{[2]tile.TileID{id(t, 17), id(t, 17)}, play.CodeTileNotHeld},
-		{[2]tile.TileID{id(t, 17), tileOf(t, 1, "1p")}, play.CodeNotOffered},
+		{name: "tile not held", pair: [2]tile.TileID{id(t, 17), id(t, 19)}, code: play.CodeTileNotHeld},
+		{name: "same tile twice", pair: [2]tile.TileID{id(t, 17), id(t, 17)}, code: play.CodeTileNotHeld},
+		{name: "other kind", pair: [2]tile.TileID{id(t, 17), tileOf(t, 1, "1p")}, code: play.CodeNotOffered},
 	} {
-		assertRefused(t, build, seat(t, 1), play.PonAction(c.pair), refusal(play.RefusalNotOffered, c.code))
+		t.Run(c.name, func(t *testing.T) {
+			assertRefused(t, build, seat(t, 1), play.PonAction(c.pair), refusal(play.RefusalNotOffered, c.code))
+		})
 	}
 
 	_, events := script(t, build(), act(seat(t, 1), play.PonAction([2]tile.TileID{id(t, 18), id(t, 16)})))
@@ -327,7 +331,6 @@ func TestMeldOffers_WhenARiichiSeatHoldsATripletOfTheDiscard_ShouldOfferNoPon(t 
 	g, _ = script(t, g, act(seat(t, 1), play.RiichiAction(riichiDiscard)))
 
 	g, _ = discardDrawn(t, g, 3)
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 }
 
@@ -372,6 +375,7 @@ func TestDiscardClaim_WhenTheRonCallerPassesAndAPonIsClaimed_ShouldMakeThePon(t 
 	if len(melds) != 1 || melds[0].Seat != seat(t, 2) || melds[0].Meld.Called != play.Some(tileOf(t, 0, "9m")) {
 		t.Errorf("melds = %+v, want seat 2's pon of the discard", melds)
 	}
+
 	if slices.Contains(testkit.EventKinds(events), "drew") {
 		t.Error("a draw follows the pon")
 	}
@@ -391,7 +395,6 @@ func TestDiscardClaim_WhenARiichiDiscardIsClaimedByAMeld_ShouldDepositTheRiichiF
 
 func TestDiscardClaim_WhenRonIsCalledWithOnlyAPonPending_ShouldAwardTheRon(t *testing.T) {
 	g, events := script(t, threePinDiscarded(t), act(seat(t, 1), play.RonAction()))
-
 	assertEqual(t, "phase", g.Phase(), play.PhaseRoundOver)
 	ron, ok := roundResult(t, events).(play.Ron)
 	if !ok || len(ron.Wins) != 1 || ron.Wins[0].Winner != seat(t, 1) {
@@ -405,7 +408,6 @@ func TestDiscardClaim_WhenBothCallersPass_ShouldClearThePromptAndAdvanceTheTurn(
 		[]play.FuritenChanged{{Seat: seat(t, 1), Furiten: true}})
 
 	g, meldSeatPassed := script(t, g, act(seat(t, 2), play.PassAction()))
-
 	assertEqual(t, "meld seat furiten", testkit.FuritenChanges(meldSeatPassed), []play.FuritenChanged(nil))
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 }
@@ -433,15 +435,18 @@ func TestResponseAction_WhenASeatSendsACallItWasNotOffered_ShouldBeNotOfferedAnd
 	assertEqual(t, "pon seat offers", g.LegalActions(seat(t, 2)), []play.Action{firstPon(t, g, seat(t, 2)), play.PassAction()})
 
 	for _, c := range []struct {
+		name   string
 		caller tile.Seat
 		action play.Action
 	}{
-		{seat(t, 1), play.PonAction([2]tile.TileID{tileOf(t, 0, "5p"), tileOf(t, 1, "5p")})},
-		{seat(t, 2), play.ChiAction([2]tile.TileID{tileOf(t, 0, "1p"), tileOf(t, 0, "2p")})},
-		{seat(t, 2), play.RonAction()},
-		{seat(t, 2), play.KanAction(play.KanOpen, tileOf(t, 3, "3p"))},
+		{name: "pon by the ron seat", caller: seat(t, 1), action: play.PonAction([2]tile.TileID{tileOf(t, 0, "5p"), tileOf(t, 1, "5p")})},
+		{name: "chi", caller: seat(t, 2), action: play.ChiAction([2]tile.TileID{tileOf(t, 0, "1p"), tileOf(t, 0, "2p")})},
+		{name: "ron by the pon seat", caller: seat(t, 2), action: play.RonAction()},
+		{name: "open kan", caller: seat(t, 2), action: play.KanAction(play.KanOpen, tileOf(t, 3, "3p"))},
 	} {
-		assertRefused(t, build, c.caller, c.action, notOfferedRefusal())
+		t.Run(c.name, func(t *testing.T) {
+			assertRefused(t, build, c.caller, c.action, notOfferedRefusal())
+		})
 	}
 }
 
@@ -488,16 +493,17 @@ func TestDiscardClaim_WhenASeatChoosesChiOverRonAndLosesItToAPon_ShouldBeFuriten
 	if legal := g.LegalActions(seat(t, 1)); legal[0] != play.RonAction() || !containsAction(legal, chi) {
 		t.Errorf("seat 1 offers = %v, want ron first and the chi", legal)
 	}
+
 	pon := firstPon(t, g, seat(t, 2))
 	assertEqual(t, "pon seat offers", g.LegalActions(seat(t, 2)), []play.Action{pon, play.PassAction()})
 
 	g, chied := script(t, g, act(seat(t, 1), chi))
 	g, ponned := script(t, g, act(seat(t, 2), pon))
-
 	assertEqual(t, "furiten", testkit.FuritenChanges(chied), []play.FuritenChanged{{Seat: seat(t, 1), Furiten: true}})
 	if melds := testkit.CalledMelds(ponned); len(melds) != 1 || melds[0].Seat != seat(t, 2) {
 		t.Errorf("melds = %+v, want seat 2's pon", melds)
 	}
+
 	g, _ = script(t, g, act(seat(t, 2), play.DiscardAction(otherWinningOnePin)))
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 3)))
 }
@@ -545,12 +551,12 @@ func TestDiscardClaim_WhenTheLastDiscardMayBeRonnedPonnedAndChied_ShouldOfferRon
 			draws = append(draws, free)
 		}
 	}
+
 	w.Draws = slices.Concat(draws, []tile.TileID{lastThreePin})
 	g := playDefaultsWhileLiveTilesExceed(t, begun(t, w, noStart()), 0)
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 
 	g, _ = script(t, g, act(seat(t, 1), play.DiscardAction(lastThreePin)))
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 0)))
 	assertEqual(t, "offers", g.LegalActions(seat(t, 0)), []play.Action{play.RonAction(), play.PassAction()})
 }

@@ -69,6 +69,7 @@ func SettleTsumo(table Table, h WinningHand) (SettledWin, error) {
 	if !h.Win.IsTsumo() {
 		return SettledWin{}, MisfitWinError{Win: h.Win}
 	}
+
 	value, err := settledValue(table, h)
 	if err != nil {
 		return SettledWin{}, err
@@ -87,6 +88,7 @@ func SettleRon(table Table, discarder tile.Seat, winners []WinningHand) ([]Settl
 		if h.Win.IsTsumo() {
 			return nil, MisfitWinError{Win: h.Win}
 		}
+
 		value, err := settledValue(table, h)
 		if err != nil {
 			return nil, err
@@ -96,6 +98,7 @@ func SettleRon(table Table, discarder tile.Seat, winners []WinningHand) ([]Settl
 		changes := offer.RonScoreChanges(h.Seat, discarder, value.Payment, honba, sticks, h.Pao)
 		settled = append(settled, SettledWin{Value: value, ScoreChanges: changes})
 	}
+
 	return settled, nil
 }
 

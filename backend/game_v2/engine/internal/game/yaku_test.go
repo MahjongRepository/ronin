@@ -46,7 +46,6 @@ func TestTenhou_WhenTheDealerTsumosOnTheDealtHand_ShouldScoreTenhouNotChiihou(t 
 	}
 
 	win := winOf(t, begun(t, w, noStart()), seat(t, 0), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTenhou})
 }
 
@@ -61,7 +60,6 @@ func TestChiihou_WhenANonDealerTsumosOnItsFirstDrawAfterTheDealersDiscard_Should
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 
 	win := winOf(t, g, seat(t, 1), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuChiihou})
 }
 
@@ -69,7 +67,6 @@ func TestTenhou_WhenDiscardsWereMade_ShouldNotBeScored(t *testing.T) {
 	g := goAroundGame(t, manPinBystanders(t, winningDealtHand(t)), copies(t, 1, "5p"), noStart(), quietDora(t))
 
 	win := winOf(t, g, seat(t, 0), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuIttsu})
 }
 
@@ -79,7 +76,6 @@ func TestChiihou_WhenTheSeatAlreadyDiscarded_ShouldNotBeScored(t *testing.T) {
 	g, _ = discardDrawn(t, g, 1)
 
 	win := winOf(t, g, seat(t, 1), play.TsumoAction())
-
 	if hasYaku(win.Yaku, play.YakuChiihou) {
 		t.Errorf("yaku = %v, want no chiihou", win.Yaku)
 	}
@@ -105,12 +101,14 @@ func playedToTheLastDraw(t *testing.T, hands [tile.SeatCount][]tile.TileID, rins
 			fillers = append(fillers, free)
 		}
 	}
+
 	w.Draws = slices.Concat(fillers, []tile.TileID{lastEast})
 	g := playDefaultsWhileLiveTilesExceed(t, begun(t, w, noStart()), 0)
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 	if hand := g.Hand(seat(t, 1)); hand[len(hand)-1] != lastEast {
 		t.Fatalf("last drawn tile = %v, want the last East", hand[len(hand)-1])
 	}
+
 	return g
 }
 
@@ -121,7 +119,6 @@ func TestHaitei_WhenTheTsumoIsOnTheLastTile_ShouldAwardHaiteiNotHoutei(t *testin
 	g := playedToTheLastDraw(t, hands, copies(t, 2, "11z"))
 
 	win := winOf(t, g, seat(t, 1), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuHaitei, play.YakuIttsu})
 	assertEqual(t, "aka dora", win.Dora.AkaDora, 1)
 }
@@ -142,56 +139,68 @@ func TestHoutei_WhenTheRonIsOnTheLastDiscard_ShouldAwardHouteiNotHaitei(t *testi
 	}
 
 	win := winOf(t, g, seat(t, 2), play.RonAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuHoutei, play.YakuIttsu})
 	assertEqual(t, "aka dora", win.Dora.AkaDora, 1)
 }
 
 func TestRyuuiisou_WhenAnAllGreenHandWinsByTsumo_ShouldStackWithSuuankouTankiAsSingleYakuman(t *testing.T) {
 	for _, c := range []struct {
+		name    string
 		hand    []tile.TileID
 		winTile tile.TileID
 	}{
-		{slices.Concat(copies(t, 0, "2223334446s"), copies(t, 1, "666z")), tileOf(t, 1, "6s")},
-		{copies(t, 0, "2223334446668s"), tileOf(t, 1, "8s")},
+		{
+			name:    "dragon triplet",
+			hand:    slices.Concat(copies(t, 0, "2223334446s"), copies(t, 1, "666z")),
+			winTile: tileOf(t, 1, "6s"),
+		},
+		{
+			name:    "sou only",
+			hand:    copies(t, 0, "2223334446668s"),
+			winTile: tileOf(t, 1, "8s"),
+		},
 	} {
-		g := goAroundGame(t, manPinBystanders(t, c.hand), []tile.TileID{c.winTile}, noStart(), quietDora(t))
+		t.Run(c.name, func(t *testing.T) {
+			g := goAroundGame(t, manPinBystanders(t, c.hand), []tile.TileID{c.winTile}, noStart(), quietDora(t))
 
-		win := winOf(t, g, seat(t, 0), play.TsumoAction())
-
-		assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuRyuuiisou, play.YakuSuuankouTanki})
-		assertEqual(t, "yakuman", yakumanCount(win.Value), 2)
+			win := winOf(t, g, seat(t, 0), play.TsumoAction())
+			assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuRyuuiisou, play.YakuSuuankouTanki})
+			assertEqual(t, "yakuman", yakumanCount(win.Value), 2)
+		})
 	}
 }
 
 func TestDoubleRiichi_WhenTheRiichiDealerTsumos_ShouldScoreTheRiichiItsDiscardMade(t *testing.T) {
 	for _, c := range []struct {
+		name           string
 		riichiGoAround int
 		riichiYaku     play.YakuID
 	}{
-		{0, play.YakuDaburuRiichi},
-		{1, play.YakuRiichi},
+		{name: "riichi on the first discard", riichiGoAround: 0, riichiYaku: play.YakuDaburuRiichi},
+		{name: "riichi on the second go-around", riichiGoAround: 1, riichiYaku: play.YakuRiichi},
 	} {
-		goArounds := [][]tile.TileID{copies(t, 0, "1234z"), copies(t, 1, "1234z"), copies(t, 2, "1234z")}
-		w := testkit.StartWall{
-			Hands: manPinBystanders(t, winningDealtHand(t)),
-			Draws: slices.Concat(slices.Concat(goArounds[:c.riichiGoAround+2]...), copies(t, 1, "5p")),
-			Dora:  play.Some(quietDora(t)),
-			Ura:   []tile.TileID{doraFreeUra(t)},
-		}
-		g, _ := discardDrawn(t, begun(t, w, noStart()), tile.SeatCount*c.riichiGoAround)
-		g, _ = script(t, g, act(seat(t, 0), play.RiichiAction(goArounds[c.riichiGoAround][0])))
-		g, _ = discardDrawn(t, g, 7)
-
-		win := winOf(t, g, seat(t, 0), play.TsumoAction())
-
-		var riichi []play.YakuID
-		for _, yaku := range win.Yaku {
-			if yaku == play.YakuRiichi || yaku == play.YakuDaburuRiichi || yaku == play.YakuIppatsu {
-				riichi = append(riichi, yaku)
+		t.Run(c.name, func(t *testing.T) {
+			goArounds := [][]tile.TileID{copies(t, 0, "1234z"), copies(t, 1, "1234z"), copies(t, 2, "1234z")}
+			w := testkit.StartWall{
+				Hands: manPinBystanders(t, winningDealtHand(t)),
+				Draws: slices.Concat(slices.Concat(goArounds[:c.riichiGoAround+2]...), copies(t, 1, "5p")),
+				Dora:  play.Some(quietDora(t)),
+				Ura:   []tile.TileID{doraFreeUra(t)},
 			}
-		}
-		assertEqual(t, "riichi yaku", riichi, []play.YakuID{c.riichiYaku})
+			g, _ := discardDrawn(t, begun(t, w, noStart()), tile.SeatCount*c.riichiGoAround)
+			g, _ = script(t, g, act(seat(t, 0), play.RiichiAction(goArounds[c.riichiGoAround][0])))
+			g, _ = discardDrawn(t, g, 7)
+
+			win := winOf(t, g, seat(t, 0), play.TsumoAction())
+
+			var riichi []play.YakuID
+			for _, yaku := range win.Yaku {
+				if yaku == play.YakuRiichi || yaku == play.YakuDaburuRiichi || yaku == play.YakuIppatsu {
+					riichi = append(riichi, yaku)
+				}
+			}
+			assertEqual(t, "riichi yaku", riichi, []play.YakuID{c.riichiYaku})
+		})
 	}
 }
 
@@ -206,7 +215,6 @@ func seatOneTsumoAfterAGoAround(t *testing.T, hand []tile.TileID, winTile, dora 
 
 func TestSuuankouTanki_ShouldCountAsASingleYakuman(t *testing.T) {
 	win := seatOneTsumoAfterAGoAround(t, copies(t, 0, "111m333p5557779s"), tileOf(t, 1, "9s"), quietDora(t))
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuSuuankouTanki})
 	assertEqual(t, "yakuman", yakumanCount(win.Value), 1)
 	assertEqual(t, "limit", win.Limit, play.Some(play.LimitYakuman))
@@ -215,7 +223,6 @@ func TestSuuankouTanki_ShouldCountAsASingleYakuman(t *testing.T) {
 
 func TestSuuankou_WhenTheWaitIsNotTanki_ShouldBeASingleYakuman(t *testing.T) {
 	win := seatOneTsumoAfterAGoAround(t, copies(t, 0, "11m333p55577799s"), tileOf(t, 2, "1m"), quietDora(t))
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuSuuankou})
 	assertEqual(t, "yakuman", yakumanCount(win.Value), 1)
 	assertEqual(t, "score changes", win.ScoreChanges, [tile.SeatCount]int{-16000, 32000, -8000, -8000})
@@ -223,7 +230,6 @@ func TestSuuankou_WhenTheWaitIsNotTanki_ShouldBeASingleYakuman(t *testing.T) {
 
 func TestYakumanHand_WhenItHoldsDora_ShouldAddNoHanAndCountNoDora(t *testing.T) {
 	win := seatOneTsumoAfterAGoAround(t, copies(t, 0, "111m333p5557779s"), tileOf(t, 1, "9s"), tileOf(t, 3, "9m"))
-
 	assertEqual(t, "yakuman", yakumanCount(win.Value), 1)
 	assertEqual(t, "dora", win.Dora, play.DoraCount{})
 }
@@ -255,7 +261,6 @@ func TestKazoeYakuman_WhenDoraLiftTheHanTo13_ShouldScoreYakuman(t *testing.T) {
 
 	withoutDora := seatOneRiichiThenTsumo(t, chinitsuWithoutRedFive, eightMan, tileOf(t, 3, "1p"))
 	withDora := seatOneRiichiThenTsumo(t, chinitsuWithoutRedFive, eightMan, tileOf(t, 3, "4m"))
-
 	if han, ok := withoutDora.Value.(play.Han); !ok || han.Han != 11 {
 		t.Errorf("value without dora = %v, want 11 han", withoutDora.Value)
 	}
@@ -275,7 +280,6 @@ func TestNonYakumanHand_WhenItHoldsDora_ShouldCountThem(t *testing.T) {
 	hand := slices.Concat(copies(t, 0, "123456789m"), copies(t, 1, "2355m"))
 
 	win := seatOneRiichiThenTsumo(t, hand, tileOf(t, 1, "4m"), tileOf(t, 3, "4m"))
-
 	assertEqual(t, "dora", win.Dora.Dora, 3)
 }
 
@@ -295,7 +299,6 @@ func TestChiihou_WhenAMeldWasMade_ShouldNotBeScored(t *testing.T) {
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 
 	win := winOf(t, g, seat(t, 1), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuIttsu})
 }
 
@@ -317,7 +320,6 @@ func TestRyuuiisou_WhenAnOpenHatsuPonWinsByTsumo_ShouldScoreYakuman(t *testing.T
 	g, _ = discardDrawn(t, g, 3)
 
 	win := winOf(t, g, seat(t, 0), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuRyuuiisou})
 	assertEqual(t, "yakuman", yakumanCount(win.Value), 1)
 }
@@ -343,7 +345,6 @@ func eastPonThenRonOnThePair(t *testing.T, pair string) play.WinResult {
 
 func TestDaisuushii_WhenTheEastPonIsOpen_ShouldCountAsASingleYakuman(t *testing.T) {
 	win := eastPonThenRonOnThePair(t, "1m")
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuDaisuushii})
 	assertEqual(t, "yakuman", yakumanCount(win.Value), 1)
 	assertEqual(t, "pao", win.Pao, play.Option[tile.Seat]{})
@@ -352,7 +353,6 @@ func TestDaisuushii_WhenTheEastPonIsOpen_ShouldCountAsASingleYakuman(t *testing.
 
 func TestYakumanStacking_WhenDaisuushiiAndTsuuiisou_ShouldStackTwoSingleYakuman(t *testing.T) {
 	win := eastPonThenRonOnThePair(t, "5z")
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsuuiisou, play.YakuDaisuushii})
 	assertEqual(t, "yakuman", yakumanCount(win.Value), 2)
 	assertEqual(t, "score changes", win.ScoreChanges, [tile.SeatCount]int{0, 64000, -64000, 0})
@@ -378,7 +378,6 @@ func TestDoubleRiichi_WhenItsRiichiTileIsPonned_ShouldStillScoreButLoseIppatsu(t
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 0)))
 
 	win := winOf(t, g, seat(t, 0), play.RonAction())
-
 	if !hasYaku(win.Yaku, play.YakuDaburuRiichi) || hasYaku(win.Yaku, play.YakuIppatsu) {
 		t.Errorf("yaku = %v, want daburu riichi without ippatsu", win.Yaku)
 	}

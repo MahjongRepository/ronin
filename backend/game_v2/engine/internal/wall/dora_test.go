@@ -24,6 +24,7 @@ func checkIndicatorIntegrity(t *testing.T, w wall.Wall, drawn []tile.TileID) {
 	if len(dead) != 14 {
 		t.Errorf("dead wall holds %d tiles, want 14", len(dead))
 	}
+
 	for _, played := range append(drawn, w.Live()...) {
 		if slices.Contains(dead, played) {
 			t.Errorf("tile %d is both in play and in the dead wall", played.Index())
@@ -142,6 +143,7 @@ func TestIncrementPendingDora_WhenRevealedAndPendingMakeFive_ShouldRefuse(t *tes
 	for range 2 {
 		mustAddDoraIndicator(t, &w)
 	}
+
 	for range 2 {
 		mustIncrementPendingDora(t, &w)
 	}
@@ -156,9 +158,11 @@ func TestAddDoraIndicator_WhenPendingRevealsFillTheFive_ShouldRefuseAndChangeNot
 	for range 2 {
 		mustAddDoraIndicator(t, &w)
 	}
+
 	for range 2 {
 		mustIncrementPendingDora(t, &w)
 	}
+
 	before := w
 
 	if _, err := w.AddDoraIndicator(); !errors.Is(err, wall.IndicatorsExhaustedError{}) {

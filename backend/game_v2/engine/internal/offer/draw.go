@@ -20,6 +20,7 @@ func NagashiSeats(rivers [tile.SeatCount][]play.RiverTile, melds [tile.SeatCount
 			seats = append(seats, seat)
 		}
 	}
+
 	return seats
 }
 
@@ -31,5 +32,6 @@ func isCalledFrom(melds [tile.SeatCount][]play.MeldView, seat tile.Seat) bool {
 			}
 		}
 	}
+
 	return false
 }

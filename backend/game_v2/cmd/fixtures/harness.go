@@ -74,10 +74,12 @@ func openSeatedGame(ctx context.Context, logger *slog.Logger, setup gameSetup) (
 	if setup.start.OK {
 		dealer = setup.start.Value.Dealer
 	}
+
 	if setup.rounds[0].dealer != dealer {
 		return nil, fmt.Errorf("%s: a staged game's first round is dealt from seat %d, not %d",
 			setup.gameID, dealer.Index(), setup.rounds[0].dealer.Index())
 	}
+
 	engineSetup, err := stagedSetup(stagedSeed(), setup.rounds, setup.start, setup.dealers)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", setup.gameID, err)
@@ -87,6 +89,7 @@ func openSeatedGame(ctx context.Context, logger *slog.Logger, setup gameSetup) (
 	if err != nil {
 		return nil, err
 	}
+
 	db, err := store.Open(ctx, filepath.Join(dir, "game.db"), logger)
 	if err != nil {
 		return nil, errors.Join(err, os.RemoveAll(dir))
@@ -110,6 +113,7 @@ func openSeatedGame(ctx context.Context, logger *slog.Logger, setup gameSetup) (
 	if err != nil {
 		return nil, errors.Join(err, db.Close(), os.RemoveAll(dir))
 	}
+
 	g.router = server.NewRouter(g.manager, ticketSecret, logger, g.clock.Now)
 
 	specs := make([]session.PlayerSpec, 0, len(setup.players))
@@ -121,6 +125,7 @@ func openSeatedGame(ctx context.Context, logger *slog.Logger, setup gameSetup) (
 		g.clients[name] = &seatClient{game: g, name: name, ticket: ticket}
 		specs = append(specs, session.PlayerSpec{Name: name, UserID: "user-" + name, Ticket: ticket})
 	}
+
 	g.runAt(0, func() error { return g.manager.CreatePendingGame(setup.gameID, specs, session.SeatingShuffled) })
 	return g, nil
 }
@@ -165,6 +170,7 @@ func (g *seatedGame) stagedRound(roundNumber uint32) (stagedWall, int, bool) {
 	if index < 0 || index >= len(g.rounds) {
 		return stagedWall{}, index, false
 	}
+
 	return g.rounds[index], index, true
 }
 
@@ -196,6 +202,7 @@ func (g *seatedGame) nextDisconnect() (*clientSocket, bool) {
 	if len(g.disconnects) == 0 {
 		return nil, false
 	}
+
 	socket := g.disconnects[0]
 	g.disconnects = g.disconnects[1:]
 	return socket, true
@@ -208,6 +215,7 @@ func (g *seatedGame) settle() {
 		if !ok {
 			return
 		}
+
 		g.manager.Disconnect(socket)
 	}
 }
@@ -216,6 +224,7 @@ func (g *seatedGame) runAt(at time.Duration, step func() error) {
 	if g.failure() != nil {
 		return
 	}
+
 	now := g.clock.elapsed()
 	switch {
 	case at < now:
@@ -234,14 +243,17 @@ func (g *seatedGame) runAt(at time.Duration, step func() error) {
 		if !due {
 			break
 		}
+
 		fire()
 		g.settle()
 	}
+
 	g.clock.advanceTo(at)
 	err := step()
 	if err != nil {
 		g.fail(err)
 	}
+
 	g.settle()
 	g.requireNoRefusal()
 }
@@ -275,10 +287,12 @@ func (g *seatedGame) transcripts(scenario string, names ...string) ([]transcript
 		if !seat.OK {
 			return nil, fmt.Errorf("%s: %s never learned its seat", g.gameID, name)
 		}
+
 		transcripts = append(transcripts, transcript{
 			scenario: scenario, gameID: g.gameID, seat: seat.Value.Index(), events: events,
 		})
 	}
+
 	return transcripts, nil
 }
 
@@ -301,6 +315,7 @@ func (e env) play(
 		if err != nil {
 			return nil, err
 		}
+
 		transcripts, playErr := script(g)
 		playErr = errors.Join(playErr, s.err)
 		dealt := g.dealtDealers()
@@ -312,8 +327,10 @@ func (e env) play(
 		if s.err != nil || fillersMatch(setup.rounds, setup.start, setup.dealers, dealt) {
 			return transcripts, playErr
 		}
+
 		setup.dealers = dealt
 	}
+
 	return nil, fmt.Errorf("%s: the seed's later rounds found no dealers in %d passes", setup.gameID, maxDealerPasses)
 }
 
@@ -327,6 +344,7 @@ func fillersMatch(
 			return false
 		}
 	}
+
 	return true
 }
 

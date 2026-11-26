@@ -28,6 +28,7 @@ func (r *Round) AnswerCall(
 	if refusal := r.checkCall(seat, action); refusal.OK {
 		return Transition{}, refusal
 	}
+
 	if declinesRon {
 		r.declineRon(seat)
 	}
@@ -38,6 +39,7 @@ func (r *Round) AnswerCall(
 	if !prompt.isSettled() {
 		return playing(nil), play.Option[play.Refusal]{}
 	}
+
 	return r.resolveCall(honba, points), play.Option[play.Refusal]{}
 }
 
@@ -52,6 +54,7 @@ func (r *Round) passRonWindow(events []play.Emitted, points *Points) ([]play.Emi
 		for _, seat := range tile.Seats() {
 			hands = append(hands, r.shownHand(seat))
 		}
+
 		return events, play.Abortive{Kind: play.FourRiichi{Hands: hands}}
 	case r.isFourKans():
 		return events, play.Abortive{Kind: play.FourKans{}}
@@ -73,6 +76,7 @@ func (r *Round) resolveCall(honba int, points *Points) Transition {
 		for _, seat := range rons {
 			hands = append(hands, r.shownHand(seat))
 		}
+
 		result := play.TripleRon{Discarder: prompt.from, Tile: prompt.tile, Hands: hands, RobbedKan: prompt.robbedKan()}
 		return ended(nil, play.Abortive{Kind: result})
 	}
@@ -103,9 +107,11 @@ func (r *Round) passCall(prompt CallPrompt, points *Points) Transition {
 	if pao.OK {
 		events = append(events, toAll(play.PaoAssigned{Seat: winning.seat, Liable: pao.Value}))
 	}
+
 	if _, isKan := winning.call.(play.OpenKanCall); isKan {
 		events = append(events, r.standKan(winning.seat, play.KanOpen)...)
 	}
+
 	return playing(events)
 }
 
@@ -115,6 +121,7 @@ func (r *Round) openCallPrompt(from tile.Seat, id tile.TileID) bool {
 		if seat == from {
 			continue
 		}
+
 		switch r.ronOutcome(seat, id) {
 		case offer.RonNotComplete:
 		case offer.RonMissed:
@@ -131,6 +138,7 @@ func (r *Round) openCallPrompt(from tile.Seat, id tile.TileID) bool {
 		meldOffers[seat.Index()] = r.meldOffers(seat, from, id, kans)
 		anyMeld = anyMeld || len(meldOffers[seat.Index()]) > 0
 	}
+
 	if len(callers) == 0 && !anyMeld {
 		return false
 	}
@@ -160,9 +168,11 @@ func (r *Round) checkCall(seat tile.Seat, action play.Action) play.Option[play.R
 		if !offered {
 			return notOffered(play.CodeNotOffered)
 		}
+
 		if refusal := r.checkHeldPair(seat, held); refusal.OK {
 			return refusal
 		}
+
 		return refusedUnless(held[0].Kind() == ponKind && held[1].Kind() == ponKind)
 	}
 
@@ -174,9 +184,11 @@ func (r *Round) checkCall(seat tile.Seat, action play.Action) play.Option[play.R
 	if len(chiKinds) == 0 {
 		return notOffered(play.CodeNotOffered)
 	}
+
 	if refusal := r.checkHeldPair(seat, held); refusal.OK {
 		return refusal
 	}
+
 	return refusedUnless(slices.Contains(chiKinds, sortedKinds(held)))
 }
 
@@ -186,6 +198,7 @@ func ponKindOf(offers []play.Action) (tile.Kind, bool) {
 			return held[0].Kind(), true
 		}
 	}
+
 	return 0, false
 }
 
@@ -196,6 +209,7 @@ func chiKindsOf(offers []play.Action) [][2]tile.Kind {
 			kinds = append(kinds, sortedKinds(held))
 		}
 	}
+
 	return kinds
 }
 
@@ -204,6 +218,7 @@ func (r *Round) checkHeldPair(seat tile.Seat, pair [2]tile.TileID) play.Option[p
 	if pair[0] == pair[1] || !slices.Contains(held, pair[0]) || !slices.Contains(held, pair[1]) {
 		return notOffered(play.CodeTileNotHeld)
 	}
+
 	return play.Option[play.Refusal]{}
 }
 
@@ -223,6 +238,7 @@ func (r *Round) call(seat tile.Seat, call play.MeldCall, from tile.Seat, id tile
 		for held := range tile.HeldCopies(r.hand(seat), id.Kind()) {
 			taken = append(taken, held)
 		}
+
 		taken = taken[:min(len(taken), offer.OpenKanHandTiles)]
 	}
 

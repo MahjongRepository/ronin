@@ -36,6 +36,7 @@ func newCallPrompt(
 			pending = append(pending, seat)
 		}
 	}
+
 	return CallPrompt{
 		tile:       id,
 		from:       from,
@@ -52,6 +53,7 @@ func newChankanPrompt(id tile.TileID, from tile.Seat, kind play.KanKind, robbers
 	if kind == play.KanClosed {
 		prompt.source = play.SourceClosedKan
 	}
+
 	return prompt
 }
 
@@ -68,6 +70,7 @@ func (p CallPrompt) robbedKan() play.Option[play.KanKind] {
 		return play.Some(play.KanClosed)
 	case play.SourceDiscard:
 	}
+
 	return play.Option[play.KanKind]{}
 }
 
@@ -110,6 +113,7 @@ func (p CallPrompt) Offers(seat tile.Seat) []play.Action {
 	if p.canRon(seat) {
 		offers = append(offers, play.RonAction())
 	}
+
 	offers = append(offers, p.meldOffers[seat.Index()]...)
 	return append(offers, play.PassAction())
 }
@@ -138,6 +142,7 @@ func (p *CallPrompt) recordAnswer(seat tile.Seat, action play.Action) {
 			pending = append(pending, other)
 		}
 	}
+
 	p.pending = pending
 }
 
@@ -151,16 +156,20 @@ func (p CallPrompt) Decides(seat tile.Seat) bool {
 	if p.canRon(seat) {
 		return true
 	}
+
 	if len(p.rons) > 0 {
 		return false
 	}
+
 	claimed, ok := p.winningMeld()
 	if !ok {
 		return true
 	}
+
 	if _, isChi := claimed.call.(play.ChiCall); !isChi {
 		return false
 	}
+
 	return slices.ContainsFunc(p.meldOffers[seat.Index()], func(offered play.Action) bool {
 		return offered.Kind() != play.ActionChi
 	})
@@ -173,6 +182,7 @@ func (p CallPrompt) declaredRons() []tile.Seat {
 			rons = append(rons, seat)
 		}
 	}
+
 	return rons
 }
 
@@ -182,8 +192,10 @@ func (p CallPrompt) winningMeld() (seatCall, bool) {
 			return declared, true
 		}
 	}
+
 	if len(p.meldCalls) == 0 {
 		return seatCall{}, false
 	}
+
 	return p.meldCalls[0], true
 }

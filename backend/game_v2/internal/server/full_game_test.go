@@ -62,6 +62,7 @@ func readFullGameScript(tb testing.TB) fullGameScript {
 	if err != nil {
 		tb.Fatalf("read the full game replay: %v", err)
 	}
+
 	loaded, err := replay.Load(content)
 	if err != nil {
 		tb.Fatalf("Load error = %v", err)
@@ -77,10 +78,12 @@ func readFullGameScript(tb testing.TB) fullGameScript {
 		names[i] = loaded.Names[seat.Index()]
 		players[seat] = i
 	}
+
 	actions, steps, err := scriptFullGame(loaded, players)
 	if err != nil {
 		tb.Fatalf("script the full game: %v", err)
 	}
+
 	return fullGameScript{fixture: content, loaded: loaded, names: names, actions: actions, steps: steps}
 }
 
@@ -96,6 +99,7 @@ func scriptFullGame(loaded replay.Replay, players map[tile.Seat]int) ([]scripted
 	if err != nil {
 		return nil, 0, err
 	}
+
 	w := &scriptWriter{game: g, players: players}
 	w.confirmAll()
 	err = w.begin()
@@ -110,6 +114,7 @@ func scriptFullGame(loaded replay.Replay, players map[tile.Seat]int) ([]scripted
 			if next != len(loaded.Actions) {
 				return nil, 0, fmt.Errorf("the game ended with %d of %d actions played", next, len(loaded.Actions))
 			}
+
 			return w.actions, w.steps, nil
 		case play.AwaitingRoundOver:
 			err = w.dealNext()
@@ -121,6 +126,7 @@ func scriptFullGame(loaded replay.Replay, players map[tile.Seat]int) ([]scripted
 			if next == len(loaded.Actions) {
 				return nil, 0, errors.New("the replay ran out of actions before the game ended")
 			}
+
 			err = w.play(loaded.Actions[next])
 			next++
 		}
@@ -141,6 +147,7 @@ func (w *scriptWriter) begin() error {
 	if refusal.OK {
 		return fmt.Errorf("the engine refused the first draw: %v", refusal.Value)
 	}
+
 	w.game = next
 	w.steps++
 	return nil
@@ -152,15 +159,18 @@ func (w *scriptWriter) dealNext() error {
 	if refusal.OK {
 		return fmt.Errorf("the engine refused the next deal: %v", refusal.Value)
 	}
+
 	w.game = next
 	w.steps++
 	if _, dealt := next.Awaiting().(play.AwaitingDealt); !dealt {
 		return nil
 	}
+
 	next, _, refusal = next.Begin()
 	if refusal.OK {
 		return fmt.Errorf("the engine refused the dealer's first draw: %v", refusal.Value)
 	}
+
 	w.game = next
 	return nil
 }
@@ -171,24 +181,30 @@ func (w *scriptWriter) answerCall(awaiting play.AwaitingCall, actions []replay.S
 		if slices.Contains(answering, seat) {
 			continue
 		}
+
 		if _, still := w.game.Awaiting().(play.AwaitingCall); !still {
 			return next, nil
 		}
+
 		err := w.play(replay.SeatAction{Seat: seat, Action: play.PassAction()})
 		if err != nil {
 			return next, err
 		}
 	}
+
 	for range answering {
 		if _, still := w.game.Awaiting().(play.AwaitingCall); !still {
 			return next, nil
 		}
+
 		err := w.play(actions[next])
 		if err != nil {
 			return next, err
 		}
+
 		next++
 	}
+
 	return next, nil
 }
 
@@ -197,16 +213,20 @@ func callAnswers(awaiting play.AwaitingCall, actions []replay.SeatAction) []tile
 		actions[0].Action.Kind() == play.ActionPass {
 		return nil
 	}
+
 	seats := []tile.Seat{actions[0].Seat}
 	if actions[0].Action.Kind() != play.ActionRon {
 		return seats
 	}
+
 	for _, later := range actions[1:] {
 		if later.Action.Kind() != play.ActionRon {
 			break
 		}
+
 		seats = append(seats, later.Seat)
 	}
+
 	return seats
 }
 
@@ -215,10 +235,12 @@ func (w *scriptWriter) play(sa replay.SeatAction) error {
 	if err != nil {
 		return err
 	}
+
 	next, _, refusal := w.game.Act(sa.Seat, sa.Action)
 	if refusal.OK {
 		return fmt.Errorf("the engine refused seat %d's %v: %v", sa.Seat.Index(), sa.Action.Kind(), refusal.Value)
 	}
+
 	w.game = next
 	w.steps++
 	w.actions = append(w.actions, scripted)
@@ -246,10 +268,12 @@ func (w *scriptWriter) message(sa replay.SeatAction) (scriptedAction, error) {
 		if sa.Action.Kind() == play.ActionChi {
 			scripted.action = messaging.GameActionChi
 		}
+
 		called, err := w.calledTile(sa.Seat)
 		if err != nil {
 			return scripted, err
 		}
+
 		scripted.fields = []wire.Field{tileIDField(called), {
 			Key: wire.KeySequenceTiles, Value: wire.Array{wire.Int(held[0].Index()), wire.Int(held[1].Index())},
 		}}
@@ -262,6 +286,7 @@ func (w *scriptWriter) message(sa replay.SeatAction) (scriptedAction, error) {
 	if id, ok := sa.Action.Tile(); ok {
 		scripted.fields = append(scripted.fields, tileIDField(id))
 	}
+
 	return scripted, nil
 }
 
@@ -270,10 +295,12 @@ func (w *scriptWriter) calledTile(seat tile.Seat) (tile.TileID, error) {
 	if !ok {
 		return tile.TileID{}, fmt.Errorf("seat %d calls with no decision open", seat.Index())
 	}
+
 	call, isCall := decision.Context.(play.Call)
 	if !isCall {
 		return tile.TileID{}, fmt.Errorf("seat %d calls outside a call prompt", seat.Index())
 	}
+
 	return call.Tile, nil
 }
 
@@ -290,6 +317,7 @@ func kanTypeName(kind play.KanKind) string {
 	case play.KanAdded:
 		return "added"
 	}
+
 	return ""
 }
 
@@ -320,6 +348,7 @@ func (c *benchConn) Send(data []byte) {
 	if c.closed {
 		return
 	}
+
 	c.frames = append(c.frames, data)
 	c.sent++
 }
@@ -347,6 +376,7 @@ func (c *benchConn) latestWaitID() (int, error) {
 			break
 		}
 	}
+
 	c.frames = c.frames[:0]
 	return c.waitID, nil
 }
@@ -374,6 +404,7 @@ func openFullGameTable(tb testing.TB, script fullGameScript) *fullGameTable {
 	if err != nil {
 		tb.Fatalf("store.Open error = %v", err)
 	}
+
 	replays := replayfile.New(filepath.Join(dir, "replays"))
 	manager, err := session.New(context.Background(), session.Config{
 		Timing:   session.DefaultTiming(),
@@ -387,16 +418,18 @@ func openFullGameTable(tb testing.TB, script fullGameScript) *fullGameTable {
 	if err != nil {
 		tb.Fatalf("session.New error = %v", err)
 	}
+
 	table := &fullGameTable{
 		manager: manager, router: server.NewRouter(manager, ticketSecret, logger, stoppedClock{}.Now),
 		db: db, replays: replays,
 	}
 	tb.Cleanup(func() {
-		err := errors.Join(manager.Shutdown(context.Background()), db.Close())
-		if err != nil {
-			tb.Errorf("close the table: %v", err)
+		closeErr := errors.Join(manager.Shutdown(context.Background()), db.Close())
+		if closeErr != nil {
+			tb.Errorf("close the table: %v", closeErr)
 		}
 	})
+
 	return table
 }
 
@@ -411,6 +444,7 @@ func (t *fullGameTable) play(script fullGameScript, gameID string) ([]*benchConn
 		specs = append(specs, session.PlayerSpec{Name: name, UserID: "user-" + name, Ticket: ticket})
 		conns = append(conns, &benchConn{id: fmt.Sprintf("%s-%d", gameID, i), gameID: gameID})
 	}
+
 	err := t.manager.CreatePendingGame(gameID, specs, session.SeatingShuffled)
 	if err != nil {
 		return nil, err
@@ -418,7 +452,7 @@ func (t *fullGameTable) play(script fullGameScript, gameID string) ([]*benchConn
 
 	for i, conn := range conns {
 		t.manager.Connect(conn)
-		err = t.route(conns, i, true, wire.Map{
+		err = t.route(conns, i, joining, wire.Map{
 			{Key: wire.KeyEventType, Value: wire.Int(messaging.ClientJoinGame)},
 			{Key: wire.KeyGameTicket, Value: wire.Str(specs[i].Ticket)},
 		})
@@ -433,31 +467,42 @@ func (t *fullGameTable) play(script fullGameScript, gameID string) ([]*benchConn
 		if waitErr != nil {
 			return nil, waitErr
 		}
+
 		m := wire.Map{
 			{Key: wire.KeyEventType, Value: wire.Int(messaging.ClientGameAction)},
 			{Key: wire.KeyAction, Value: wire.Int(scripted.action)},
 		}
 		m = append(m, scripted.fields...)
-		err = t.route(conns, scripted.player, false, append(m, wire.Field{Key: wire.KeyWaitID, Value: wire.Int(waitID)}))
+		err = t.route(conns, scripted.player, acting, append(m, wire.Field{Key: wire.KeyWaitID, Value: wire.Int(waitID)}))
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	return conns, endedGame(conns)
 }
 
-func (t *fullGameTable) route(conns []*benchConn, player int, join bool, m wire.Map) error {
+type clientMessageKind bool
+
+const (
+	joining clientMessageKind = true
+	acting  clientMessageKind = false
+)
+
+func (t *fullGameTable) route(conns []*benchConn, player int, kind clientMessageKind, m wire.Map) error {
 	data, err := wire.Encode(m)
 	if err != nil {
 		return err
 	}
+
 	decoded, err := wire.Decode(data)
 	if err != nil {
 		return err
 	}
 	if t.schedule != nil {
-		t.schedule = append(t.schedule, clientStep{player: player, join: join, message: data, after: sentCounts(conns)})
+		t.schedule = append(t.schedule, clientStep{player: player, join: kind == joining, message: data, after: sentCounts(conns)})
 	}
+
 	t.router.Route(conns[player], decoded)
 	t.manager.Settle()
 	return nil
@@ -470,6 +515,7 @@ func sentCounts(conns []*benchConn) []int {
 		counts = append(counts, conn.sent)
 		conn.mu.Unlock()
 	}
+
 	return counts
 }
 
@@ -483,6 +529,7 @@ func endedGame(conns []*benchConn) error {
 				conn.id, closed, code, session.CloseGameEnded)
 		}
 	}
+
 	return nil
 }
 
@@ -491,6 +538,7 @@ func savedReplay(t *fullGameTable, gameID string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return replayfile.Decompress(compressed, replayfile.MaxFileSize)
 }
 
@@ -523,10 +571,12 @@ func BenchmarkRouter_FullGame(b *testing.B) {
 		if err != nil {
 			b.Fatalf("play game %d: %v", games, err)
 		}
+
 		for _, conn := range conns {
 			messages += conn.sent
 		}
 	}
+
 	b.ReportMetric(float64(script.steps), "steps/op")
 	b.ReportMetric(float64(messages)/float64(games), "messages/op")
 }

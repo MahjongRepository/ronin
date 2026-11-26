@@ -33,8 +33,10 @@ func EventKinds(events []play.Emitted) []string {
 		case play.GameEnded:
 			kind = "game_ended"
 		}
+
 		kinds = append(kinds, kind)
 	}
+
 	return kinds
 }
 
@@ -46,6 +48,7 @@ func CalledMelds(events []play.Emitted) []play.Called {
 			called = append(called, event)
 		}
 	}
+
 	return called
 }
 
@@ -57,6 +60,7 @@ func FuritenChanges(events []play.Emitted) []play.FuritenChanged {
 			changes = append(changes, event)
 		}
 	}
+
 	return changes
 }
 
@@ -67,6 +71,7 @@ func RoundResult(events []play.Emitted) (play.RoundResult, bool) {
 			return event.Result, true
 		}
 	}
+
 	return nil, false
 }
 
@@ -82,9 +87,11 @@ func FirstWin(events []play.Emitted) (play.WinResult, bool) {
 		wins = r.Wins
 	case play.ExhaustiveDraw, play.Abortive:
 	}
+
 	if len(wins) == 0 {
 		return play.WinResult{}, false
 	}
+
 	return wins[0], true
 }
 
@@ -96,6 +103,7 @@ func DoraReveals(events []play.Emitted) []tile.TileID {
 			indicators = append(indicators, event.Indicator)
 		}
 	}
+
 	return indicators
 }
 
@@ -107,5 +115,6 @@ func DrawnRinshan(events []play.Emitted) []play.Drew {
 			draws = append(draws, event)
 		}
 	}
+
 	return draws
 }

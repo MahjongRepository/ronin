@@ -46,6 +46,7 @@ func riichis(g game.Game) []play.Action {
 			offered = append(offered, action)
 		}
 	}
+
 	return offered
 }
 
@@ -54,6 +55,7 @@ func riichiActions(held []tile.TileID) []play.Action {
 	for i, h := range held {
 		actions[i] = play.RiichiAction(h)
 	}
+
 	return actions
 }
 
@@ -80,7 +82,6 @@ func TestRiichi_WhenTheScoreIsBelowOrAtOneThousand_ShouldBeOfferedOnlyFromOneTho
 	for _, score := range []int{900, 1000} {
 		start := play.Some(testkit.EastStart([tile.SeatCount]int{score, 25000, 25000, 50000 - score}, 0, 0))
 		g := dealerAfterDrawFrom(t, tenpaiOnOneAndNineMan(t), []tile.TileID{drawnChun(t)}, start)
-
 		if offered := len(riichis(g)) > 0; offered != (score >= 1000) {
 			t.Errorf("score %d: riichi offered = %t", score, offered)
 		}
@@ -98,7 +99,6 @@ func TestRiichi_WhenTheHandIsNotTenpai_ShouldBeNeitherOfferedNorAccepted(t *test
 
 func TestRiichi_WhenTheDrawnHandIsComplete_ShouldBeOfferedOnEveryTile(t *testing.T) {
 	g := dealerAfterDraw(t, tenpaiOnOneAndNineMan(t), []tile.TileID{tileOf(t, 3, "9m")})
-
 	assertEqual(t, "riichis", riichis(g), riichiActions(g.Hand(seat(t, 0))))
 }
 
@@ -118,7 +118,6 @@ func TestRiichi_WhenTheSeatIsInTemporaryFuriten_ShouldStillBeOffered(t *testing.
 	g, passed := script(t, g, act(seat(t, 0), play.PassAction()))
 	assertEqual(t, "furiten", testkit.FuritenChanges(passed), []play.FuritenChanged{{Seat: seat(t, 0), Furiten: true}})
 	g, _ = discardDrawn(t, g, 2)
-
 	if len(riichis(g)) == 0 {
 		t.Error("riichi is not offered in temporary furiten")
 	}
@@ -131,7 +130,6 @@ func TestRiichi_WhenValid_ShouldEmitTheRiichiDiscardThenDepositTheStick(t *testi
 	}
 
 	g, events := script(t, g, act(seat(t, 0), play.RiichiAction(drawnChun(t))))
-
 	assertEqual(t, "first events", events[:2], []play.Emitted{
 		{To: play.ToAll(), Event: play.Discarded{Seat: seat(t, 0), Tile: drawnChun(t), Tsumogiri: true, Riichi: true}},
 		{To: play.ToAll(), Event: play.RiichiDeposited{Seat: seat(t, 0), Score: 24000, RiichiSticks: 1}},
@@ -168,7 +166,6 @@ func riichiDealerAfterItsNextDraw(t *testing.T) game.Game {
 
 func TestLegalActions_WhenTheSeatIsInRiichi_ShouldOfferOnlyTheDrawnTileAndNoSecondRiichi(t *testing.T) {
 	g := riichiDealerAfterItsNextDraw(t)
-
 	assertEqual(t, "legal actions", g.LegalActions(seat(t, 0)), discards(copies(t, 1, "5z")))
 }
 
@@ -201,7 +198,6 @@ func riichiRonYakuWithinIppatsu(t *testing.T, earlierGoArounds int) []play.YakuI
 
 func TestRiichi_WhenTheRiichiDiscardIsTheFirstDiscard_ShouldScoreDaburuRiichiAndIppatsu(t *testing.T) {
 	yaku := riichiRonYakuWithinIppatsu(t, 0)
-
 	if !hasYaku(yaku, play.YakuDaburuRiichi) || !hasYaku(yaku, play.YakuIppatsu) {
 		t.Errorf("yaku = %v, want daburu riichi and ippatsu", yaku)
 	}
@@ -209,7 +205,6 @@ func TestRiichi_WhenTheRiichiDiscardIsTheFirstDiscard_ShouldScoreDaburuRiichiAnd
 
 func TestRiichi_WhenTheSeatHasAlreadyDiscarded_ShouldScoreRiichiAndIppatsuButNotDaburuRiichi(t *testing.T) {
 	yaku := riichiRonYakuWithinIppatsu(t, 1)
-
 	if !hasYaku(yaku, play.YakuRiichi) || !hasYaku(yaku, play.YakuIppatsu) || hasYaku(yaku, play.YakuDaburuRiichi) {
 		t.Errorf("yaku = %v, want riichi and ippatsu without daburu riichi", yaku)
 	}
@@ -227,10 +222,10 @@ func TestRiichiDiscard_WhenItIsRonned_ShouldNeverDepositItsStick(t *testing.T) {
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 1)))
 
 	_, events := script(t, g, act(seat(t, 1), play.RonAction()))
-
 	if slices.Contains(testkit.EventKinds(events), "riichi_deposited") {
 		t.Error("the ronned riichi discard deposited its stick")
 	}
+
 	ended, ok := events[len(events)-1].Event.(play.RoundEnded)
 	if !ok {
 		t.Fatalf("last event = %+v, want the round's end", events[len(events)-1].Event)
@@ -296,7 +291,6 @@ func dealerAfterClosedKan(t *testing.T, dealer []tile.TileID, draw, kanTile tile
 func TestRiichi_WhenTheHandHasAClosedKanAndDrew_ShouldBeOfferedOnTheTenpaiKeepingDiscards(t *testing.T) {
 	nineMan := tileOf(t, 0, "9m")
 	g := dealerAfterClosedKan(t, copies(t, 0, "1111234567888m"), nineMan, tileOf(t, 0, "1m"))
-
 	assertEqual(t, "riichis", riichis(g), riichiActions([]tile.TileID{nineMan, tileOf(t, 0, "1z")}))
 }
 
@@ -396,11 +390,9 @@ func TestClosedKan_WhenTheRiichiKanKeepsTheWaitsButLosesIipeikou_ShouldBeOffered
 	w := riichiDealerWall(t, waitingHand, drawnOneMan)
 	w.Rinshan = copies(t, 1, "5s")
 	g := riichiDealerAfterDraw(t, w)
-
 	assertEqual(t, "kans", kans(g, seat(t, 0)), []play.Action{play.KanAction(play.KanClosed, waitingHand[0])})
 
 	g, events := script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, drawnOneMan)))
-
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{{Seat: seat(t, 0), Meld: play.MeldView{
 		Kind: play.MeldClosedKan, Tiles: copies(t, 0, "1111m"),
 	}}})
@@ -409,6 +401,5 @@ func TestClosedKan_WhenTheRiichiKanKeepsTheWaitsButLosesIipeikou_ShouldBeOffered
 	}
 
 	win := winOf(t, g, seat(t, 0), play.TsumoAction())
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuRinshan, play.YakuDaburuRiichi, play.YakuSanankou})
 }

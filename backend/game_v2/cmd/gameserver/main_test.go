@@ -19,14 +19,17 @@ func leaves(err error) []error {
 	if err == nil {
 		return nil
 	}
+
 	joined, ok := err.(interface{ Unwrap() []error })
 	if !ok {
 		return []error{err}
 	}
+
 	var all []error
 	for _, part := range joined.Unwrap() {
 		all = append(all, leaves(part)...)
 	}
+
 	return all
 }
 
@@ -50,7 +53,6 @@ func TestUnlogged_WhenPartsOfTheErrorWereLogged_ShouldKeepOnlyTheOthers(t *testi
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := unlogged(tc.err)
-
 			if !slices.Equal(leaves(got), tc.want) {
 				t.Errorf("unlogged(%q) = %q, want the parts %q", tc.err, got, tc.want)
 			}
@@ -65,11 +67,13 @@ func TestRunLogged_WhenTheAddressIsTaken_ShouldFailBeforeClosingUnfinishedGames(
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	start := store.GameStart{GameID: "game-unfinished", StartedAt: time.Now(), GameType: "hanchan"}
 	err = errors.Join(db.RecordStart(t.Context(), start), db.Close())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	taken, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +81,6 @@ func TestRunLogged_WhenTheAddressIsTaken_ShouldFailBeforeClosingUnfinishedGames(
 	defer closeChecked(t, taken)
 
 	err = runLogged(t.Context(), taken.Addr().String(), cfg, logger)
-
 	if !errors.Is(err, syscall.EADDRINUSE) {
 		t.Errorf("runLogged error = %v, want the address in use", err)
 	}
@@ -99,6 +102,7 @@ func unfinishedRows(t *testing.T, path string) int {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return count
 }
 

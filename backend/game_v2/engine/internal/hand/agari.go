@@ -24,6 +24,7 @@ func isAgari(counts [tile.KindCount]uint8) bool {
 	for _, count := range honors {
 		honorCountsSeen |= 1 << count
 	}
+
 	someHonorMissing := honorCountsSeen&(1<<0) != 0
 	someHonorSingle := honorCountsSeen&(1<<1) != 0
 	someHonorTriplet := honorCountsSeen&(1<<3) != 0
@@ -32,9 +33,11 @@ func isAgari(counts [tile.KindCount]uint8) bool {
 	if someHonorQuad {
 		return false
 	}
+
 	if someHonorSingle {
 		return !someHonorMissing && isThirteenOrphans(counts)
 	}
+
 	if !someHonorTriplet && isSevenPairs(counts) {
 		return true
 	}
@@ -44,11 +47,13 @@ func isAgari(counts [tile.KindCount]uint8) bool {
 	if !isOnePairSplit(remainders, honors) {
 		return false
 	}
+
 	for i, suit := range suits {
 		if !isSuitComplete(suit, remainders[i]) {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -56,6 +61,7 @@ func isSuitComplete(suit suitCounts, remainder int) bool {
 	if remainder == 2 {
 		return isMeldsAndPair(suit)
 	}
+
 	return weightedRemainder(suit) == 0 && isMelds(suit)
 }
 
@@ -64,6 +70,7 @@ func total(counts [tile.KindCount]uint8) int {
 	for _, count := range counts {
 		sum += int(count)
 	}
+
 	return sum
 }
 
@@ -72,6 +79,7 @@ func suitsOf(counts [tile.KindCount]uint8) [3]suitCounts {
 	for i, start := range tile.SuitStarts() {
 		suits[i] = suitCounts(counts[start : start+kindsPerSuit])
 	}
+
 	return suits
 }
 
@@ -82,8 +90,10 @@ func suitRemainders(suits [3]suitCounts) [3]int {
 		for _, count := range suit {
 			sum += int(count)
 		}
+
 		remainders[i] = sum % setTiles
 	}
+
 	return remainders
 }
 
@@ -93,15 +103,18 @@ func isOnePairSplit(remainders [3]int, honors []uint8) bool {
 		if remainder == 1 {
 			return false
 		}
+
 		if remainder == 2 {
 			pairs++
 		}
 	}
+
 	for _, count := range honors {
 		if count == 2 {
 			pairs++
 		}
 	}
+
 	return pairs == 1
 }
 
@@ -110,6 +123,7 @@ func isThirteenOrphans(counts [tile.KindCount]uint8) bool {
 	for _, kind := range tile.TerminalAndHonorKinds() {
 		product *= int(counts[kind])
 	}
+
 	return product == 2
 }
 
@@ -120,6 +134,7 @@ func isSevenPairs(counts [tile.KindCount]uint8) bool {
 			pairs++
 		}
 	}
+
 	return pairs == sevenPairs
 }
 
@@ -129,6 +144,7 @@ func weightedRemainder(suit suitCounts) int {
 	for i, count := range suit {
 		sum += int(count) * weights[i%blockTiles]
 	}
+
 	return sum % setTiles
 }
 
@@ -148,12 +164,14 @@ func isMeldsAndPair(suit suitCounts) bool {
 		if suit[at] < 2 {
 			continue
 		}
+
 		rest := suit
 		rest[at] -= 2
 		if isMelds(rest) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -164,7 +182,9 @@ func isMelds(suit suitCounts) bool {
 		if count < open {
 			return false
 		}
+
 		twoBack, oneBack = oneBack, (count-open)%setTiles
 	}
+
 	return twoBack == 0 && oneBack == 0
 }

@@ -26,5 +26,6 @@ func countDoraForHand(counts [tile.KindCount]uint8, indicators []tile.Tile) int 
 	for _, indicator := range indicators {
 		dora += int(counts[indicatorToDora(indicator.Kind())])
 	}
+
 	return dora
 }

@@ -46,7 +46,6 @@ func TestPao_WhenAnOpenKanCompletesTheThirdDragon_ShouldBeAnnouncedToAllRightAft
 	followed := g.SeatView(seat(t, 2)).Record
 
 	g, events := script(t, g, act(seat(t, 0), play.KanAction(play.KanOpen, tileOf(t, 3, "7z"))))
-
 	assertEqual(t, "kinds", testkit.EventKinds(events)[:2], []string{"called", "pao_assigned"})
 	assertEqual(t, "pao", events[1], play.Emitted{To: play.ToAll(), Event: play.PaoAssigned{
 		Seat: seat(t, 0), Liable: seat(t, 1),
@@ -89,6 +88,7 @@ func (pt paoTable) lastSeat() tile.Seat {
 	if pt.ronDiscarder.OK {
 		return pt.ronDiscarder.Value
 	}
+
 	return pt.winner
 }
 
@@ -98,18 +98,21 @@ func paoDraws(t *testing.T, table paoTable) []tile.TileID {
 	for first := range tile.CopiesPerKind {
 		junk = append(junk, copies(t, first, "2345678s")...)
 	}
+
 	var draws []tile.TileID
 	drawJunkUntil := func(current, stop tile.Seat) {
 		for ; current != stop; current = current.Next() {
 			draws, junk = append(draws, junk[0]), junk[1:]
 		}
 	}
+
 	current := seat(t, 0)
 	for _, dragon := range dragonPons() {
 		drawJunkUntil(current, table.pao)
 		draws = append(draws, tileOf(t, 2, dragon))
 		current = table.winner.Next()
 	}
+
 	drawJunkUntil(current, table.lastSeat())
 	return append(draws, table.winTile)
 }
@@ -130,6 +133,7 @@ func threeDragonPonsFedByThePaoSeat(t *testing.T, table paoTable) game.Game {
 			fillerCopy++
 		}
 	}
+
 	w := testkit.StartWall{Hands: hands, Draws: paoDraws(t, table), Dora: play.Some(tileOf(t, 0, "1s"))}
 	g := begun(t, w, play.Some(testkit.EastStart(sticksPaidScores(table.riichiSticks), table.honba, table.riichiSticks)))
 
@@ -138,10 +142,12 @@ func threeDragonPonsFedByThePaoSeat(t *testing.T, table paoTable) game.Game {
 		g, _ = discardDrawn(t, g, 1)
 		g, _ = script(t, g, act(table.winner, firstPon(t, g, table.winner)), act(table.winner, play.DiscardAction(extra)))
 	}
+
 	g = discardDrawnUntilTurnOf(t, g, table.lastSeat())
 	if table.ronDiscarder.OK {
 		g, _ = discardDrawn(t, g, 1)
 	}
+
 	return g
 }
 
@@ -152,6 +158,7 @@ func paoTsumo(t *testing.T, table paoTable) play.WinResult {
 	if !ok {
 		t.Fatalf("result = %+v, want a tsumo", roundResult(t, events))
 	}
+
 	return tsumo.Win
 }
 
@@ -162,10 +169,12 @@ func paoRons(t *testing.T, table paoTable) ([]play.WinResult, [tile.SeatCount]in
 	if !ok {
 		t.Fatalf("awaiting = %+v, want the win tile offered to ron", g.Awaiting())
 	}
+
 	answers := make([]testkit.SeatAction, len(prompt.Seats))
 	for i, caller := range prompt.Seats {
 		answers[i] = act(caller, play.RonAction())
 	}
+
 	_, events := script(t, g, answers...)
 	ron := ronResult(t, events)
 	return ron.Wins, ron.TotalScoreChanges()
@@ -192,6 +201,7 @@ func paoSeats(wins []play.WinResult) []play.Option[tile.Seat] {
 	for i, win := range wins {
 		pao[i] = win.Pao
 	}
+
 	return pao
 }
 
@@ -200,6 +210,7 @@ func scoreChangesByWin(wins []play.WinResult) [][tile.SeatCount]int {
 	for i, win := range wins {
 		changes[i] = win.ScoreChanges
 	}
+
 	return changes
 }
 
@@ -208,7 +219,6 @@ func TestPao_WhenANonDealerTsumosWithHonba_ShouldChargeThePaoSeatEverything(t *t
 	table.honba, table.riichiSticks, table.ronDiscarder = 1, 1, play.Option[tile.Seat]{}
 
 	win := paoTsumo(t, table)
-
 	assertEqual(t, "pao", win.Pao, play.Some(seat(t, 2)))
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuDaisangen})
 	assertEqual(t, "yakuman", yakumanCount(win.Value), 1)
@@ -217,7 +227,6 @@ func TestPao_WhenANonDealerTsumosWithHonba_ShouldChargeThePaoSeatEverything(t *t
 
 func TestPao_WhenTheDealerTsumosAStackedYakuman_ShouldChargeThePaoSeatTheWholeHandAndHonba(t *testing.T) {
 	win := paoTsumo(t, daisangenAndTsuuiisouTable(t, play.Option[tile.Seat]{}))
-
 	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuDaisangen, play.YakuTsuuiisou})
 	assertEqual(t, "yakuman", yakumanCount(win.Value), 2)
 	assertEqual(t, "score changes", win.ScoreChanges, [tile.SeatCount]int{96300, 0, 0, -96300})
@@ -228,7 +237,6 @@ func TestPao_WhenTheDealerRonsOffAnotherSeat_ShouldSplitTheHandAndGiveTheSticksT
 	table.riichiSticks = 1
 
 	wins, changes := paoRons(t, table)
-
 	assertEqual(t, "pao", wins[0].Pao, play.Some(seat(t, 2)))
 	assertEqual(t, "score changes", changes, [tile.SeatCount]int{49000, -24000, -24000, 0})
 }
@@ -238,7 +246,6 @@ func TestPao_WhenTheRonIsOffThePaoSeat_ShouldChargeItInFull(t *testing.T) {
 	table.honba = 1
 
 	wins, changes := paoRons(t, table)
-
 	assertEqual(t, "pao", wins[0].Pao, play.Some(seat(t, 3)))
 	assertEqual(t, "score changes", changes, [tile.SeatCount]int{0, 32300, 0, -32300})
 }
@@ -248,13 +255,11 @@ func TestPao_WhenTheRonIsOffAnotherSeatWithHonba_ShouldChargeTheWholeHonbaToTheP
 	table.honba = 1
 
 	_, changes := paoRons(t, table)
-
 	assertEqual(t, "score changes", changes, [tile.SeatCount]int{0, 32300, -16000, -16300})
 }
 
 func TestPao_WhenTheDealerRonsAStackedYakuman_ShouldChargeThePaoSeatHalfTheWholeHandAndHonba(t *testing.T) {
 	wins, changes := paoRons(t, daisangenAndTsuuiisouTable(t, play.Some(seat(t, 1))))
-
 	assertEqual(t, "yaku", wins[0].Yaku, []play.YakuID{play.YakuDaisangen, play.YakuTsuuiisou})
 	assertEqual(t, "score changes", changes, [tile.SeatCount]int{96300, -48000, 0, -48300})
 }
@@ -264,7 +269,6 @@ func TestPao_WhenThePaoWinnerHeadsADoubleRonWithHonba_ShouldChargeItsHonbaToTheP
 	table.otherWinner, table.honba = play.Some(seat(t, 1)), 1
 
 	wins, changes := paoRons(t, table)
-
 	assertEqual(t, "pao", paoSeats(wins), []play.Option[tile.Seat]{play.Some(seat(t, 2)), {}})
 	assertEqual(t, "changes by win", scoreChangesByWin(wins), [][tile.SeatCount]int{
 		{48300, 0, -24300, -24000}, {0, 5200, 0, -5200},
@@ -277,7 +281,6 @@ func TestPao_WhenThePaoWinnerIsTheFartherOfADoubleRon_ShouldChargeThePaoSeatNoHo
 	table.otherWinner, table.honba = play.Some(seat(t, 1)), 1
 
 	wins, changes := paoRons(t, table)
-
 	assertEqual(t, "pao", paoSeats(wins), []play.Option[tile.Seat]{{}, play.Some(seat(t, 3))})
 	assertEqual(t, "score changes", changes, [tile.SeatCount]int{-21500, 5500, 32000, -16000})
 }
@@ -287,7 +290,6 @@ func TestPao_WhenTheLiableSeatIsTheOtherWinnerOfADoubleRon_ShouldChargeItHalfThe
 	table.otherWinner = play.Some(seat(t, 1))
 
 	wins, changes := paoRons(t, table)
-
 	assertEqual(t, "pao", paoSeats(wins), []play.Option[tile.Seat]{{}, play.Some(seat(t, 1))})
 	assertEqual(t, "changes by win", scoreChangesByWin(wins), [][tile.SeatCount]int{
 		{-5200, 5200, 0, 0}, {-16000, -16000, 32000, 0},
@@ -307,6 +309,7 @@ func discardDrawnUntilTurnOf(t *testing.T, g game.Game, s tile.Seat) game.Game {
 	for turnSeat(t, g) != s {
 		g, _ = discardDrawn(t, g, 1)
 	}
+
 	return g
 }
 
@@ -335,7 +338,6 @@ func TestPao_WhenAClosedDragonKanAndTheThirdDragonPon_ShouldCountTheKanAndMakeTh
 		act(seat(t, 0), play.KanAction(play.KanClosed, haku[0])), act(seat(t, 0), play.DiscardAction(rinshan)))
 	g = ponAndDiscard(t, g, tileOf(t, 0, "1z"))
 	g = ponAndDiscard(t, g, tileOf(t, 0, "3z"))
-
 	assertDaisangenPao(t, tsumoAfterGoAround(t, g), play.Some(seat(t, 1)))
 }
 
@@ -347,7 +349,6 @@ func TestPao_WhenAnOpenDragonKanAndTheThirdDragonPon_ShouldCountTheKanAndMakeThe
 	g = callAndDiscard(t, g, play.KanAction(play.KanOpen, tileOf(t, 3, "5z")), rinshan)
 	g = ponAndDiscard(t, g, tileOf(t, 0, "1z"))
 	g = ponAndDiscard(t, g, tileOf(t, 0, "2z"))
-
 	assertDaisangenPao(t, tsumoAfterGoAround(t, g), play.Some(seat(t, 1)))
 }
 
@@ -359,7 +360,6 @@ func TestPao_WhenAnOpenKanCompletesTheThirdDragon_ShouldMakeTheDiscarderLiable(t
 	g = ponAndDiscard(t, g, tileOf(t, 0, "1z"))
 	g = ponAndDiscard(t, g, tileOf(t, 0, "2z"))
 	g = callAndDiscard(t, g, play.KanAction(play.KanOpen, tileOf(t, 3, "7z")), rinshan)
-
 	assertDaisangenPao(t, tsumoAfterGoAround(t, g), play.Some(seat(t, 1)))
 }
 
@@ -377,7 +377,6 @@ func TestPao_WhenAClosedKanCompletesTheThirdDragon_ShouldNotBeSet(t *testing.T) 
 	g, _ = script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, chun[3])))
 
 	_, events := script(t, g, act(seat(t, 0), play.TsumoAction()))
-
 	assertDaisangenPao(t, firstWin(t, events), play.Option[tile.Seat]{})
 }
 
@@ -401,7 +400,6 @@ func TestPao_WhenAnAddedKanAndTheFourthWindPon_ShouldCountTheKanAndMakeTheDiscar
 	g = ponAndDiscard(t, g, tileOf(t, 0, "1m"))
 
 	win := tsumoAfterGoAround(t, g)
-
 	if !hasYaku(win.Yaku, play.YakuDaisuushii) {
 		t.Errorf("yaku = %v, want daisuushii", win.Yaku)
 	}
@@ -413,6 +411,7 @@ func TestPao_WhenTheFourthSuitedKanIsCalled_ShouldAssignNone(t *testing.T) {
 	for _, kind := range []string{"1m", "2m", "3m", "4m"} {
 		manQuads = append(manQuads, tileOf(t, 3, kind))
 	}
+
 	rinshan := copies(t, 0, "5566z")
 	dealer := slices.Concat(copies(t, 0, "111222333444m"), copies(t, 0, "9s"))
 	draws := slices.Concat([]tile.TileID{tileOf(t, 0, "7z")}, manQuads, copies(t, 1, "777z"), []tile.TileID{tileOf(t, 1, "9s")})
@@ -422,7 +421,6 @@ func TestPao_WhenTheFourthSuitedKanIsCalled_ShouldAssignNone(t *testing.T) {
 	}
 
 	win := tsumoAfterGoAround(t, g)
-
 	if !hasYaku(win.Yaku, play.YakuSuukantsu) {
 		t.Errorf("yaku = %v, want suukantsu", win.Yaku)
 	}

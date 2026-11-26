@@ -70,9 +70,11 @@ func PackMeld(m Meld) (int, error) {
 	default:
 		err = InvalidMeldError{Reason: "unknown meld kind " + strconv.Itoa(int(m.Kind))}
 	}
+
 	if err != nil {
 		return 0, err
 	}
+
 	return index*tile.SeatCount + m.Caller.Index(), nil
 }
 
@@ -80,14 +82,17 @@ func chiIndex(m Meld, tiles []tile.TileID) (int, error) {
 	if len(tiles) != meldTiles {
 		return 0, InvalidMeldError{Reason: "a chi has three tiles"}
 	}
+
 	low := tiles[0].Kind()
 	if low >= suitedKinds || int(low)%ranksPerSuit >= chiStartsPerSuit ||
 		tiles[1].Kind() != low+1 || tiles[2].Kind() != low+2 {
 		return 0, InvalidMeldError{Reason: "a chi is three suited tiles in a row"}
 	}
+
 	if m.From != play.Some(m.Caller.Kamicha()) {
 		return 0, InvalidMeldError{Reason: "a chi calls the kamicha's discard"}
 	}
+
 	calledAt, err := calledPosition(m, tiles)
 	if err != nil {
 		return 0, err
@@ -102,10 +107,12 @@ func ponIndex(m Meld, tiles []tile.TileID) (int, error) {
 	if !isOneKind(tiles, meldTiles) {
 		return 0, InvalidMeldError{Reason: "a pon or kan is copies of one kind"}
 	}
+
 	calledAt, err := calledPosition(m, tiles)
 	if err != nil {
 		return 0, err
 	}
+
 	from, err := fromOffset(m)
 	if err != nil {
 		return 0, err
@@ -115,6 +122,7 @@ func ponIndex(m Meld, tiles []tile.TileID) (int, error) {
 	for _, t := range tiles {
 		missing -= copyOf(t)
 	}
+
 	return ((int(tiles[0].Kind())*tile.CopiesPerKind+missing)*meldTiles+calledAt)*fromOffsets + from, nil
 }
 
@@ -122,9 +130,11 @@ func addedKanIndex(m Meld, tiles []tile.TileID) (int, error) {
 	if !m.Added.OK || !slices.Contains(tiles, m.Added.Value) || m.Called == play.Some(m.Added.Value) {
 		return 0, InvalidMeldError{Reason: "an added kan adds one of its tiles other than the called one"}
 	}
+
 	if !isOneKind(tiles, kanTiles) {
 		return 0, InvalidMeldError{Reason: "a pon or kan is copies of one kind"}
 	}
+
 	pon := slices.DeleteFunc(slices.Clone(tiles), func(t tile.TileID) bool { return t == m.Added.Value })
 	return ponIndex(m, pon)
 }
@@ -133,14 +143,17 @@ func openKanIndex(m Meld, tiles []tile.TileID) (int, error) {
 	if !isOneKind(tiles, kanTiles) {
 		return 0, InvalidMeldError{Reason: "a pon or kan is copies of one kind"}
 	}
+
 	_, err := calledPosition(m, tiles)
 	if err != nil {
 		return 0, err
 	}
+
 	from, err := fromOffset(m)
 	if err != nil {
 		return 0, err
 	}
+
 	return (int(tiles[0].Kind())*tile.CopiesPerKind+copyOf(m.Called.Value))*fromOffsets + from, nil
 }
 
@@ -148,9 +161,11 @@ func closedKanIndex(m Meld, tiles []tile.TileID) (int, error) {
 	if !isOneKind(tiles, kanTiles) {
 		return 0, InvalidMeldError{Reason: "a pon or kan is copies of one kind"}
 	}
+
 	if m.Called.OK || m.From.OK {
 		return 0, InvalidMeldError{Reason: "a closed kan calls no discard"}
 	}
+
 	return int(tiles[0].Kind()), nil
 }
 
@@ -158,11 +173,13 @@ func isOneKind(tiles []tile.TileID, size int) bool {
 	if len(tiles) != size {
 		return false
 	}
+
 	for i, t := range tiles[1:] {
 		if t.Kind() != tiles[0].Kind() || t == tiles[i] {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -171,6 +188,7 @@ func calledPosition(m Meld, tiles []tile.TileID) (int, error) {
 	if !m.Called.OK || at < 0 {
 		return 0, InvalidMeldError{Reason: "a called meld holds its called tile"}
 	}
+
 	return at, nil
 }
 
@@ -178,6 +196,7 @@ func fromOffset(m Meld) (int, error) {
 	if !m.From.OK || m.From.Value == m.Caller {
 		return 0, InvalidMeldError{Reason: "a called meld calls another seat's discard"}
 	}
+
 	return m.From.Value.DistanceFrom(m.Caller) - 1, nil
 }
 
@@ -189,6 +208,7 @@ func UnpackMeld(packed int) (Meld, error) {
 	if packed < 0 || packed >= meldIndexCount*tile.SeatCount {
 		return Meld{}, InvalidMeldError{Reason: "packed meld " + strconv.Itoa(packed) + " out of range"}
 	}
+
 	caller, _ := tile.NewSeat(packed % tile.SeatCount)
 	index := packed / tile.SeatCount
 
@@ -238,6 +258,7 @@ func unpackPon(caller tile.Seat, index int) Meld {
 			tiles = append(tiles, tileOf(kind, c))
 		}
 	}
+
 	return Meld{
 		Caller: caller,
 		Kind:   play.MeldPon,
@@ -281,6 +302,7 @@ func kindTiles(kind int) []tile.TileID {
 	for c := range tile.CopiesPerKind {
 		tiles = append(tiles, tileOf(kind, c))
 	}
+
 	return tiles
 }
 

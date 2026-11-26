@@ -51,6 +51,7 @@ func (s Seconds) value() wire.Value {
 	if s.fraction.OK {
 		return wire.Float(s.fraction.Value)
 	}
+
 	return wire.Int(s.whole)
 }
 
@@ -140,5 +141,6 @@ func GameReconnected(snapshot wire.Map, waitID int, pause play.Option[Pause], ti
 			m = with(m, wire.KeyRoundAdvanceSeconds, running.Value.Timeout.value())
 		}
 	}
+
 	return StampTimerSettings(m, timer)
 }

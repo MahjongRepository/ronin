@@ -95,11 +95,13 @@ func deliverEvents(batch []play.Emitted, seated agents, sink eventSink) error {
 			if !event.To.Includes(s) {
 				continue
 			}
+
 			if err := seated[s.Index()].observe(event); err != nil {
 				return agentFailedError{seat: s, err: err}
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -121,6 +123,7 @@ func playRound(g *engine.Game, initial []play.Emitted, seated agents, sink event
 	if err := deliverEvents(initial, seated, sink); err != nil {
 		return err
 	}
+
 	return playUntil(g, seated, sink, maxRoundSteps, untilRoundOver, checkOff)
 }
 
@@ -128,9 +131,11 @@ func playGame(g *engine.Game, initial []play.Emitted, seated agents, sink eventS
 	if err := deliverEvents(initial, seated, sink); err != nil {
 		return play.Standings{}, err
 	}
+
 	if err := playUntil(g, seated, sink, maxSteps, untilGameOver, checkOff); err != nil {
 		return play.Standings{}, err
 	}
+
 	return standingsOf(*g)
 }
 
@@ -138,12 +143,15 @@ func playGameChecked(g *engine.Game, initial []play.Emitted, seated agents, sink
 	if err := deliverEvents(initial, seated, sink); err != nil {
 		return play.Standings{}, err
 	}
+
 	if err := check(*g, 0); err != nil {
 		return play.Standings{}, err
 	}
+
 	if err := playUntil(g, seated, sink, maxSteps, untilGameOver, checkEveryBatch); err != nil {
 		return play.Standings{}, err
 	}
+
 	return standingsOf(*g)
 }
 
@@ -152,6 +160,7 @@ func standingsOf(g engine.Game) (play.Standings, error) {
 	if !standings.OK {
 		return play.Standings{}, engineBrokeError{reason: "a game over has no standings"}
 	}
+
 	return standings.Value, nil
 }
 
@@ -159,6 +168,7 @@ func check(g engine.Game, step int) error {
 	if err := g.CheckInvariants(); err != nil {
 		return invariantError{step: step, err: err}
 	}
+
 	return nil
 }
 
@@ -167,8 +177,10 @@ func playUntil(g *engine.Game, seated agents, sink eventSink, maxSteps int, end 
 		if checked == checkOff {
 			return nil
 		}
+
 		return check(*g, step)
 	}
+
 	for step := 1; step <= maxSteps; step++ {
 		var s tile.Seat
 		switch awaiting := g.Awaiting().(type) {
@@ -176,20 +188,25 @@ func playUntil(g *engine.Game, seated agents, sink eventSink, maxSteps int, end 
 			if end == untilRoundOver {
 				return nil
 			}
+
 			if err := dealNext(g, seated, sink); err != nil {
 				return err
 			}
+
 			if err := delivered(step); err != nil {
 				return err
 			}
+
 			continue
 		case play.AwaitingDealt:
 			if err := begin(g, seated, sink); err != nil {
 				return err
 			}
+
 			if err := delivered(step); err != nil {
 				return err
 			}
+
 			continue
 		case play.AwaitingTurn:
 			s = awaiting.Seat
@@ -203,11 +220,13 @@ func playUntil(g *engine.Game, seated agents, sink eventSink, maxSteps int, end 
 		if err != nil {
 			return err
 		}
-		if err := deliverEvents(batch, seated, sink); err != nil {
-			return err
+
+		if deliverErr := deliverEvents(batch, seated, sink); deliverErr != nil {
+			return deliverErr
 		}
-		if err := delivered(step); err != nil {
-			return err
+
+		if deliveredErr := delivered(step); deliveredErr != nil {
+			return deliveredErr
 		}
 	}
 
@@ -220,6 +239,7 @@ func playUntil(g *engine.Game, seated agents, sink eventSink, maxSteps int, end 
 		}
 	case play.AwaitingDealt, play.AwaitingTurn, play.AwaitingCall:
 	}
+
 	return stepLimitError{}
 }
 
@@ -228,6 +248,7 @@ func dealNext(g *engine.Game, seated agents, sink eventSink) error {
 	if refusal.OK {
 		return engineBrokeError{reason: "a game awaiting its next round refused to deal it"}
 	}
+
 	*g = next
 	return deliverEvents(events, seated, sink)
 }
@@ -237,6 +258,7 @@ func begin(g *engine.Game, seated agents, sink eventSink) error {
 	if refusal.OK {
 		return engineBrokeError{reason: "a dealt game refused its dealer's first draw"}
 	}
+
 	*g = next
 	return deliverEvents(events, seated, sink)
 }
@@ -251,10 +273,12 @@ func answer(g *engine.Game, s tile.Seat, seated agent) ([]play.Emitted, error) {
 	if err != nil {
 		return nil, agentFailedError{seat: s, err: err}
 	}
+
 	next, events, refusal := g.Act(s, action)
 	if refusal.OK {
 		return nil, refusedError{seat: s, action: action, refusal: refusal.Value}
 	}
+
 	*g = next
 	return events, nil
 }

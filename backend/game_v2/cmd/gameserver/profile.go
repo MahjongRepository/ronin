@@ -29,25 +29,28 @@ type runtimeStats struct {
 	MutexWaitSeconds float64 `json:"mutex_wait_seconds"`
 }
 
-func runProfiled(ctx context.Context, addr, profileDir string) (err error) {
+func runProfiled(ctx context.Context, getenv func(string) string, addr, profileDir string) (err error) {
 	if profileDir == "" {
-		return run(ctx, addr)
+		return run(ctx, getenv, addr)
 	}
 
 	file, err := os.Create(filepath.Join(profileDir, cpuProfileFile))
 	if err != nil {
 		return fmt.Errorf("create the CPU profile: %w", err)
 	}
+
 	err = pprof.StartCPUProfile(file)
 	if err != nil {
 		return errors.Join(fmt.Errorf("start the CPU profile: %w", err), file.Close())
 	}
+
 	runtime.SetMutexProfileFraction(mutexProfileFraction)
 	defer func() {
 		pprof.StopCPUProfile()
 		err = errors.Join(err, file.Close(), writeRunProfiles(profileDir))
 	}()
-	return run(ctx, addr)
+
+	return run(ctx, getenv, addr)
 }
 
 func writeRunProfiles(dir string) error {
@@ -70,6 +73,7 @@ func writeProfile(path, name string) (err error) {
 	if err != nil {
 		return fmt.Errorf("write the %s profile: %w", name, err)
 	}
+
 	return nil
 }
 
@@ -78,14 +82,17 @@ func writeRuntimeStats(path string) error {
 	if err != nil {
 		return err
 	}
+
 	data, err := json.MarshalIndent(stats, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode the runtime stats: %w", err)
 	}
+
 	err = os.WriteFile(path, append(data, '\n'), 0o600)
 	if err != nil {
 		return fmt.Errorf("write the runtime stats: %w", err)
 	}
+
 	return nil
 }
 

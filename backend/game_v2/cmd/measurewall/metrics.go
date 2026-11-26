@@ -44,6 +44,7 @@ func warnThreshold(cells int) float64 {
 			high = mid
 		}
 	}
+
 	return high
 }
 
@@ -70,6 +71,7 @@ func binomialTwoSidedTail(trials int, probability float64, count int) float64 {
 			total += term
 		}
 	}
+
 	return min(1, 2*total)
 }
 
@@ -83,6 +85,7 @@ func uniform(cells int) []float64 {
 	for i := range probabilities {
 		probabilities[i] = 1 / float64(cells)
 	}
+
 	return probabilities
 }
 
@@ -119,6 +122,7 @@ func newSampledCellFamily(name string, probabilities []float64, rows int, varian
 	for i := range counts {
 		counts[i] = make([]int, len(probabilities))
 	}
+
 	return &cellFamily{name: name, probabilities: probabilities, varianceFactor: varianceFactor, counts: counts}
 }
 
@@ -150,6 +154,7 @@ func (f *cellFamily) summary() familySummary {
 	if len(candidates) == 0 {
 		candidates = []cellScore{mostDeviant}
 	}
+
 	lowest := cellTail{p: math.Inf(1)}
 	for _, c := range candidates {
 		if p := f.tail(c); p < lowest.p {
@@ -194,9 +199,11 @@ func (f *cellFamily) scores() []cellScore {
 			if deviation > 0 {
 				z = (float64(count) - trials*probability) / deviation
 			}
+
 			scores = append(scores, cellScore{z: z, cell: cell{row, column}, count: count})
 		}
 	}
+
 	return scores
 }
 
@@ -204,6 +211,7 @@ func (f *cellFamily) tail(s cellScore) float64 {
 	if f.varianceFactor != 1 {
 		return twoSidedTail(s.z)
 	}
+
 	return binomialTwoSidedTail(f.trials, f.probabilities[s.cell[1]], s.count)
 }
 
@@ -266,6 +274,7 @@ func (m *meanStat) mean() *float64 {
 	if m.clusters == 0 {
 		return nil
 	}
+
 	return new(m.total / float64(m.clusters))
 }
 
@@ -273,6 +282,7 @@ func (m *meanStat) se() *float64 {
 	if m.clusters < 2 {
 		return nil
 	}
+
 	clusters := float64(m.clusters)
 	variance := max(m.totalSq-m.total*m.total/clusters, 0) / (clusters - 1)
 	return new(math.Sqrt(variance / clusters))
@@ -303,6 +313,7 @@ func (m *meanStat) summary() meanSummary {
 	if m.events != nil {
 		events = new(*m.events)
 	}
+
 	return meanSummary{
 		Name:     m.name,
 		Clusters: m.clusters,
@@ -346,6 +357,7 @@ func compare(left, right meanSummary, threshold float64) comparison {
 			result.status = statusWarn
 		}
 	}
+
 	return result
 }
 
@@ -359,6 +371,7 @@ func newFractionHistogram(name string, labels []string) fractionHistogram {
 	for i, label := range labels {
 		bins[i] = newEventMeanStat(name + " = " + label)
 	}
+
 	return fractionHistogram{bins: bins, total: newMeanStat(name + ", mean")}
 }
 
@@ -374,6 +387,7 @@ func (h fractionHistogram) addGame(values []int, offset int) {
 		stat.add(float64(gameCounts[i]) / float64(len(values)))
 		*stat.events += gameCounts[i]
 	}
+
 	h.total.add(float64(sum) / float64(len(values)))
 }
 
@@ -382,5 +396,6 @@ func (h fractionHistogram) summaries() []meanSummary {
 	for _, stat := range h.bins {
 		summaries = append(summaries, stat.summary())
 	}
+
 	return append(summaries, h.total.summary())
 }

@@ -17,6 +17,7 @@ func FuzzParseClientMessage_WhenGivenAnyDecodedMessage_ShouldParseOrRefuseIt(f *
 		if err != nil {
 			f.Fatalf("Encode(%v): %v", m, err)
 		}
+
 		f.Add(content)
 	}
 

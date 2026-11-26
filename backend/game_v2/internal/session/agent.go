@@ -33,6 +33,7 @@ func (r *agentRequest) take(token uint64) bool {
 	if !r.inFlight() || token != r.deadline.token {
 		return false
 	}
+
 	r.invalidate()
 	return true
 }
@@ -53,6 +54,7 @@ func (g *game) playAIPlayers() {
 	if g.lifecycle != lifecyclePlaying || g.hold.held() || g.aiTurn.armed || g.asked.inFlight() {
 		return
 	}
+
 	index := slices.IndexFunc(g.wait.seats, g.asksAISeat)
 	if index < 0 {
 		return
@@ -64,8 +66,10 @@ func (g *game) playAIPlayers() {
 				g.guard("AI turn failed", func() error { return g.aiTurnDue(token) })
 			})
 		})
+
 		return
 	}
+
 	g.askAgent(g.wait.seats[index])
 }
 
@@ -77,10 +81,12 @@ func (g *game) aiTurnDue(token uint64) error {
 	if !g.aiTurn.claim(token) {
 		return nil
 	}
+
 	seat := g.wait.seats[0]
 	if !g.isAISeat(seat) {
 		return errNotAISeat
 	}
+
 	g.askAgent(seat)
 	return nil
 }
@@ -96,6 +102,7 @@ func (g *game) askAgent(seat tile.Seat) {
 			})
 		})
 	})
+
 	token := g.asked.deadline.token
 
 	agent := g.m.cfg.Agent
@@ -107,6 +114,7 @@ func (g *game) askAgent(seat tile.Seat) {
 			answer.action, answer.err = agent.Decide(ctx, view)
 			return nil
 		})
+
 		g.post(func() {
 			g.guard("AI player failed", func() error { return g.agentAnswered(answer) })
 		})
@@ -117,9 +125,11 @@ func (g *game) agentAnswered(answer agentAnswer) error {
 	if !g.asked.take(answer.token) || !g.wait.awaits(answer.seat) || !g.isAISeat(answer.seat) {
 		return nil
 	}
+
 	if answer.panicked != nil {
 		return fmt.Errorf("the AI agent panicked: %w", answer.panicked)
 	}
+
 	seat := answer.seat
 	decision, ok := g.engine.Decision(seat)
 	if !ok {
@@ -133,10 +143,12 @@ func (g *game) agentAnswered(answer agentAnswer) error {
 			g.engine = next
 			return g.followAIPlayer(seat, answer.action, events)
 		}
+
 		if slices.Contains(decision.Legal, answer.action) {
 			return fmt.Errorf("the engine refused an offered AI answer %s: %s: %s",
 				actionName(answer.action), refusal.Value.Kind, refusal.Value.Code)
 		}
+
 		failure = fmt.Errorf("%w: %s", errAgentIllegal, actionName(answer.action))
 	}
 
@@ -146,6 +158,7 @@ func (g *game) agentAnswered(answer agentAnswer) error {
 	if err != nil {
 		return err
 	}
+
 	return g.followAIPlayer(seat, fallback, events)
 }
 
@@ -153,5 +166,6 @@ func (g *game) followAIPlayer(seat tile.Seat, action play.Action, events []play.
 	if g.log.Enabled(context.Background(), slog.LevelDebug) {
 		g.log.Debug("AI player action", "ai_seat", seat.Index(), "action", actionName(action))
 	}
+
 	return g.followEngine(events, play.Some(seat))
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -35,6 +36,7 @@ func kyuushuIntoNextRound(t *testing.T, s *staging, rounds ...stagedWall) error 
 		g.waitUntil(secs(7))
 		return g.transcripts("harness_check", player)
 	})
+
 	return err
 }
 
@@ -51,7 +53,6 @@ func TestSeatedGame_WhenAStagedDrawNamesAnotherSeat_ShouldFailNamingTheDraw(t *t
 	misseated.draws[1] = s.draw(3, misseated.draws[1].id)
 
 	err := kyuushuIntoNextRound(t, &s, misseated)
-
 	assertFailureNames(t, err, "seat 1 drew staged draw 1 (staged for seat 3)")
 }
 
@@ -61,7 +62,6 @@ func TestSeatedGame_WhenALaterRoundNamesAnotherDealer_ShouldFailNamingTheDealer(
 	misdealt.draws, misdealt.dealer = nil, s.seat(1)
 
 	err := kyuushuIntoNextRound(t, &s, kyuushuWall(&s), misdealt)
-
 	assertFailureNames(t, err, "later round 0 was staged for dealer 1, not 0")
 }
 
@@ -76,7 +76,6 @@ func TestSeatedGame_WhenAnExpectedRefusalNeverComes_ShouldFailNamingIt(t *testin
 		alice.resync(secs(4), "", messaging.SessionGameNotStarted)
 		return g.transcripts("harness_check", player)
 	})
-
 	assertFailureNames(t, err, "never refused with game_not_started")
 }
 
@@ -90,7 +89,6 @@ func TestSeatedGame_WhenAStepFallsOnAServerTimer_ShouldFailNamingTheMoment(t *te
 		alice.confirmRound(startConfirmTimeout, "")
 		return g.transcripts("harness_check", player)
 	})
-
 	assertFailureNames(t, err, "a step at 10s, the moment a server timer fires")
 }
 
@@ -105,8 +103,9 @@ func TestSeatedGame_WhenAScriptNamesNoTile_ShouldFailWithTheNotationError(t *tes
 		return g.transcripts("harness_check", player)
 	})
 
-	if err == nil {
-		t.Error("scenario error = nil, want the notation error of the script's tile")
+	_, outOfRange := errors.AsType[tile.TileOutOfRangeError](err)
+	if !outOfRange {
+		t.Errorf("scenario error = %v, want the notation error of the script's tile", err)
 	}
 }
 
@@ -122,6 +121,7 @@ func TestSeededWall_ShouldDealTheRoundTheSeedDealsForThatDealer(t *testing.T) {
 	if seededErr != nil || fixedErr != nil {
 		t.Fatalf("NewGame errors = %v, %v", seededErr, fixedErr)
 	}
+
 	_, seededDraw, _ := seededGame.Begin()
 	_, fixedDraw, _ := fixedGame.Begin()
 
@@ -140,6 +140,7 @@ func dealtTiles(events []play.Emitted) [][]int {
 			dealt = append(dealt, indices([]tile.TileID{drew.Tile}))
 		}
 	}
+
 	return dealt
 }
 
@@ -148,6 +149,7 @@ func indices(ids []tile.TileID) []int {
 	for _, id := range ids {
 		out = append(out, id.Index())
 	}
+
 	return out
 }
 
@@ -218,7 +220,6 @@ func TestRun_WhenTheFixturesWereJustWritten_ShouldFindNoDrift(t *testing.T) {
 	}
 
 	code := run(t.Context(), append([]string{"-check"}, dirs...), &stdout, &stderr)
-
 	want := "25 seat transcript(s) up to date\n25 replay fixture(s) up to date\n"
 	if code != 0 || stdout.String() != want {
 		t.Errorf("check run exit = %d, stdout %q, stderr:\n%s", code, stdout.String(), stderr.String())

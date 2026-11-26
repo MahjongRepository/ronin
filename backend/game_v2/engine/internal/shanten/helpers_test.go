@@ -12,9 +12,11 @@ func mustCounts(t *testing.T, mpsz string) tile.Counts {
 	if err != nil {
 		t.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	counts, err := tile.CountsFromTiles(tiles)
 	if err != nil {
 		t.Fatalf("CountsFromTiles(%q) error = %v", mpsz, err)
 	}
+
 	return counts
 }

@@ -47,6 +47,7 @@ func loadLobbyTickets(t *testing.T) lobbyTickets {
 	if err != nil {
 		t.Fatalf("decode %s: %v", lobbyTicketsPath, err)
 	}
+
 	return fixtures
 }
 
@@ -81,6 +82,7 @@ func TestVerifyTicket_WhenTheLobbySignedIt_ShouldReachThePythonVerdict(t *testin
 			}
 			continue
 		}
+
 		if !errors.Is(err, rejections[f.Name]) {
 			t.Errorf("%s: VerifyTicket error = %v, want %v", f.Name, err, rejections[f.Name])
 		}
@@ -93,6 +95,7 @@ func TestSignTicket_WhenGivenATicketTheLobbySigned_ShouldProduceTheLobbysToken(t
 		if !f.Accepted {
 			continue
 		}
+
 		got := auth.SignTicket(f.want(), fixtures.Secret)
 		if got != f.Token {
 			t.Errorf("%s: SignTicket = %s, want %s", f.Name, got, f.Token)
@@ -116,10 +119,12 @@ func TestSignTicket_WhenTheTicketNeedsPythonsRareJSONForms_ShouldWriteThemAsPyth
 			`{"expires_at": 1234567890123456.0, "room_id": "", "user_id": "", "username": ""}`,
 		},
 	} {
-		got := auth.SignTicket(c.ticket, "secret")
-		if want := signedPayload(c.payload, "secret"); got != want {
-			t.Errorf("SignTicket(%+v) = %s, want the token of %s", c.ticket, got, c.payload)
-		}
+		t.Run(c.payload, func(t *testing.T) {
+			got := auth.SignTicket(c.ticket, "secret")
+			if want := signedPayload(c.payload, "secret"); got != want {
+				t.Errorf("SignTicket(%+v) = %s, want the token of %s", c.ticket, got, c.payload)
+			}
+		})
 	}
 }
 
@@ -142,10 +147,12 @@ func TestVerifyTicket_WhenTheTokenIsNotWhatTheLobbySigned_ShouldRefuseIt(t *test
 		{"one part", payloadPart, fixtures.Secret, auth.ErrTicketEncoding},
 		{"no secret configured", token, "", auth.ErrNoSecret},
 	} {
-		_, err := auth.VerifyTicket(c.token, c.secret, fixtureNow)
-		if !errors.Is(err, c.want) {
-			t.Errorf("%s: VerifyTicket error = %v, want %v", c.name, err, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			_, err := auth.VerifyTicket(c.token, c.secret, fixtureNow)
+			if !errors.Is(err, c.want) {
+				t.Errorf("VerifyTicket error = %v, want %v", err, c.want)
+			}
+		})
 	}
 }
 
@@ -195,10 +202,12 @@ func TestVerifyTicket_WhenTheSignedPayloadIsNotATicket_ShouldRefuseIt(t *testing
 			auth.ErrTicketExpiry,
 		},
 	} {
-		_, err := auth.VerifyTicket(signedPayload(c.payload, secret), secret, fixtureNow)
-		if !errors.Is(err, c.want) {
-			t.Errorf("%s: VerifyTicket error = %v, want %v", c.name, err, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			_, err := auth.VerifyTicket(signedPayload(c.payload, secret), secret, fixtureNow)
+			if !errors.Is(err, c.want) {
+				t.Errorf("VerifyTicket error = %v, want %v", err, c.want)
+			}
+		})
 	}
 }
 

@@ -29,6 +29,7 @@ func TestRecord_WhenTheDealerDeclaresADoubleRiichi_ShouldKeepItsIppatsuUntilTheD
 	}{{1, "2z"}, {2, "3z"}, {3, "4z"}} {
 		g, r = followed(t, g, r, act(seat(t, d.at), play.DiscardAction(tileOf(t, d.wind))))
 	}
+
 	assertEqual(t, "riichi after the go-around", dealerRiichi(r), play.Some(standing))
 
 	_, r = followed(t, g, r, act(seat(t, 0), play.DiscardAction(tileOf(t, "6z"))))
@@ -43,7 +44,6 @@ func TestRecord_WhenAPonFollowsARiichi_ShouldEndEveryIppatsu(t *testing.T) {
 	assertEqual(t, "ippatsu before the pon", dealerRiichi(r).Value.Ippatsu, true)
 
 	_, r = followed(t, g, r, act(seat(t, 2), firstPon(t, g, seat(t, 2))))
-
 	assertEqual(t, "ippatsu after the pon", dealerRiichi(r).Value.Ippatsu, false)
 	assertEqual(t, "melds", len(r.Players[2].Melds), 1)
 	assertEqual(t, "closed tiles", r.Players[2].ClosedTiles, 11)
@@ -62,6 +62,7 @@ func TestRecord_WhenTakenFromAViewBeforeADoubleRon_ShouldFollowItToTheRoundEnd(t
 	if !ok || len(ron.Wins) != 2 {
 		t.Errorf("result = %+v, want a double ron", r.Result)
 	}
+
 	assertEqual(t, "finished rounds", len(r.History), 1)
 	assertEqual(t, "latest discard", r.LatestDiscard, play.Option[tile.Seat]{})
 }
@@ -72,14 +73,17 @@ func TestFromStart_WhenTheDealerAbortsOnKyuushu_ShouldFollowItsAbort(t *testing.
 	if err != nil {
 		t.Fatalf("FixedSetup error = %v", err)
 	}
+
 	g, initial, err := game.New(source, play.Option[play.StartPosition]{})
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}
+
 	r, ok := record.FromStart(seat(t, 2), initial)
 	if !ok {
 		t.Fatal("FromStart found no start")
 	}
+
 	assertEqual(t, "record from the start", r, g.SeatView(seat(t, 2)).Record)
 	g, drew, _ := g.Begin()
 	for _, e := range drew {
@@ -87,7 +91,6 @@ func TestFromStart_WhenTheDealerAbortsOnKyuushu_ShouldFollowItsAbort(t *testing.
 	}
 
 	g, r = followed(t, g, r, act(seat(t, 0), play.KyuushuAction()))
-
 	assertEqual(t, "result", r.Result, play.RoundResult(play.Abortive{Kind: play.KyuushuKyuuhai{
 		Seat: seat(t, 0), Hand: g.Hand(seat(t, 0)),
 	}}))
@@ -95,6 +98,7 @@ func TestFromStart_WhenTheDealerAbortsOnKyuushu_ShouldFollowItsAbort(t *testing.
 	if _, found := record.FromStart(seat(t, 2), initial[:1]); found {
 		t.Error("FromStart without the seat's RoundStarted found a start")
 	}
+
 	if _, found := record.FromStart(seat(t, 2), initial[1:]); found {
 		t.Error("FromStart without the GameStarted found a start")
 	}

@@ -49,6 +49,7 @@ func RefusalError(action play.Action, refusal play.Refusal, waitID int) (GameErr
 	default:
 		return ruleError(action, refusal, refused)
 	}
+
 	return refused, true
 }
 
@@ -70,6 +71,7 @@ func ruleError(action play.Action, refusal play.Refusal, refused GameError) (Gam
 		play.CodeAlreadyAnswered:
 		return GameError{}, false
 	}
+
 	return refused, true
 }
 
@@ -90,6 +92,7 @@ func answersACall(action play.Action) bool {
 		return kind == play.KanOpen
 	case play.ActionDiscard, play.ActionRiichi, play.ActionTsumo, play.ActionKyuushu:
 	}
+
 	return false
 }
 
@@ -111,5 +114,6 @@ func invalidCode(action play.Action) GameErrorCode {
 		return GameInvalidPass
 	case play.ActionTsumo, play.ActionKyuushu:
 	}
+
 	return GameInvalidAction
 }

@@ -15,10 +15,12 @@ func winBlocksOf(t *testing.T, concealed string, m meld.Meld, winTile string) []
 	if err != nil {
 		t.Fatalf("countHand(%s + %s) error = %v", concealed, winTile, err)
 	}
+
 	readings := slices.Collect(counts.readings.All())
 	if len(readings) != 1 {
 		t.Fatalf("countHand(%s + %s) gives %d readings, want 1", concealed, winTile, len(readings))
 	}
+
 	return slices.Collect(readings[0].WinBlocks(win.Kind()))
 }
 
@@ -51,8 +53,10 @@ func TestCountHand_WhenTheWinningKindIsAlsoMelded_ShouldWinOnlyOnConcealedBlocks
 		{"23m456p789s55z", newMeld(t, meld.Pon, "111m"), "1m", oneToThreeMan},
 		{"234m456p789s5z", newMeld(t, meld.ClosedKan, "1111m"), "5z", []hand.WinBlock{hand.PairWinBlock()}},
 	} {
-		if got := winBlocksOf(t, tc.concealed, tc.meld, tc.winTile); !slices.Equal(got, tc.want) {
-			t.Errorf("win blocks of %s + %s with %v = %v, want %v", tc.concealed, tc.winTile, tc.meld, got, tc.want)
-		}
+		t.Run(tc.concealed+" + "+tc.winTile, func(t *testing.T) {
+			if got := winBlocksOf(t, tc.concealed, tc.meld, tc.winTile); !slices.Equal(got, tc.want) {
+				t.Errorf("win blocks of %s + %s with %v = %v, want %v", tc.concealed, tc.winTile, tc.meld, got, tc.want)
+			}
+		})
 	}
 }

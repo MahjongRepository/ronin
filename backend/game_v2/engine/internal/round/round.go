@@ -53,6 +53,7 @@ func Deal(w wall.Wall, dealer tile.Seat, roundWind tile.Wind) Round {
 	for i, held := range dealt {
 		r.hands[i] = newHand(held)
 	}
+
 	return r
 }
 
@@ -143,6 +144,7 @@ func (r *Round) meldsBySeat() [tile.SeatCount][]play.MeldView {
 	for i := range melds {
 		melds[i] = r.melds[i].view()
 	}
+
 	return melds
 }
 
@@ -152,6 +154,7 @@ func (r *Round) hasAnyCall() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -160,6 +163,7 @@ func (r *Round) meldedTiles(seat tile.Seat) []tile.TileID {
 	for _, view := range r.seatMelds(seat) {
 		tiles = append(tiles, view.Tiles...)
 	}
+
 	return tiles
 }
 
@@ -181,11 +185,13 @@ func (r *Round) heldTiles() []tile.TileID {
 	for i := range r.hands {
 		held = append(held, r.hands[i].view()...)
 	}
+
 	for _, river := range r.rivers {
 		for _, discard := range river {
 			held = append(held, discard.Tile)
 		}
 	}
+
 	for i := range r.melds {
 		for _, view := range r.melds[i].view() {
 			for _, id := range view.Tiles {
@@ -195,10 +201,19 @@ func (r *Round) heldTiles() []tile.TileID {
 			}
 		}
 	}
+
 	return held
 }
 
-func appendDrawEvents(events []play.Emitted, seat tile.Seat, id tile.TileID, rinshan bool) []play.Emitted {
+type drawSource bool
+
+const (
+	liveDraw    drawSource = false
+	rinshanDraw drawSource = true
+)
+
+func appendDrawEvents(events []play.Emitted, seat tile.Seat, id tile.TileID, source drawSource) []play.Emitted {
+	rinshan := bool(source)
 	events = append(slices.Grow(events, tile.SeatCount), toSeat(seat, play.Drew{Seat: seat, Tile: id, Rinshan: rinshan}))
 	var notice play.Event = play.DrewNotice{Seat: seat, Rinshan: rinshan}
 	for _, other := range tile.Seats() {
@@ -206,6 +221,7 @@ func appendDrawEvents(events []play.Emitted, seat tile.Seat, id tile.TileID, rin
 			events = append(events, toSeat(other, notice))
 		}
 	}
+
 	return events
 }
 
@@ -214,6 +230,7 @@ func doraRevealed(indicators []tile.TileID) []play.Emitted {
 	for _, indicator := range indicators {
 		events = append(events, toAll(play.DoraRevealed{Indicator: indicator}))
 	}
+
 	return events
 }
 
@@ -255,5 +272,6 @@ func refusedUnless(offered bool) play.Option[play.Refusal] {
 	if offered {
 		return play.Option[play.Refusal]{}
 	}
+
 	return notOffered(play.CodeNotOffered)
 }

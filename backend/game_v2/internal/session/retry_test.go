@@ -17,6 +17,7 @@ func TestRetryStoreWrite_WhenTheFirstTwoAttemptsFail_ShouldSucceedOnTheThirdAfte
 			if len(attemptsAt) < 3 {
 				return errors.New("database is locked")
 			}
+
 			return nil
 		}
 

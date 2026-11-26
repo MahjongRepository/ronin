@@ -27,10 +27,12 @@ func legacyNames(t *testing.T) []string {
 	if err != nil || len(paths) == 0 {
 		t.Fatalf("glob %s: %d files, %v", legacyDir, len(paths), err)
 	}
+
 	names := make([]string, 0, len(paths))
 	for _, p := range paths {
 		names = append(names, strings.TrimSuffix(filepath.Base(p), ".msgpack"))
 	}
+
 	return names
 }
 
@@ -40,6 +42,7 @@ func readFile(t *testing.T, path string) []byte {
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}
+
 	return content
 }
 
@@ -54,6 +57,7 @@ func rewrittenRecords(t *testing.T, name string) []wire.Map {
 	if err != nil {
 		t.Fatalf("DecodeReplay(rewritten %s): %v", name, err)
 	}
+
 	return records
 }
 
@@ -63,10 +67,12 @@ func rewriteRecords(t *testing.T, content []byte) []wire.Map {
 	if err != nil {
 		t.Fatalf("Rewrite: %v", err)
 	}
+
 	records, err := wire.DecodeReplay(rewritten.Content)
 	if err != nil {
 		t.Fatalf("DecodeReplay(rewritten): %v", err)
 	}
+
 	return records
 }
 
@@ -84,8 +90,10 @@ func legacyEdited(t *testing.T, name string, edit func(events []wire.Map) []wire
 		if encodeErr != nil {
 			t.Fatalf("encode %v: %v", record, encodeErr)
 		}
+
 		edited = append(edited, encoded...)
 	}
+
 	return edited
 }
 
@@ -97,6 +105,7 @@ func legacyHead(t *testing.T, content []byte) []byte {
 			return content[:end]
 		}
 	}
+
 	t.Fatal("no version record and game start at the head of the replay")
 	return nil
 }
@@ -113,6 +122,7 @@ func intField(t *testing.T, m wire.Map, k wire.Key) int {
 	if !ok {
 		t.Fatalf("field %v of %v is no integer", k, m)
 	}
+
 	return int(n)
 }
 
@@ -123,6 +133,7 @@ func mapField(t *testing.T, m wire.Map, k wire.Key) wire.Map {
 	if !ok {
 		t.Fatalf("field %v of %v is no map", k, m)
 	}
+
 	return nested
 }
 
@@ -133,6 +144,7 @@ func arrayField(t *testing.T, m wire.Map, k wire.Key) wire.Array {
 	if !ok {
 		t.Fatalf("field %v of %v is no array", k, m)
 	}
+
 	return array
 }
 
@@ -144,6 +156,7 @@ func with(m wire.Map, k wire.Key, v wire.Value) wire.Map {
 			return out
 		}
 	}
+
 	return append(out, wire.Field{Key: k, Value: v})
 }
 
@@ -158,6 +171,7 @@ func lastOf(t *testing.T, records []wire.Map, event wire.EventType) int {
 			return i
 		}
 	}
+
 	t.Fatalf("no record of event %d", event)
 	return 0
 }
@@ -168,6 +182,7 @@ func meldOf(t *testing.T, record wire.Map) wire.Meld {
 	if err != nil {
 		t.Fatalf("UnpackMeld(%v): %v", record, err)
 	}
+
 	return meld
 }
 
@@ -177,6 +192,7 @@ func seatOf(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("seat %d out of range", n)
 	}
+
 	return seat
 }
 
@@ -188,8 +204,10 @@ func tileIDs(t *testing.T, ns ...int) []tile.TileID {
 		if !ok {
 			t.Fatalf("tile id %d out of range", n)
 		}
+
 		ids = append(ids, id)
 	}
+
 	return ids
 }
 

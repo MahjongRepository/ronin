@@ -53,6 +53,7 @@ func EventPayload(event play.Event, table func() Table) (wire.Map, error) {
 	case play.GameEnded:
 		return gameEndedPayload(e.Standings, table().Record), nil
 	}
+
 	return nil, errors.New("no event to shape")
 }
 
@@ -69,6 +70,7 @@ func ReplaySeatControlPayload(seat tile.Seat, reason play.Option[wire.SeatContro
 	if !reason.OK {
 		return append(record, wire.Field{Key: wire.KeyAIPlayer, Value: wire.Int(0)})
 	}
+
 	return append(record,
 		wire.Field{Key: wire.KeyAIPlayer, Value: wire.Int(1)},
 		wire.Field{Key: wire.KeySeatControlReason, Value: wire.Int(reason.Value)})
@@ -85,6 +87,7 @@ func rosterPlayers(roster Roster, standIns [tile.SeatCount]play.Option[wire.Seat
 		if roster.AI[s.Index()] {
 			ai = 1
 		}
+
 		player := wire.Map{
 			{Key: wire.KeySeat, Value: seatValue(s)},
 			{Key: wire.KeyName, Value: wire.Str(roster.Names[s.Index()])},
@@ -93,6 +96,7 @@ func rosterPlayers(roster Roster, standIns [tile.SeatCount]play.Option[wire.Seat
 		players = append(players, optionField(player, wire.KeyStandInReason, standIns[s.Index()],
 			func(r wire.SeatControlReason) wire.Value { return wire.Int(r) }))
 	}
+
 	return players
 }
 
@@ -157,9 +161,11 @@ func gameEndedPayload(standings play.Standings, record play.SeatRecord) wire.Map
 		if place < 1 || place > tile.SeatCount {
 			continue
 		}
+
 		if place == 1 {
 			winner = s
 		}
+
 		placed[place-1] = wire.Map{
 			{Key: wire.KeySeat, Value: seatValue(s)},
 			{Key: wire.KeyScore, Value: scoreValue(standings.Scores[s.Index()])},
@@ -183,12 +189,14 @@ func leftoverSticks(record play.SeatRecord) int {
 	if len(record.History) == 0 {
 		return 0
 	}
+
 	last := record.History[len(record.History)-1]
 	switch last.Result.(type) {
 	case play.Tsumo, play.Ron:
 		return 0
 	case play.ExhaustiveDraw, play.Abortive:
 	}
+
 	return last.Header.RiichiSticks + len(last.RiichiSeats)
 }
 
@@ -205,6 +213,7 @@ func endCauseName(cause play.GameEndCause) string {
 	case play.EndFixedWallsDealt:
 		return "fixed_walls_dealt"
 	}
+
 	return ""
 }
 
@@ -222,8 +231,10 @@ func packMelds(caller tile.Seat, views []play.MeldView) (wire.Array, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		packed = append(packed, meld)
 	}
+
 	return packed, nil
 }
 
@@ -239,6 +250,7 @@ func ReplayRoundStartedPayload(dealt []play.RoundStarted) wire.Map {
 	if len(dealt) == 0 {
 		return nil
 	}
+
 	var hands [tile.SeatCount]play.Option[[]tile.TileID]
 	for _, e := range dealt {
 		hands[e.Seat.Index()] = play.Some(e.Hand)

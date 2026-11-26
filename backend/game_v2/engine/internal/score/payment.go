@@ -27,6 +27,7 @@ func HonbaBonus(win Win, honba int) int {
 	if win.IsTsumo() {
 		return honba * rules.HonbaTsumoBonusPerLoser
 	}
+
 	return honba * rules.HonbaRonBonus
 }
 
@@ -40,6 +41,7 @@ func NagashiMangan(seatWind tile.Wind) play.Payment {
 	if seatWind == tile.East {
 		return play.DealerTsumoPayment{NonDealer: shares.double}
 	}
+
 	return play.TsumoPayment{Dealer: shares.double, NonDealer: shares.single}
 }
 
@@ -81,6 +83,7 @@ func limitAndShares(value play.Value, rules Rules) (play.Option[play.Limit], sha
 	case play.Yakuman:
 		limit, paid = play.Some(play.LimitYakuman), sharesOf(yakumanBase*v.Count)
 	}
+
 	return limit, paid
 }
 
@@ -88,6 +91,7 @@ func hanShares(value play.Han, rules Rules) (play.Option[play.Limit], shares) {
 	if value.Han < manganHan {
 		return hanFuShares(value.Han, value.Fu, rules)
 	}
+
 	limit, rounded := limitTier(value.Han)
 	return play.Some(limit), sharesOf(rounded)
 }

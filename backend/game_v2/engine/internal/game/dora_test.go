@@ -83,13 +83,11 @@ func redFiveManHand(t *testing.T) []tile.TileID {
 
 func TestAkaDora_WhenARedFiveIsInTheHand_ShouldCountOneHan(t *testing.T) {
 	win := tsumoOnSecondDraw(t, redFiveManHand(t), tileOf(t, 0, "1s"))
-
 	assertEqual(t, "dora", win.Dora, play.DoraCount{AkaDora: 1})
 }
 
 func TestAkaDora_WhenTheRedFiveIsAlsoDora_ShouldStackWithTheDora(t *testing.T) {
 	win := tsumoOnSecondDraw(t, redFiveManHand(t), tileOf(t, 1, "4m"))
-
 	assertEqual(t, "dora", win.Dora, play.DoraCount{Dora: 1, AkaDora: 1})
 }
 
@@ -104,7 +102,6 @@ func TestAkaDora_WhenAllThreeRedFivesAreHeld_ShouldCountThreeHan(t *testing.T) {
 	assertEqual(t, "red fives held", len(redFives), 3)
 
 	win := tsumoOnSecondDraw(t, hand, tileOf(t, 2, "1m"))
-
 	assertEqual(t, "aka dora", win.Dora.AkaDora, 3)
 }
 
@@ -130,7 +127,6 @@ func riichiTsumoOnSecondDraw(t *testing.T) play.WinResult {
 
 func TestUraDora_WhenADoubleRiichiWinnerTsumos_ShouldRevealTheIndicatorAndAddItsHan(t *testing.T) {
 	win := riichiTsumoOnSecondDraw(t)
-
 	if !hasYaku(win.Yaku, play.YakuDaburuRiichi) {
 		t.Errorf("yaku = %v, want daburu riichi", win.Yaku)
 	}
@@ -208,7 +204,6 @@ func TestKanDora_WhenAClosedKanIsDeclared_ShouldRevealItsIndicatorAtOnce(t *test
 	g := dealerGame(t, slices.Concat(oneMan, copies(t, 1, "123456789p")), copies(t, 1, "2s"), kanDoraWall(t))
 
 	g, kan := script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, oneMan[0])))
-
 	assertEqual(t, "kinds", testkit.EventKinds(kan), []string{"called", "dora_revealed", "drew", "drew", "drew", "drew"})
 	assertEqual(t, "kan dora", testkit.DoraReveals(kan), copies(t, 0, "7p"))
 	assertEqual(t, "dora on discard", testkit.DoraReveals(discardRinshan(t, g)), []tile.TileID(nil))
@@ -218,12 +213,10 @@ func TestKanDora_WhenAnOpenKanIsDeclared_ShouldDeferItsIndicatorToTheReplacement
 	g := oneManDiscardedBySeatThree(t, slices.Concat(copies(t, 0, "111m"), copies(t, 1, "123456789p2s")))
 
 	g, kan := script(t, g, act(seat(t, 0), play.KanAction(play.KanOpen, tileOf(t, 3, "1m"))))
-
 	assertEqual(t, "kan kinds", testkit.EventKinds(kan), []string{"called", "drew", "drew", "drew", "drew"})
 	assertEqual(t, "rinshan", testkit.DrawnRinshan(kan), []play.Drew{rinshanDraw(t, 0, tileOf(t, 0, "9s"))})
 
 	discard := discardRinshan(t, g)
-
 	assertEqual(t, "discard kinds", testkit.EventKinds(discard)[:2], []string{"discarded", "dora_revealed"})
 	assertEqual(t, "kan dora", testkit.DoraReveals(discard), copies(t, 0, "7p"))
 }
@@ -237,7 +230,6 @@ func TestKanDora_WhenAnAddedKanIsDeclared_ShouldDeferItsIndicatorToTheReplacemen
 	g, _ = discardDrawn(t, g, 3)
 
 	g, kan := script(t, g, act(seat(t, 0), play.KanAction(play.KanAdded, tileOf(t, 3, "1m"))))
-
 	assertEqual(t, "melds", testkit.CalledMelds(kan), []play.Called{{Seat: seat(t, 0), Meld: play.MeldView{
 		Kind: play.MeldAddedKan, Tiles: copies(t, 0, "1111m"), Called: play.Some(tileOf(t, 2, "1m")), From: play.Some(seat(t, 3)),
 		Added: play.Some(tileOf(t, 3, "1m")),
@@ -273,12 +265,10 @@ func TestKanDora_WhenTheOpenKansReplacementDiscardIsPonned_ShouldRevealTheDoraAt
 	)
 
 	g, discard := script(t, g, act(seat(t, 1), play.DiscardAction(tileOf(t, 0, "1z"))))
-
 	assertEqual(t, "dora on discard", testkit.DoraReveals(discard), []tile.TileID{kanDoraIndicator})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 3)))
 
 	_, pon := script(t, g, act(seat(t, 3), firstPon(t, g, seat(t, 3))))
-
 	assertEqual(t, "dora on pon", testkit.DoraReveals(pon), []tile.TileID(nil))
 	if called := testkit.CalledMelds(pon); len(called) == 0 || called[0].Meld.Kind != play.MeldPon {
 		t.Errorf("called melds = %+v, want a pon", called)
@@ -295,7 +285,6 @@ func TestKanDora_WhenTheOpenKansReplacementDiscardIsRonned_ShouldCountTheNewDora
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 2)))
 
 	_, events := script(t, g, act(seat(t, 2), play.RonAction()))
-
 	assertEqual(t, "dora", firstWin(t, events).Dora.Dora, 2)
 }
 
@@ -306,7 +295,6 @@ func TestKanDora_WhenAClosedKanFollowsAnOpenKan_ShouldRevealBothIndicatorsBefore
 	assertEqual(t, "dora on open kan", testkit.DoraReveals(openKan), []tile.TileID(nil))
 
 	g, closedKan := script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, twoMan[0])))
-
 	assertEqual(t, "kinds", testkit.EventKinds(closedKan),
 		[]string{"called", "dora_revealed", "dora_revealed", "drew", "drew", "drew", "drew"})
 	assertEqual(t, "kan dora", testkit.DoraReveals(closedKan), copies(t, 0, "78p"))
@@ -332,7 +320,6 @@ func TestKanDora_WhenAnAddedKanFollowsAnOpenKan_ShouldRevealTheOpenKansIndicator
 	g := openKanAfterTwoManPon(t, copies(t, 1, "123456p"), kanDoraWall(t))
 
 	g, addedKan := script(t, g, act(seat(t, 0), play.KanAction(play.KanAdded, tileOf(t, 3, "2m"))))
-
 	assertEqual(t, "kinds", testkit.EventKinds(addedKan), []string{"called", "dora_revealed", "drew", "drew", "drew", "drew"})
 	assertEqual(t, "dora on added kan", testkit.DoraReveals(addedKan), copies(t, 0, "7p"))
 	assertEqual(t, "rinshan", testkit.DrawnRinshan(addedKan), []play.Drew{rinshanDraw(t, 0, tileOf(t, 1, "9s"))})
@@ -366,10 +353,12 @@ func safeFillers(t *testing.T, w testkit.StartWall, count int, excluded ...tile.
 			suited = append(suited, free)
 		}
 	}
+
 	fillers := slices.Concat(suited, honors)
 	if len(fillers) < count {
 		t.Fatalf("%d safe fillers are left, want %d", len(fillers), count)
 	}
+
 	return fillers[:count]
 }
 
@@ -412,7 +401,6 @@ func TestRinshan_WhenAnOpenKanTakesTheLastLiveTile_ShouldWinWithoutHaitei(t *tes
 	assertEqual(t, "context", decision.Context, play.DecisionContext(play.TurnAfterDraw{Drawn: rinshan, Rinshan: true}))
 
 	_, events := script(t, g, act(seat(t, 1), play.TsumoAction()))
-
 	assertEqual(t, "yaku", firstWin(t, events).Yaku, []play.YakuID{play.YakuRinshan, play.YakuIttsu})
 }
 
@@ -420,7 +408,6 @@ func TestHoutei_WhenTheDiscardAfterAKanOnTheLastLiveTileIsRonned_ShouldAllowOnly
 	g := openKanOnTheLastLiveTile(t, lastEast(t))
 
 	g, _ = script(t, g, act(seat(t, 1), play.DiscardAction(lastEast(t))))
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 2)))
 	assertEqual(t, "legal actions", g.LegalActions(seat(t, 2)), []play.Action{play.RonAction(), play.PassAction()})
 
@@ -432,35 +419,46 @@ func TestHoutei_WhenTheDiscardAfterAKanOnTheLastLiveTileIsRonned_ShouldAllowOnly
 }
 
 func TestRinshan_WhenTheClosedKansReplacementTileCompletesTheHand_ShouldAwardItWithOneOrTwoLiveTiles(t *testing.T) {
-	for _, tc := range []struct{ kanSeat, liveTilesBeforeKan int }{{3, 2}, {0, 1}} {
-		kanSeat := seat(t, tc.kanSeat)
-		oneMan, north := copies(t, 0, "1111m"), copies(t, 0, "44z")
-		var hands [tile.SeatCount][]tile.TileID
-		bystanderCopy := 0
-		for _, handSeat := range tile.Seats() {
-			if handSeat == kanSeat {
-				hands[handSeat.Index()] = slices.Concat(oneMan, copies(t, 0, "123456789p"))
-				continue
+	for _, tc := range []struct {
+		name               string
+		kanSeat            int
+		liveTilesBeforeKan int
+	}{
+		{name: "seat 3 with two live tiles", kanSeat: 3, liveTilesBeforeKan: 2},
+		{name: "seat 0 with one live tile", kanSeat: 0, liveTilesBeforeKan: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			kanSeat := seat(t, tc.kanSeat)
+			oneMan, north := copies(t, 0, "1111m"), copies(t, 0, "44z")
+			var hands [tile.SeatCount][]tile.TileID
+			bystanderCopy := 0
+			for _, handSeat := range tile.Seats() {
+				if handSeat == kanSeat {
+					hands[handSeat.Index()] = slices.Concat(oneMan, copies(t, 0, "123456789p"))
+					continue
+				}
+
+				bystanderCopy++
+				hands[handSeat.Index()] = copies(t, bystanderCopy, "123456789p1234s")
 			}
-			bystanderCopy++
-			hands[handSeat.Index()] = copies(t, bystanderCopy, "123456789p1234s")
-		}
-		w := testkit.StartWall{Hands: hands, Rinshan: north[1:]}
-		fillers := safeFillers(t, w, liveTilesAfterTheFirstDraw-tc.liveTilesBeforeKan, kindOf(t, "1s"), kindOf(t, "4s"), north[0].Kind())
-		w.Draws = slices.Concat(fillers, north[:1])
-		g := playDefaultsWhileLiveTilesExceed(t, begun(t, w, noStart()), tc.liveTilesBeforeKan)
-		assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(kanSeat))
-		if hand := g.Hand(kanSeat); hand[len(hand)-1] != north[0] {
-			t.Fatalf("kan seat %d: last drawn tile = %v, want the first north", tc.kanSeat, hand[len(hand)-1])
-		}
 
-		g, kan := script(t, g, act(kanSeat, play.KanAction(play.KanClosed, oneMan[0])))
-		assertEqual(t, "rinshan", testkit.DrawnRinshan(kan), []play.Drew{rinshanDraw(t, tc.kanSeat, north[1])})
+			w := testkit.StartWall{Hands: hands, Rinshan: north[1:]}
+			fillers := safeFillers(t, w, liveTilesAfterTheFirstDraw-tc.liveTilesBeforeKan, kindOf(t, "1s"), kindOf(t, "4s"), north[0].Kind())
+			w.Draws = slices.Concat(fillers, north[:1])
+			g := playDefaultsWhileLiveTilesExceed(t, begun(t, w, noStart()), tc.liveTilesBeforeKan)
+			assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(kanSeat))
+			if hand := g.Hand(kanSeat); hand[len(hand)-1] != north[0] {
+				t.Fatalf("kan seat %d: last drawn tile = %v, want the first north", tc.kanSeat, hand[len(hand)-1])
+			}
 
-		_, events := script(t, g, act(kanSeat, play.TsumoAction()))
+			g, kan := script(t, g, act(kanSeat, play.KanAction(play.KanClosed, oneMan[0])))
+			assertEqual(t, "rinshan", testkit.DrawnRinshan(kan), []play.Drew{rinshanDraw(t, tc.kanSeat, north[1])})
 
-		win := firstWin(t, events)
-		assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuRinshan, play.YakuIttsu})
-		assertEqual(t, "aka dora", win.Dora.AkaDora, 1)
+			_, events := script(t, g, act(kanSeat, play.TsumoAction()))
+
+			win := firstWin(t, events)
+			assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuRinshan, play.YakuIttsu})
+			assertEqual(t, "aka dora", win.Dora.AkaDora, 1)
+		})
 	}
 }

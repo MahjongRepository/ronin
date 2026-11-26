@@ -63,22 +63,35 @@ func (d fuDetails) total() int {
 	for _, detail := range d.all() {
 		total += detail.Fu
 	}
+
 	return total
 }
 
-func ponOrKanFu(terminalOrHonor, isKan, isOpen bool) FuDetail {
-	simple, terminal := FuDetail{4, FuClosedPon}, FuDetail{8, FuClosedTerminalPon}
+type tripletFacts struct {
+	terminalOrHonor bool
+	kan             bool
+	open            bool
+}
+
+func ponOrKanFu(facts tripletFacts) FuDetail {
+	simple := FuDetail{Fu: 4, Reason: FuClosedPon}
+	terminal := FuDetail{Fu: 8, Reason: FuClosedTerminalPon}
 	switch {
-	case isKan && isOpen:
-		simple, terminal = FuDetail{8, FuOpenKan}, FuDetail{16, FuOpenTerminalKan}
-	case isKan:
-		simple, terminal = FuDetail{16, FuClosedKan}, FuDetail{32, FuClosedTerminalKan}
-	case isOpen:
-		simple, terminal = FuDetail{2, FuOpenPon}, FuDetail{4, FuOpenTerminalPon}
+	case facts.kan && facts.open:
+		simple = FuDetail{Fu: 8, Reason: FuOpenKan}
+		terminal = FuDetail{Fu: 16, Reason: FuOpenTerminalKan}
+	case facts.kan:
+		simple = FuDetail{Fu: 16, Reason: FuClosedKan}
+		terminal = FuDetail{Fu: 32, Reason: FuClosedTerminalKan}
+	case facts.open:
+		simple = FuDetail{Fu: 2, Reason: FuOpenPon}
+		terminal = FuDetail{Fu: 4, Reason: FuOpenTerminalPon}
 	}
-	if terminalOrHonor {
+
+	if facts.terminalOrHonor {
 		return terminal
 	}
+
 	return simple
 }
 
@@ -103,6 +116,7 @@ func valuedPairFu(pair tile.Kind, valued [valuedKinds]tile.Kind) (FuDetail, bool
 			listed++
 		}
 	}
+
 	switch listed {
 	case 0:
 		return FuDetail{}, false
@@ -136,9 +150,11 @@ func calculateFu(in fuInput) (fuDetails, int) {
 			details.push(detail)
 		}
 	}
+
 	if detail, ok := valuedPairFu(in.reading.Pair, in.valued); ok {
 		details.push(detail)
 	}
+
 	if !isSet {
 		details.push(FuDetail{Fu: waitFu, Reason: FuPairWait})
 	}
@@ -147,16 +163,17 @@ func calculateFu(in fuInput) (fuDetails, int) {
 		kind := tile.Kind(bits.TrailingZeros64(remaining))
 		bit := uint64(1) << kind
 		isRonOnThisSet := !in.tsumo && isSet && set == hand.Set{Shape: hand.Triplet, Kind: kind}
-		details.push(ponOrKanFu(
-			kind.IsTerminalOrHonor(),
-			in.reading.Kans&bit != 0,
-			in.reading.OpenTriplets&bit != 0 || isRonOnThisSet,
-		))
+		details.push(ponOrKanFu(tripletFacts{
+			terminalOrHonor: kind.IsTerminalOrHonor(),
+			kan:             in.reading.Kans&bit != 0,
+			open:            in.reading.OpenTriplets&bit != 0 || isRonOnThisSet,
+		}))
 	}
 
 	if in.tsumo && (in.open || details.len > 0 || in.rules.FuForPinfuTsumo) {
 		details.push(FuDetail{Fu: waitFu, Reason: FuTsumo})
 	}
+
 	if in.open && !in.tsumo && details.len == 0 && in.rules.FuForOpenPinfu {
 		details.push(FuDetail{Fu: waitFu, Reason: FuHandWithoutFu})
 	}
@@ -165,6 +182,7 @@ func calculateFu(in fuInput) (fuDetails, int) {
 	if in.open || in.tsumo {
 		base = openOrTsumoBaseFu
 	}
+
 	details.push(FuDetail{Fu: base, Reason: FuBase})
 	return details, nextMultipleOf(details.total(), fuRounding)
 }

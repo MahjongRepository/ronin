@@ -15,39 +15,50 @@ func tileIDs(t *testing.T, ids ...int) []tile.TileID {
 	for _, n := range ids {
 		tiles = append(tiles, tileIDOf(t, n))
 	}
+
 	return tiles
 }
 
-func calledMeld(t *testing.T, kind play.MeldKind, caller, from int, called int, ids ...int) Meld {
+type call struct {
+	caller, from, tile int
+}
+
+func calledMeld(t *testing.T, kind play.MeldKind, c call, ids ...int) Meld {
 	t.Helper()
 	return Meld{
-		Caller: seatOf(t, caller),
+		Caller: seatOf(t, c.caller),
 		Kind:   kind,
 		Tiles:  tileIDs(t, ids...),
-		Called: play.Some(tileIDOf(t, called)),
-		From:   play.Some(seatOf(t, from)),
+		Called: play.Some(tileIDOf(t, c.tile)),
+		From:   play.Some(seatOf(t, c.from)),
 	}
 }
 
 func TestPackMeld_ShouldPackEachKindToTheIntegerTheWireCarries(t *testing.T) {
-	addedKan := calledMeld(t, play.MeldAddedKan, 0, 3, 133, 135, 133, 132, 134)
+	addedKan := calledMeld(t, play.MeldAddedKan, call{caller: 0, from: 3, tile: 133}, 135, 133, 132, 134)
 	addedKan.Added = play.Some(tileIDOf(t, 134))
 	tests := []struct {
 		name string
 		meld Meld
 		want int
 	}{
-		{"chi", calledMeld(t, play.MeldChi, 2, 1, 10, 10, 0, 5), 82},
-		{"pon", calledMeld(t, play.MeldPon, 0, 2, 111, 108, 109, 111), 20116},
-		{"open kan", calledMeld(t, play.MeldOpenKan, 3, 1, 125, 124, 125, 126, 127), 27427},
+		{"chi", calledMeld(t, play.MeldChi, call{caller: 2, from: 1, tile: 10}, 10, 0, 5), 82},
+		{"pon", calledMeld(t, play.MeldPon, call{caller: 0, from: 2, tile: 111}, 108, 109, 111), 20116},
+		{"open kan", calledMeld(t, play.MeldOpenKan, call{caller: 3, from: 1, tile: 125}, 124, 125, 126, 127), 27427},
 		{"closed kan", Meld{Caller: seatOf(t, 1), Kind: play.MeldClosedKan, Tiles: tileIDs(t, 52, 53, 54, 55)}, 27605},
 		{"added kan", addedKan, 25868},
 	}
 	for _, tc := range tests {
-		packed, err := PackMeld(tc.meld)
-		if packed != tc.want || err != nil {
-			t.Errorf("PackMeld(%s) = %d, %v; want %d", tc.name, packed, err, tc.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Run(tc.name, func(t *testing.T) {
+					packed, err := PackMeld(tc.meld)
+					if packed != tc.want || err != nil {
+						t.Errorf("PackMeld(%s) = %d, %v; want %d", tc.name, packed, err, tc.want)
+					}
+				})
+			})
+		})
 	}
 }
 
@@ -57,6 +68,7 @@ func TestUnpackMeld_ShouldReadBackEveryPackableMeldWithItsTilesInOrder(t *testin
 		if err != nil {
 			t.Fatalf("UnpackMeld(%d): %v", packed, err)
 		}
+
 		repacked, err := PackMeld(meld)
 		sorted := slices.IsSortedFunc(meld.Tiles, tile.TileID.Compare)
 		if repacked != packed || err != nil || !sorted {
@@ -75,30 +87,32 @@ func TestUnpackMeld_WhenThePackedValueIsOutOfRange_ShouldRefuseWithAnInvalidMeld
 }
 
 func TestPackMeld_WhenTheMeldIsNoMeldOfItsKind_ShouldRefuseWithAnInvalidMeldError(t *testing.T) {
-	ponWithAdded := calledMeld(t, play.MeldPon, 0, 2, 108, 108, 109, 110)
+	ponWithAdded := calledMeld(t, play.MeldPon, call{caller: 0, from: 2, tile: 108}, 108, 109, 110)
 	ponWithAdded.Added = play.Some(tileIDOf(t, 111))
-	chiFromNobody := calledMeld(t, play.MeldChi, 2, 1, 0, 0, 4, 8)
+	chiFromNobody := calledMeld(t, play.MeldChi, call{caller: 2, from: 1, tile: 0}, 0, 4, 8)
 	chiFromNobody.From = play.Option[tile.Seat]{}
-	chiCallingNothing := calledMeld(t, play.MeldChi, 2, 1, 0, 0, 4, 8)
+	chiCallingNothing := calledMeld(t, play.MeldChi, call{caller: 2, from: 1, tile: 0}, 0, 4, 8)
 	chiCallingNothing.Called = play.Option[tile.TileID]{}
-	ponFromNobody := calledMeld(t, play.MeldPon, 0, 2, 108, 108, 109, 110)
+	ponFromNobody := calledMeld(t, play.MeldPon, call{caller: 0, from: 2, tile: 108}, 108, 109, 110)
 	ponFromNobody.From = play.Option[tile.Seat]{}
 	addedKan := func(added int) Meld {
-		m := calledMeld(t, play.MeldAddedKan, 0, 3, 133, 132, 133, 134, 135)
+		m := calledMeld(t, play.MeldAddedKan, call{caller: 0, from: 3, tile: 133}, 132, 133, 134, 135)
 		m.Added = play.Some(tileIDOf(t, added))
 		return m
 	}
+
 	addedKanOfThree := addedKan(134)
 	addedKanOfThree.Tiles = tileIDs(t, 132, 133, 134)
 	addedKanWithoutAdded := addedKan(134)
 	addedKanWithoutAdded.Added = play.Option[tile.TileID]{}
-	openKanCallingNothing := calledMeld(t, play.MeldOpenKan, 3, 1, 124, 124, 125, 126, 127)
+	openKanCallingNothing := calledMeld(t, play.MeldOpenKan, call{caller: 3, from: 1, tile: 124}, 124, 125, 126, 127)
 	openKanCallingNothing.Called = play.Option[tile.TileID]{}
-	openKanFromNobody := calledMeld(t, play.MeldOpenKan, 3, 1, 124, 124, 125, 126, 127)
+	openKanFromNobody := calledMeld(t, play.MeldOpenKan, call{caller: 3, from: 1, tile: 124}, 124, 125, 126, 127)
 	openKanFromNobody.From = play.Option[tile.Seat]{}
 	closedKan := func() Meld {
 		return Meld{Caller: seatOf(t, 1), Kind: play.MeldClosedKan, Tiles: tileIDs(t, 52, 53, 54, 55)}
 	}
+
 	closedKanOfThree := closedKan()
 	closedKanOfThree.Tiles = tileIDs(t, 52, 53, 54)
 	closedKanCalling := closedKan()
@@ -113,24 +127,24 @@ func TestPackMeld_WhenTheMeldIsNoMeldOfItsKind_ShouldRefuseWithAnInvalidMeldErro
 		meld Meld
 	}{
 		{"pon with an added tile", ponWithAdded},
-		{"chi of two tiles", calledMeld(t, play.MeldChi, 2, 1, 0, 0, 4)},
-		{"chi of honors", calledMeld(t, play.MeldChi, 2, 1, 108, 108, 112, 116)},
-		{"chi across suits", calledMeld(t, play.MeldChi, 2, 1, 28, 28, 32, 36)},
-		{"chi out of row", calledMeld(t, play.MeldChi, 2, 1, 0, 0, 4, 12)},
-		{"chi from the toimen", calledMeld(t, play.MeldChi, 2, 0, 0, 0, 4, 8)},
+		{"chi of two tiles", calledMeld(t, play.MeldChi, call{caller: 2, from: 1, tile: 0}, 0, 4)},
+		{"chi of honors", calledMeld(t, play.MeldChi, call{caller: 2, from: 1, tile: 108}, 108, 112, 116)},
+		{"chi across suits", calledMeld(t, play.MeldChi, call{caller: 2, from: 1, tile: 28}, 28, 32, 36)},
+		{"chi out of row", calledMeld(t, play.MeldChi, call{caller: 2, from: 1, tile: 0}, 0, 4, 12)},
+		{"chi from the toimen", calledMeld(t, play.MeldChi, call{caller: 2, from: 0, tile: 0}, 0, 4, 8)},
 		{"chi from nobody", chiFromNobody},
 		{"chi calling nothing", chiCallingNothing},
-		{"chi calling a tile it lacks", calledMeld(t, play.MeldChi, 2, 1, 1, 0, 4, 8)},
-		{"pon of two kinds", calledMeld(t, play.MeldPon, 0, 2, 108, 108, 109, 112)},
-		{"pon of one tile twice", calledMeld(t, play.MeldPon, 0, 2, 108, 108, 108, 109)},
-		{"pon calling a tile it lacks", calledMeld(t, play.MeldPon, 0, 2, 111, 108, 109, 110)},
-		{"pon of its own discard", calledMeld(t, play.MeldPon, 0, 0, 108, 108, 109, 110)},
+		{"chi calling a tile it lacks", calledMeld(t, play.MeldChi, call{caller: 2, from: 1, tile: 1}, 0, 4, 8)},
+		{"pon of two kinds", calledMeld(t, play.MeldPon, call{caller: 0, from: 2, tile: 108}, 108, 109, 112)},
+		{"pon of one tile twice", calledMeld(t, play.MeldPon, call{caller: 0, from: 2, tile: 108}, 108, 108, 109)},
+		{"pon calling a tile it lacks", calledMeld(t, play.MeldPon, call{caller: 0, from: 2, tile: 111}, 108, 109, 110)},
+		{"pon of its own discard", calledMeld(t, play.MeldPon, call{caller: 0, from: 0, tile: 108}, 108, 109, 110)},
 		{"pon from nobody", ponFromNobody},
 		{"added kan of three tiles", addedKanOfThree},
 		{"added kan without its added tile", addedKanWithoutAdded},
 		{"added kan adding a tile it lacks", addedKan(0)},
 		{"added kan adding its called tile", addedKan(133)},
-		{"open kan of three tiles", calledMeld(t, play.MeldOpenKan, 3, 1, 124, 124, 125, 126)},
+		{"open kan of three tiles", calledMeld(t, play.MeldOpenKan, call{caller: 3, from: 1, tile: 124}, 124, 125, 126)},
 		{"open kan calling nothing", openKanCallingNothing},
 		{"open kan from nobody", openKanFromNobody},
 		{"closed kan of three tiles", closedKanOfThree},
@@ -139,10 +153,14 @@ func TestPackMeld_WhenTheMeldIsNoMeldOfItsKind_ShouldRefuseWithAnInvalidMeldErro
 		{"unknown kind", unknownKind},
 	}
 	for _, tc := range tests {
-		packed, err := PackMeld(tc.meld)
-		meldErr, isType := errors.AsType[InvalidMeldError](err)
-		if !isType || meldErr.Error() == "" {
-			t.Errorf("PackMeld(%s) = %d, %v; want an InvalidMeldError", tc.name, packed, err)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) {
+				packed, err := PackMeld(tc.meld)
+				meldErr, isType := errors.AsType[InvalidMeldError](err)
+				if !isType || meldErr.Error() == "" {
+					t.Errorf("PackMeld(%s) = %d, %v; want an InvalidMeldError", tc.name, packed, err)
+				}
+			})
+		})
 	}
 }

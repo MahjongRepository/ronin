@@ -20,8 +20,10 @@ func ids(t *testing.T, ns ...int) []tile.TileID {
 		if !ok {
 			t.Fatalf("NewTileID(%d) refused", n)
 		}
+
 		got[i] = id
 	}
+
 	return got
 }
 
@@ -31,6 +33,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -45,16 +48,17 @@ func notenGame(t *testing.T) game.Game {
 	if err != nil {
 		t.Fatalf("NotenWall error = %v", err)
 	}
+
 	g, err := testkit.BegunGame(w, play.Option[play.StartPosition]{})
 	if err != nil {
 		t.Fatalf("BegunGame error = %v", err)
 	}
+
 	return g
 }
 
 func TestCopies_ShouldCountEachKindsCopiesFromTheFirstGiven(t *testing.T) {
 	got, err := testkit.Copies(1, "1m21m")
-
 	if err != nil || !slices.Equal(got, ids(t, 1, 5, 2)) {
 		t.Errorf("Copies = %v, %v, want 1 5 2", got, err)
 	}
@@ -92,6 +96,7 @@ func TestStartWall_ShouldDealItsHandsAndStageDrawsDeadWallAndUra(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Tiles error = %v", err)
 		}
+
 		w, err := wall.FromTiles(tiles)
 		if err != nil {
 			t.Fatalf("FromTiles error = %v", err)
@@ -107,15 +112,18 @@ func TestStartWall_ShouldDealItsHandsAndStageDrawsDeadWallAndUra(t *testing.T) {
 		if got := w.DoraIndicators(); !slices.Equal(got, ids(t, 17)) {
 			t.Errorf("dora indicators = %v, want 17", got)
 		}
+
 		var drawn []tile.TileID
 		for range 3 {
 			id, _ := w.Draw()
 			drawn = append(drawn, id)
 		}
+
 		for range 2 {
 			id, _ := w.DrawRinshan()
 			drawn = append(drawn, id)
 		}
+
 		kanDora, _ := w.AddDoraIndicator()
 		if want := ids(t, 135, 3, 7, 11, 15); !slices.Equal(drawn, want) || kanDora != ids(t, 18)[0] {
 			t.Errorf("draws = %v and kan dora %v, want %v and 18", drawn, kanDora, want)
@@ -123,6 +131,7 @@ func TestStartWall_ShouldDealItsHandsAndStageDrawsDeadWallAndUra(t *testing.T) {
 		if got := w.UraIndicators(); !slices.Equal(got, ids(t, 19, 20)) {
 			t.Errorf("ura indicators = %v, want 19 20", got)
 		}
+
 		held := slices.Concat(dealt[0][:], dealt[1][:], dealt[2][:], dealt[3][:], drawn)
 		if err := wall.CheckOwnership(w, slices.Values(held)); err != nil {
 			t.Errorf("CheckOwnership error = %v", err)
@@ -131,17 +140,20 @@ func TestStartWall_ShouldDealItsHandsAndStageDrawsDeadWallAndUra(t *testing.T) {
 }
 
 func TestStartWallTiles_WhenARoleOverflowsOrATileRepeats_ShouldReportTheLayout(t *testing.T) {
-	for _, c := range []struct {
+	for _, tc := range []struct {
+		name string
 		w    testkit.StartWall
 		want string
 	}{
-		{testkit.StartWall{Rinshan: ids(t, 0, 1, 2, 3, 4)}, "start wall: too many rinshan tiles: 5"},
-		{testkit.StartWall{Draws: ids(t, 5), Ura: ids(t, 5)}, "start wall: tile 5 is placed twice"},
+		{"too many rinshan", testkit.StartWall{Rinshan: ids(t, 0, 1, 2, 3, 4)}, "start wall: too many rinshan tiles: 5"},
+		{"repeated tile", testkit.StartWall{Draws: ids(t, 5), Ura: ids(t, 5)}, "start wall: tile 5 is placed twice"},
 	} {
-		_, err := c.w.Tiles(seat(t, 0))
-		if !isError[testkit.WallLayoutError](err) || err.Error() != c.want {
-			t.Errorf("Tiles error = %v, want %q", err, c.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tc.w.Tiles(seat(t, 0))
+			if !isError[testkit.WallLayoutError](err) || err.Error() != tc.want {
+				t.Errorf("Tiles error = %v, want %q", err, tc.want)
+			}
+		})
 	}
 }
 
@@ -202,7 +214,6 @@ func TestDiscardDrawnAndPlayDefaults_WhenNoTurnAfterADrawIsAwaited_ShouldReportI
 
 func TestFirstPon_WhenTheSeatAnswersNoPrompt_ShouldReportIt(t *testing.T) {
 	_, err := testkit.FirstPon(notenGame(t), seat(t, 0))
-
 	if !errors.Is(err, testkit.NoPonError{}) || err.Error() != "the seat has no pon to call" {
 		t.Errorf("FirstPon error = %v, want NoPonError", err)
 	}
@@ -213,6 +224,7 @@ func TestEventExtractors_WhenTheEventsHoldNoRoundEnd_ShouldFindNoResult(t *testi
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}
+
 	g, drew, _ := g.Begin()
 	events := slices.Concat(dealt, drew)
 

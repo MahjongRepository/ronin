@@ -63,6 +63,7 @@ func NewChi(tiles [3]tile.Tile) (Meld, error) {
 	if !isSequence {
 		return Meld{}, NotASequenceError{}
 	}
+
 	return withTiles(Chi, tiles[:]), nil
 }
 
@@ -90,6 +91,7 @@ func ofOneKind(kind Kind, tiles []tile.Tile) (Meld, error) {
 			return Meld{}, NotOneKindError{}
 		}
 	}
+
 	return withTiles(kind, tiles), nil
 }
 
@@ -109,6 +111,7 @@ func (m Meld) Tiles() []tile.Tile {
 	if m.IsKan() {
 		return m.tiles[:]
 	}
+
 	return m.tiles[:3]
 }
 

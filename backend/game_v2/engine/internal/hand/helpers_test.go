@@ -15,6 +15,7 @@ func mustTiles(tb testing.TB, mpsz string) []tile.Tile {
 	if err != nil {
 		tb.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	return parsed
 }
 
@@ -24,6 +25,7 @@ func mustCounts(tb testing.TB, mpsz string) tile.Counts {
 	if err != nil {
 		tb.Fatalf("CountsFromTiles(%q) error = %v", mpsz, err)
 	}
+
 	return counts
 }
 
@@ -33,6 +35,7 @@ func mustCountsFromArray(t *testing.T, counts [tile.KindCount]uint8) tile.Counts
 	if err != nil {
 		t.Fatalf("CountsFromArray(%v) error = %v", counts, err)
 	}
+
 	return valid
 }
 
@@ -42,6 +45,7 @@ func mustKind(t *testing.T, mpsz string) tile.Kind {
 	if err != nil {
 		t.Fatalf("ParseTile(%q) error = %v", mpsz, err)
 	}
+
 	return parsed.Kind()
 }
 
@@ -58,8 +62,10 @@ func kindListString(t *testing.T, kinds []tile.Kind) string {
 		if !ok {
 			t.Fatalf("NewTile(%d) refused", kind)
 		}
+
 		tiles = append(tiles, plain)
 	}
+
 	return tile.TilesString(tiles)
 }
 
@@ -69,6 +75,7 @@ func mustDivide(t *testing.T, mpsz string) []hand.Decomposition {
 	if err != nil {
 		t.Fatalf("Divide(%s) error = %v", mpsz, err)
 	}
+
 	return slices.Collect(decompositions.All())
 }
 
@@ -78,6 +85,7 @@ func setsMpsz(t *testing.T, d hand.Decomposition) []string {
 	for _, set := range d.KindSets() {
 		sets = append(sets, kindListString(t, set))
 	}
+
 	return sets
 }
 
@@ -87,6 +95,7 @@ func mustPon(t *testing.T, mpsz string) meld.Meld {
 	if err != nil {
 		t.Fatalf("NewPon(%s) error = %v", mpsz, err)
 	}
+
 	return m
 }
 
@@ -96,6 +105,7 @@ func mustOpenKan(t *testing.T, mpsz string) meld.Meld {
 	if err != nil {
 		t.Fatalf("NewOpenKan(%s) error = %v", mpsz, err)
 	}
+
 	return m
 }
 
@@ -105,6 +115,7 @@ func mustClosedKan(t *testing.T, mpsz string) meld.Meld {
 	if err != nil {
 		t.Fatalf("NewClosedKan(%s) error = %v", mpsz, err)
 	}
+
 	return m
 }
 
@@ -114,6 +125,7 @@ func mustChi(t *testing.T, mpsz string) meld.Meld {
 	if err != nil {
 		t.Fatalf("NewChi(%s) error = %v", mpsz, err)
 	}
+
 	return m
 }
 
@@ -123,5 +135,6 @@ func reading(t *testing.T, mpsz string, melds []meld.Meld, index int) hand.Readi
 	if index >= len(decompositions) {
 		t.Fatalf("Divide(%s) gave %d readings, want reading %d", mpsz, len(decompositions), index)
 	}
+
 	return decompositions[index].Reading(hand.MeldSetsOf(melds))
 }

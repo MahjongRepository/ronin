@@ -45,9 +45,11 @@ func keyWords(bigEndian []byte) []uint32 {
 	for i := range words {
 		words[i] = binary.LittleEndian.Uint32(littleEndian[4*i:])
 	}
+
 	for len(words) > 1 && words[len(words)-1] == 0 {
 		words = words[:len(words)-1]
 	}
+
 	return words
 }
 
@@ -57,6 +59,7 @@ func (r *pythonRandom) seedGenrand(seed uint32) {
 		previous := r.state[i-1]
 		r.state[i] = mtInitFactor*(previous^(previous>>30)) + uint32(i)
 	}
+
 	r.index = mtStateWords
 }
 
@@ -72,10 +75,12 @@ func (r *pythonRandom) seedByArray(key []uint32) {
 			r.state[0] = r.state[mtStateWords-1]
 			i = 1
 		}
+
 		if j >= len(key) {
 			j = 0
 		}
 	}
+
 	for range mtStateWords - 1 {
 		previous := r.state[i-1]
 		r.state[i] = (r.state[i] ^ ((previous ^ (previous >> 30)) * mtArrayFactor2)) - uint32(i)
@@ -85,6 +90,7 @@ func (r *pythonRandom) seedByArray(key []uint32) {
 			i = 1
 		}
 	}
+
 	r.state[0] = mtUpperMask
 }
 
@@ -95,6 +101,7 @@ func (r *pythonRandom) regenerate() {
 		if y&1 != 0 {
 			next ^= mtMatrixA
 		}
+
 		r.state[k] = next
 	}
 
@@ -105,6 +112,7 @@ func (r *pythonRandom) uint32() uint32 {
 	if r.index >= mtStateWords {
 		r.regenerate()
 	}
+
 	y := r.state[r.index]
 	r.index++
 
@@ -120,6 +128,7 @@ func (r *pythonRandom) randBytes(n int) []byte {
 	for len(out) < n {
 		out = binary.LittleEndian.AppendUint32(out, r.uint32())
 	}
+
 	return out[:n]
 }
 

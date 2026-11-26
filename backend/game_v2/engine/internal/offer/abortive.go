@@ -16,6 +16,7 @@ func HasNineTerminalKinds(hand []tile.TileID) bool {
 			kinds = kinds.With(id.Kind())
 		}
 	}
+
 	return kinds.Len() >= rules.KyuushuMinKinds
 }
 

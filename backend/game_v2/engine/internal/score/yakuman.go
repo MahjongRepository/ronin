@@ -14,10 +14,12 @@ func isKokushiMusou(counts [tile.KindCount]uint8) bool {
 	for _, count := range counts {
 		tiles += int(count)
 	}
+
 	product := 1
 	for _, kind := range tile.TerminalAndHonorKinds() {
 		product *= int(counts[kind])
 	}
+
 	return tiles == winningHandTiles && product == kokushiCountsProduct
 }
 
@@ -26,6 +28,7 @@ func countRanks(counts [tile.KindCount]uint8) [suitRanks]int {
 	for rank := range suitRanks {
 		ranks[rank] = int(counts[rank]) + int(counts[suitRanks+rank]) + int(counts[2*suitRanks+rank])
 	}
+
 	return ranks
 }
 
@@ -47,6 +50,7 @@ func hasChuurenPoutouRanks(counts [tile.KindCount]uint8) bool {
 			return false
 		}
 	}
+
 	return hasTwoTiles
 }
 

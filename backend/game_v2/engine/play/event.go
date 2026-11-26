@@ -178,6 +178,7 @@ func (m MeldView) Call() (MeldCall, bool) {
 	if m.Kind == MeldOpenKan {
 		return OpenKanCall{}, true
 	}
+
 	if (m.Kind != MeldChi && m.Kind != MeldPon) || !m.Called.OK {
 		return nil, false
 	}
@@ -188,12 +189,15 @@ func (m MeldView) Call() (MeldCall, bool) {
 		if t == m.Called.Value {
 			continue
 		}
+
 		if count == len(held) {
 			return nil, false
 		}
+
 		held[count] = t
 		count++
 	}
+
 	if count != len(held) {
 		return nil, false
 	}
@@ -201,6 +205,7 @@ func (m MeldView) Call() (MeldCall, bool) {
 	if m.Kind == MeldChi {
 		return ChiCall{Held: held}, true
 	}
+
 	return PonCall{Held: held}, true
 }
 

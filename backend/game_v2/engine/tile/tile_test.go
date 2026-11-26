@@ -47,6 +47,7 @@ func TestRedFive_ShouldTakeOnlyTheFivesOfASuit(t *testing.T) {
 			t.Errorf("RedFive(%d) ok = %v, want %v", kind, ok, isFive)
 			continue
 		}
+
 		plain, _ := tile.NewTile(kind)
 		if ok && (got.Kind() != kind || !got.IsRed() || got == plain) {
 			t.Errorf("RedFive(%d) = %v, want the red five of kind %d", kind, got, kind)
@@ -62,6 +63,7 @@ func TestTileIDTile_WhenAkaDoraIsEnabled_ShouldReadIDs16And52And88AsTheRedFives(
 			t.Errorf("TileID %d Tile = %v, want kind %d red %v", id.Index(), got, id.Index()/4, wantRed)
 		}
 	}
+
 	if got := mustID(t, 52).Tile(tile.AkaDoraEnabled); got != redFive(t, 13) {
 		t.Errorf("TileID 52 Tile = %v, want 0p", got)
 	}
@@ -82,6 +84,7 @@ func TestTileString_ShouldBeMpsz(t *testing.T) {
 			t.Errorf("kind %d String = %q, want %q", kind, got, want)
 		}
 	}
+
 	for kind, want := range map[tile.Kind]string{4: "0m", 13: "0p", 22: "0s"} {
 		if got := redFive(t, kind).String(); got != want {
 			t.Errorf("red five %d String = %q, want %q", kind, got, want)
@@ -103,8 +106,10 @@ func TestTileCompare_ShouldOrderByKindWithTheRedFiveFirst(t *testing.T) {
 		{"9m", "1p", -1},
 		{"1z", "0s", 1},
 	} {
-		if got := mustTile(t, c.a).Compare(mustTile(t, c.b)); got != c.want {
-			t.Errorf("%s.Compare(%s) = %d, want %d", c.a, c.b, got, c.want)
-		}
+		t.Run(c.a+" vs "+c.b, func(t *testing.T) {
+			if got := mustTile(t, c.a).Compare(mustTile(t, c.b)); got != c.want {
+				t.Errorf("%s.Compare(%s) = %d, want %d", c.a, c.b, got, c.want)
+			}
+		})
 	}
 }

@@ -9,6 +9,7 @@ func suitOf(digits string) suitCounts {
 	for _, digit := range digits {
 		suit[digit-'1']++
 	}
+
 	return suit
 }
 
@@ -29,17 +30,21 @@ func TestIsMelds_WhenTilesAreLeftOver_ShouldReject(t *testing.T) {
 }
 
 func TestIsMeldsAndPair_WhenSuitHoldsAPair_ShouldFindIt(t *testing.T) {
-	for digits, want := range map[string]bool{
-		"11":          true,
-		"99":          true,
-		"11123":       true,
-		"12344":       true,
-		"11122233344": true,
-		"12":          false,
-		"11223":       false,
-	} {
-		if got := isMeldsAndPair(suitOf(digits)); got != want {
-			t.Errorf("isMeldsAndPair(%q) = %v, want %v", digits, got, want)
+	tests := []struct {
+		digits string
+		want   bool
+	}{
+		{digits: "11", want: true},
+		{digits: "99", want: true},
+		{digits: "11123", want: true},
+		{digits: "12344", want: true},
+		{digits: "11122233344", want: true},
+		{digits: "12", want: false},
+		{digits: "11223", want: false},
+	}
+	for _, tc := range tests {
+		if got := isMeldsAndPair(suitOf(tc.digits)); got != tc.want {
+			t.Errorf("isMeldsAndPair(%q) = %v, want %v", tc.digits, got, tc.want)
 		}
 	}
 }
@@ -52,15 +57,23 @@ func TestWeightedRemainder_WhenSuitIsMeldsOnly_ShouldBeZero(t *testing.T) {
 	}
 }
 
+const (
+	copiesPerSuitKind   = 5
+	suitCountCombos     = copiesPerSuitKind * copiesPerSuitKind * copiesPerSuitKind * copiesPerSuitKind * copiesPerSuitKind * copiesPerSuitKind * copiesPerSuitKind * copiesPerSuitKind * copiesPerSuitKind
+	suitCountSampleStep = 1953
+)
+
 func BenchmarkIsMelds(b *testing.B) {
 	var suits []suitCounts
-	for index := 0; index < 5*5*5*5*5*5*5*5*5; index += 1953 {
+	for index := 0; index < suitCountCombos; index += suitCountSampleStep {
 		var suit suitCounts
-		for i, rest := 0, index; i < kindsPerSuit; i, rest = i+1, rest/5 {
-			suit[i] = uint8(rest % 5)
+		for i, rest := 0, index; i < kindsPerSuit; i, rest = i+1, rest/copiesPerSuitKind {
+			suit[i] = uint8(rest % copiesPerSuitKind)
 		}
+
 		suits = append(suits, suit)
 	}
+
 	melds := 0
 	for b.Loop() {
 		for _, suit := range suits {
@@ -69,5 +82,6 @@ func BenchmarkIsMelds(b *testing.B) {
 			}
 		}
 	}
+
 	b.ReportMetric(float64(melds)/float64(b.N), "melds/op")
 }

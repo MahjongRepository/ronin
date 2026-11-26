@@ -37,6 +37,7 @@ var fieldKinds = func() [keyCount]fieldKind {
 			kinds[k] = kind
 		}
 	}
+
 	set(fieldStr, KeyGameID, KeyName, KeyRNGVersion, KeyEndCause, KeyHandLimit, KeyKanType, KeyPaoShare,
 		KeyAbortiveReason)
 	set(fieldBool, KeyHasAkadora, KeyRiichiDiscard, KeyTsumogiri)
@@ -81,6 +82,7 @@ var observerEventFields = func() map[EventType][]Key {
 	fields[EventGameStarted] = slices.DeleteFunc(slices.Clone(fields[EventGameStarted]), func(k Key) bool {
 		return k == KeySeed
 	})
+
 	return fields
 }()
 
@@ -136,6 +138,7 @@ func validateReplayEvent(record Map, required map[EventType][]Key) error {
 	if err != nil {
 		return err
 	}
+
 	err = validateFields(record, schemaContext{event: event, top: true})
 	if err != nil {
 		return err
@@ -144,10 +147,12 @@ func validateReplayEvent(record Map, required map[EventType][]Key) error {
 	if event == EventRoundEnd {
 		return validateRoundEnd(record)
 	}
+
 	standIn, _ := record.Get(KeyAIPlayer)
 	if event == EventSeatControl && standIn == Int(1) {
 		return requireFields(record, []Key{KeySeatControlReason})
 	}
+
 	return nil
 }
 
@@ -164,6 +169,7 @@ func validateRoundEnd(record Map) error {
 	if err != nil {
 		return err
 	}
+
 	if result != ResultRon {
 		return nil
 	}
@@ -172,6 +178,7 @@ func validateRoundEnd(record Map) error {
 	if wins := len(winners.(Array)); wins == 0 || wins > maxRonWins {
 		return fmt.Errorf("a ron holds one win or %d", maxRonWins)
 	}
+
 	return nil
 }
 
@@ -183,9 +190,11 @@ func requireFields(m Map, fields []Key) error {
 			missing = append(missing, k.String())
 		}
 	}
+
 	if len(missing) > 0 {
 		return fmt.Errorf("missing %s", strings.Join(missing, ", "))
 	}
+
 	return nil
 }
 
@@ -196,6 +205,7 @@ func validateFields(m Map, ctx schemaContext) error {
 			return fmt.Errorf("replay field %s: %w", f.Key, err)
 		}
 	}
+
 	return nil
 }
 
@@ -211,6 +221,7 @@ func validateField(f Field, ctx schemaContext) error {
 		if _, ok := f.Value.(Bool); ok {
 			return nil
 		}
+
 		return expect[Int](f.Value, "an integer or a boolean")
 	case fieldIntArray:
 		return validateIntArray(f.Value)
@@ -218,6 +229,7 @@ func validateField(f Field, ctx schemaContext) error {
 		if ctx.parent == KeyPaoLiability {
 			return validateIntArray(f.Value)
 		}
+
 		return validateObjects(f, nestedFields[f.Key], ctx)
 	case fieldObjectArray:
 		required := nestedFields[f.Key]
@@ -227,6 +239,7 @@ func validateField(f Field, ctx schemaContext) error {
 				required = playerFields[ctx.event]
 			}
 		}
+
 		return validateObjects(f, required, ctx)
 	case fieldDealerDice:
 		return validateDealerDice(f.Value)
@@ -234,6 +247,7 @@ func validateField(f Field, ctx schemaContext) error {
 		return validateObject(f.Value, f.Key, ctx)
 	case fieldScoreMap, fieldCheckedApart:
 	}
+
 	return nil
 }
 
@@ -241,6 +255,7 @@ func expect[T Value](v Value, what string) error {
 	if _, ok := v.(T); !ok {
 		return fmt.Errorf("expected %s", what)
 	}
+
 	return nil
 }
 
@@ -249,12 +264,14 @@ func validateIntArray(v Value) error {
 	if !ok {
 		return errors.New("expected an array")
 	}
+
 	for _, item := range items {
 		err := expect[Int](item, "an array of integers")
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -263,16 +280,19 @@ func validateDealerDice(v Value) error {
 	if !ok || len(rolls) != dealerRolls {
 		return errors.New("expected two rolls of dice")
 	}
+
 	for _, roll := range rolls {
 		dice, isArray := roll.(Array)
 		if !isArray || len(dice) != diceInRoll {
 			return errors.New("expected two rolls of two dice")
 		}
+
 		err := validateIntArray(dice)
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -281,20 +301,24 @@ func validateObjects(f Field, required []Key, ctx schemaContext) error {
 	if !ok {
 		return errors.New("expected an array")
 	}
+
 	for _, item := range items {
 		object, isMap := item.(Map)
 		if !isMap {
 			return errors.New("expected an array of objects")
 		}
+
 		err := requireFields(object, required)
 		if err != nil {
 			return err
 		}
+
 		err = validateFields(object, schemaContext{event: ctx.event, parent: f.Key})
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -303,9 +327,11 @@ func validateObject(v Value, k Key, ctx schemaContext) error {
 	if !ok {
 		return errors.New("expected an object")
 	}
+
 	err := requireFields(object, nestedFields[k])
 	if err != nil {
 		return err
 	}
+
 	return validateFields(object, schemaContext{event: ctx.event, parent: k})
 }

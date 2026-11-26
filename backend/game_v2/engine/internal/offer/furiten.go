@@ -38,6 +38,7 @@ func (f Furiten) MissRon(inRiichi bool) Furiten {
 	} else {
 		f.Temporary = true
 	}
+
 	return f
 }
 
@@ -60,6 +61,7 @@ func (c RonCandidate) waits() tile.Kinds {
 	if c.HandWaits.OK {
 		return c.HandWaits.Value
 	}
+
 	return hand.Waits(countsOfDistinctIDs(c.Hand), countsOfDistinctIDs(meldedTiles(c.Melds)))
 }
 
@@ -67,6 +69,7 @@ func (c RonCandidate) completesOn(discard tile.TileID) bool {
 	if c.HandWaits.OK {
 		return c.HandWaits.Value.Contains(discard.Kind())
 	}
+
 	return Completes(c.Hand, discard)
 }
 
@@ -87,6 +90,7 @@ func DiscardRon(candidate RonCandidate, discard tile.TileID, situation score.Sit
 	if !candidate.completesOn(discard) {
 		return RonNotComplete
 	}
+
 	if candidate.isBlocked(candidate.waits()) {
 		return RonMissed
 	}
@@ -95,6 +99,7 @@ func DiscardRon(candidate RonCandidate, discard tile.TileID, situation score.Sit
 	if _, ok := OfferedValue(candidate.Hand, discard, scoring); !ok {
 		return RonMissed
 	}
+
 	return RonOffered
 }
 
@@ -113,7 +118,9 @@ func isKokushiTenpai(hand []tile.TileID) bool {
 		if !id.Kind().IsTerminalOrHonor() {
 			return false
 		}
+
 		kinds = kinds.With(id.Kind())
 	}
+
 	return kinds.Len() >= kokushiMinKinds
 }

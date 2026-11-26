@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -15,7 +16,7 @@ const (
 	player           = "Alice"
 	robber           = "Bob"
 	anchorCharlie    = "Charlie"
-	startConfirmedAt = 3
+	startConfirmedAt = 3 * time.Second
 )
 
 type scenario struct {
@@ -57,17 +58,21 @@ func generateSeatTranscripts(ctx context.Context, logger *slog.Logger) (map[stri
 		if err != nil {
 			return nil, err
 		}
+
 		for _, t := range transcripts {
 			if t.scenario != sc.name {
 				return nil, fmt.Errorf("scenario %s wrote a transcript named %s", sc.name, t.scenario)
 			}
+
 			text, textErr := t.text()
 			if textErr != nil {
 				return nil, textErr
 			}
+
 			generated[t.fileName()] = []byte(text)
 		}
 	}
+
 	return generated, nil
 }
 
@@ -75,8 +80,9 @@ func joinAndConfirm(g *seatedGame, names ...string) {
 	for _, name := range names {
 		g.client(name).join()
 	}
+
 	for _, name := range names {
-		g.client(name).confirmRound(secs(startConfirmedAt), "start confirmed")
+		g.client(name).confirmRound(startConfirmedAt, "start confirmed")
 	}
 }
 
@@ -106,15 +112,19 @@ func callPrompt(ctx context.Context, e env) ([]transcript, error) {
 		g.waitUntil(secs(4))
 		alice.labelEvent("dealt", wire.EventRoundStarted)
 		alice.labelEvent("prompt", wire.EventCallPrompt)
+
 		alice.chi(secs(5), "chi chosen", called, s.id(0, "1m"), s.id(0, "2m"))
 		alice.labelEvent("turn", wire.EventTurn)
+
 		alice.dropUnseen(secs(6))
 		alice.reconnect(secs(7))
 		alice.labelSession("reconnected", gameReconnectedType)
 		alice.labelEvent("turn re-sent", wire.EventTurn)
+
 		alice.discard(secs(12), "discarded", s.id(0, "3z"))
 		alice.labelEvent("pon prompt", wire.EventCallPrompt)
 		alice.labelEvent("seat 2 drew", wire.EventDrawNotice)
+
 		alice.pass(secs(14))
 		alice.labelEvent("next turn", wire.EventDraw)
 		return g.transcripts("call_prompt", player)
@@ -138,6 +148,7 @@ func chiPrompt(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
 		alice.labelEvent("prompt", wire.EventCallPrompt)
+
 		alice.pass(secs(5))
 		alice.labelEvent("turn", wire.EventDraw)
 		return g.transcripts("chi_prompt", player)
@@ -162,6 +173,7 @@ func redFivePon(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
 		alice.labelEvent("prompt", wire.EventCallPrompt)
+
 		alice.pon(secs(5), "pon chosen", fives[3], fives[1], fives[2])
 		alice.labelEvent("turn", wire.EventTurn)
 		return g.transcripts("red_five_pon", player)
@@ -185,6 +197,7 @@ func ronCall(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
 		alice.labelEvent("prompt", wire.EventCallPrompt)
+
 		alice.pass(secs(5))
 		alice.labelEvent("turn", wire.EventDraw)
 		return g.transcripts("ron_call", player)
@@ -212,6 +225,7 @@ func addedKan(ctx context.Context, e env) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
+
 		alice.pon(secs(5), "pon chosen", chun, s.id(0, "7z"), s.id(1, "7z"))
 		alice.discard(secs(6), "discarded", junk)
 		g.waitUntil(secs(12))
@@ -239,6 +253,7 @@ func fullTurn(ctx context.Context, e env) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
+
 		alice.discard(secs(5), "discarded", s.id(0, "6z"))
 		g.waitUntil(secs(12))
 		alice.labelEvent("win offer", wire.EventDraw)
@@ -265,6 +280,7 @@ func kanChoice(ctx context.Context, e env) ([]transcript, error) {
 		g.waitUntil(secs(4))
 		alice.labelEvent("dealt", wire.EventRoundStarted)
 		alice.labelEvent("kan offer", wire.EventDraw)
+
 		alice.kan(secs(5), s.id(0, "9p"), kanClosed)
 		alice.labelEvent("rinshan", wire.EventDraw)
 		return g.transcripts("kan_choice", player)
@@ -296,20 +312,27 @@ func ownTurn(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		alice.labelEvent("game started", wire.EventGameStarted)
 		alice.labelEvent("dealt", wire.EventRoundStarted)
+
 		alice.dropUnseen(secs(3.5))
 		alice.labelEvent("first draw", wire.EventDraw)
+
 		alice.reconnect(secs(4.5))
 		alice.labelSession("reconnected", gameReconnectedType)
 		alice.labelEvent("draw re-sent", wire.EventDraw)
+
 		alice.kan(secs(5), s.id(0, "1m"), kanClosed)
 		alice.labelEvent("rinshan", wire.EventDraw)
+
 		alice.riichi(secs(11), "riichi chosen", s.id(0, "4z"))
 		alice.labelEvent("ron prompt", wire.EventCallPrompt)
+
 		alice.pass(secs(13))
 		alice.labelEvent("furiten", wire.EventFuriten)
 		alice.labelEvent("tsumo draw", wire.EventDraw)
+
 		alice.tsumo(secs(15), "tsumo chosen")
 		alice.labelEvent("round end", wire.EventRoundEnd)
+
 		alice.confirmRound(secs(16), "confirmed")
 		alice.labelEvent("next round", wire.EventRoundStarted)
 		alice.labelEvent("dealer draw", wire.EventDraw)
@@ -332,8 +355,10 @@ func riichiKan(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
 		alice.labelEvent("riichi offer", wire.EventDraw)
+
 		alice.riichi(secs(5), "riichi chosen", declaration)
 		alice.labelEvent("kan offer", wire.EventDraw)
+
 		alice.kan(secs(6), s.id(0, "1m"), kanClosed)
 		alice.labelEvent("tsumo draw", wire.EventDraw)
 		return g.transcripts("riichi_kan", player)
@@ -349,10 +374,12 @@ func bankReconnect(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
 		alice.labelEvent("first draw", wire.EventDraw)
+
 		alice.dropUnseen(secs(8.5))
 		alice.reconnect(secs(9.5))
 		alice.labelSession("reconnected", gameReconnectedType)
 		alice.labelEvent("draw re-sent", wire.EventDraw)
+
 		alice.discard(secs(11), "discarded", s.id(3, "1m"))
 		return g.transcripts("bank_reconnect", player)
 	})
@@ -377,16 +404,21 @@ func reconnect(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
 		alice.labelEvent("prompt", wire.EventCallPrompt)
+
 		alice.dropUnseen(secs(4.5))
 		alice.reconnect(secs(5.5))
 		alice.labelSession("reconnected", gameReconnectedType)
 		alice.labelEvent("prompt re-sent", wire.EventCallPrompt)
+
 		alice.pon(secs(6.5), "pon chosen", haku, s.id(0, "5z"), s.id(1, "5z"))
 		alice.labelEvent("turn", wire.EventTurn)
+
 		alice.discard(secs(8), "discarded", junk)
 		alice.labelEvent("ron prompt", wire.EventCallPrompt)
+
 		alice.ron(secs(10), "ron chosen")
 		alice.labelEvent("round end", wire.EventRoundEnd)
+
 		alice.replacedByAnotherTab(secs(10.5), "replaced")
 		return g.transcripts("reconnect", player)
 	})
@@ -402,17 +434,22 @@ func riichiReconnect(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
 		alice.labelEvent("first draw", wire.EventDraw)
+
 		alice.riichi(secs(5), "riichi chosen", s.id(0, "1m"))
 		alice.labelEvent("riichi accepted", wire.EventRiichiDeclared)
 		alice.labelEvent("ron prompt", wire.EventCallPrompt)
+
 		alice.dropUnseen(secs(5.5))
 		alice.reconnect(secs(6.5))
 		alice.labelSession("reconnected", gameReconnectedType)
 		alice.labelEvent("ron prompt re-sent", wire.EventCallPrompt)
+
 		alice.ron(secs(7), "ron chosen")
 		alice.labelEvent("round end", wire.EventRoundEnd)
+
 		g.waitUntil(secs(18))
 		alice.labelEvent("next round", wire.EventRoundStarted)
+
 		g.waitUntil(secs(6000))
 		alice.labelEvent("game end", wire.EventGameEnd)
 		return g.transcripts("riichi_reconnect", player)
@@ -443,15 +480,19 @@ func chankanRobbed(ctx context.Context, e env) ([]transcript, error) {
 		alice.discard(secs(5), "discarded", s.id(1, "4z"))
 		bob.discard(secs(6), "discarded", s.id(1, "6z"))
 		alice.labelEvent("kan draw", wire.EventDraw)
+
 		alice.kan(secs(7), kanTile, kanClosed)
 		bob.labelEvent("chankan prompt", wire.EventCallPrompt)
+
 		bob.ron(secs(8), "ron chosen")
 		bob.labelEvent("round end", wire.EventRoundEnd)
 		alice.labelEvent("round end", wire.EventRoundEnd)
+
 		alice.dropUnseen(secs(8.25))
 		bob.confirmRound(secs(9), "confirmed")
 		alice.reconnect(secs(9.25))
 		alice.labelSession("reconnected", gameReconnectedType)
+
 		alice.confirmRound(secs(10.25), "confirmed")
 		alice.labelEvent("next round", wire.EventRoundStarted)
 		return g.transcripts("chankan_robbed", player, robber)
@@ -483,10 +524,12 @@ func chankanPassed(ctx context.Context, e env) ([]transcript, error) {
 		bob.discard(secs(7), "discarded", s.id(0, "9s"))
 		alice.kan(secs(8), s.id(3, "6p"), kanAdded)
 		bob.labelEvent("chankan prompt", wire.EventCallPrompt)
+
 		bob.dropUnseen(secs(8.25))
 		bob.reconnect(secs(9.25))
 		bob.labelSession("reconnected", gameReconnectedType)
 		bob.labelEvent("prompt re-sent", wire.EventCallPrompt)
+
 		bob.pass(secs(9.75))
 		bob.labelEvent("kan", wire.EventMeld)
 		return g.transcripts("chankan_passed", robber)
@@ -514,13 +557,16 @@ func doubleRon(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player, robber)
 		g.waitUntil(secs(4))
 		alice.labelEvent("ron prompt", wire.EventCallPrompt)
+
 		alice.ron(secs(5), "ron chosen")
 		bob.ron(secs(5.5), "ron chosen")
 		alice.labelEvent("round end", wire.EventRoundEnd)
+
 		alice.dropUnseen(secs(5.75))
 		bob.confirmRound(secs(6.5), "confirmed")
 		alice.reconnect(secs(6.75))
 		alice.labelSession("reconnected", gameReconnectedType)
+
 		alice.confirmRound(secs(7.75), "confirmed")
 		alice.labelEvent("next round", wire.EventRoundStarted)
 		return g.transcripts("double_ron", player)
@@ -537,9 +583,11 @@ func finalRound(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
 		alice.labelEvent("ron prompt", wire.EventCallPrompt)
+
 		alice.ron(secs(5), "ron chosen")
 		alice.labelEvent("round end", wire.EventRoundEnd)
 		alice.labelEvent("game end", wire.EventGameEnd)
+
 		g.waitUntil(secs(6))
 		return g.transcripts("final_round", player)
 	})
@@ -566,8 +614,10 @@ func resyncBeforeDeal(ctx context.Context, e env) ([]transcript, error) {
 		alice.join()
 		alice.labelEvent("game started", wire.EventGameStarted)
 		alice.labelEvent("dealt", wire.EventRoundStarted)
+
 		alice.resync(secs(1), "resync asked", "")
 		alice.labelSession("start snapshot", gameReconnectedType)
+
 		g.waitUntil(startConfirmTimeout + secs(1))
 		alice.labelEvent("first draw", wire.EventDraw)
 		return g.transcripts("resync_before_deal", player)
@@ -583,16 +633,21 @@ func resync(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		alice.labelSession("joined", gameJoinedType)
 		alice.labelEvent("game started", wire.EventGameStarted)
+
 		g.waitUntil(secs(4))
 		alice.labelEvent("dealt", wire.EventRoundStarted)
 		alice.labelEvent("first draw", wire.EventDraw)
+
 		alice.resync(secs(4), "turn resync asked", "")
 		alice.labelSession("turn snapshot", gameReconnectedType)
 		alice.labelEvent("draw re-sent", wire.EventDraw)
+
 		alice.kyuushu(secs(5), "kyuushu chosen")
 		alice.labelEvent("round end", wire.EventRoundEnd)
+
 		alice.resync(secs(6.5), "advance resync asked", "")
 		alice.labelSession("advance snapshot", gameReconnectedType)
+
 		alice.confirmRound(secs(7.5), "confirmed")
 		alice.labelEvent("next round", wire.EventRoundStarted)
 		return g.transcripts("resync", player)
@@ -609,13 +664,17 @@ func gameEndReconnect(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
 		alice.labelEvent("first draw", wire.EventDraw)
+
 		alice.kyuushu(secs(5), "kyuushu chosen")
 		alice.labelEvent("kyuushu round end", wire.EventRoundEnd)
+
 		alice.confirmRound(secs(6), "confirmed")
 		alice.labelEvent("second deal", wire.EventRoundStarted)
+
 		alice.dropUnseen(secs(7.5))
 		alice.reconnect(secs(8.5))
 		alice.labelSession("reconnected", gameReconnectedType)
+
 		g.waitUntil(secs(6000))
 		alice.labelEvent("last round end", wire.EventRoundEnd)
 		alice.labelEvent("game end", wire.EventGameEnd)
@@ -641,14 +700,18 @@ func seatLeft(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player, robber)
 		g.waitUntil(secs(4))
 		alice.labelEvent("first draw", wire.EventDraw)
+
 		bob.dropSeen(secs(4.5))
 		alice.labelSession("player left", seatControlType)
+
 		alice.dropUnseen(secs(4.5))
 		alice.reconnect(secs(5.5))
 		alice.labelSession("reconnected", gameReconnectedType)
+
 		bob.reconnect(secs(5.5))
 		bob.labelSession("reconnected", gameReconnectedType)
 		alice.labelSession("player back", seatControlType)
+
 		alice.discard(secs(5.75), "discarded", aliceDraw)
 		return g.transcripts("seat_left", player, robber)
 	})
@@ -687,15 +750,19 @@ func firstTurnWin(ctx context.Context, e env) ([]transcript, error) {
 		joinAndConfirm(g, player, robber)
 		g.waitUntil(secs(3.5))
 		alice.labelEvent("first draw", wire.EventDraw)
+
 		alice.discard(secs(4), "discarded", s.id(0, "3z"))
 		bob.labelEvent("chiihou draw", wire.EventDraw)
+
 		bob.tsumo(secs(5), "tsumo chosen")
 		bob.labelEvent("round end", wire.EventRoundEnd)
 		alice.labelEvent("chiihou round end", wire.EventRoundEnd)
+
 		alice.confirmRound(secs(7), "confirmed")
 		bob.confirmRound(secs(7), "confirmed")
 		alice.labelEvent("tenhou deal", wire.EventRoundStarted)
 		alice.labelEvent("tenhou draw", wire.EventDraw)
+
 		alice.tsumo(secs(8), "tsumo chosen")
 		alice.labelEvent("round end", wire.EventRoundEnd)
 		return g.transcripts("first_turn_win", player, robber)
@@ -776,12 +843,15 @@ func anchor(ctx context.Context, e env) ([]transcript, error) {
 		for _, c := range []*seatClient{alice, bob, charlie} {
 			c.join()
 		}
+
 		for _, c := range []*seatClient{alice, bob, charlie} {
-			c.confirmRound(secs(startConfirmedAt), "")
+			c.confirmRound(startConfirmedAt, "")
 		}
+
 		alice.discard(secs(3.5), "", s.id(0, "3z"))
 		charlie.discard(secs(4), "", s.id(0, "2z"))
 		bob.discard(secs(4.5), "", s.id(0, "6z"))
+
 		bob.ron(secs(5), "")
 		alice.confirmRound(secs(5.5), "")
 		bob.confirmRound(secs(5.5), "")
@@ -818,6 +888,7 @@ func anchor(ctx context.Context, e env) ([]transcript, error) {
 			{client: charlie, id: s.id(1, "5z")},
 			{client: bob, id: s.id(1, "6m")},
 		}
+
 		at := secs(6.5)
 		for _, m := range moves {
 			switch {
@@ -828,13 +899,16 @@ func anchor(ctx context.Context, e env) ([]transcript, error) {
 			default:
 				m.client.discard(at, "", m.id)
 			}
+
 			at += secs(0.5)
 		}
 
 		alice.labelEvent("own turn", wire.EventDraw)
+
 		alice.discard(at, "discarded", s.id(0, "9m"))
 		charlie.discard(at+secs(0.5), "", s.id(2, "5s"))
 		alice.labelEvent("call offer", wire.EventCallPrompt)
+
 		alice.pass(at + secs(1.5))
 		bob.discard(at+secs(2), "", s.id(1, "1p"))
 		alice.labelEvent("riichi offer", wire.EventDraw)

@@ -23,6 +23,7 @@ func TestWaits_WhenRegularHandWaitsOnATanki_ShouldBeTenpaiOnIt(t *testing.T) {
 	if s := kindsString(t, hand.Waits(closed, tile.Counts{})); s != "1p" {
 		t.Errorf("Waits = %s, want 1p", s)
 	}
+
 	if !hand.IsTenpai(closed, tile.Counts{}) {
 		t.Error("IsTenpai = false, want true")
 	}
@@ -36,7 +37,6 @@ func TestWaits_WhenSevenPairsAreTenpai_ShouldWaitOnTheSingle(t *testing.T) {
 
 func TestWaits_WhenThirteenOrphansHoldNoPair_ShouldWaitOnAllThirteen(t *testing.T) {
 	got := hand.Waits(mustCounts(t, "19m19p19s1234567z"), tile.Counts{})
-
 	if s := kindsString(t, got); s != "19m19p19s1234567z" || got.Len() != 13 {
 		t.Errorf("Waits = %s (%d), want all 13 terminals and honors", s, got.Len())
 	}
@@ -48,6 +48,7 @@ func TestClosedWaits_WhenAMeldTookThreeTiles_ShouldStillBeTenpai(t *testing.T) {
 	if s := kindsString(t, hand.ClosedWaits(closed)); s != "1p" {
 		t.Errorf("ClosedWaits = %s, want 1p", s)
 	}
+
 	if !hand.IsTenpai(closed, mustCounts(t, "777z")) {
 		t.Error("IsTenpai = false, want true")
 	}
@@ -59,6 +60,7 @@ func TestWaits_WhenHandWaitsOnAnEdge_ShouldBeTenpaiOnThreePin(t *testing.T) {
 	if s := kindsString(t, hand.Waits(closed, tile.Counts{})); s != "3p" {
 		t.Errorf("Waits = %s, want 3p", s)
 	}
+
 	if !hand.IsTenpai(closed, tile.Counts{}) {
 		t.Error("IsTenpai = false, want true")
 	}
@@ -70,9 +72,11 @@ func TestWaits_WhenTheClosedPartAndAPonHoldEveryCopy_ShouldBeKaraten(t *testing.
 	if s := kindsString(t, hand.ClosedWaits(closed)); s != "9p" {
 		t.Errorf("ClosedWaits = %s, want 9p", s)
 	}
+
 	if got := hand.Waits(closed, pon); !got.IsEmpty() {
 		t.Errorf("Waits = %s, want none", kindsString(t, got))
 	}
+
 	if hand.IsTenpai(closed, pon) {
 		t.Error("IsTenpai = true, want false")
 	}
@@ -84,6 +88,7 @@ func TestWaits_WhenThreeCopiesOfTheTankiAreElsewhere_ShouldBeTenpai(t *testing.T
 	if s := kindsString(t, hand.Waits(closed, tile.Counts{})); s != "9s" {
 		t.Errorf("Waits = %s, want 9s", s)
 	}
+
 	if !hand.IsTenpai(closed, tile.Counts{}) {
 		t.Error("IsTenpai = false, want true")
 	}
@@ -96,9 +101,11 @@ func TestClosedWaits_WhenTheClosedPartHoldsFourOfAKind_ShouldNeverWaitOnIt(t *te
 	if s := kindsString(t, hand.ClosedWaits(closed)); s != "69s" {
 		t.Errorf("ClosedWaits = %s, want 69s", s)
 	}
+
 	if s := kindsString(t, hand.Waits(closed, tile.Counts{})); s != "69s" {
 		t.Errorf("Waits = %s, want 69s", s)
 	}
+
 	if s := kindsString(t, hand.ClosedWaits(fifthOneManWouldComplete)); s != "47m" {
 		t.Errorf("ClosedWaits(1111234567m888p) = %s, want 47m", s)
 	}
@@ -110,6 +117,7 @@ func TestIsTenpai_WhenAClosedKanHoldsEveryCopyOfTheOnlyWait_ShouldBeFalse(t *tes
 	if hand.IsTenpai(mustCounts(t, "46m234567p77s"), fiveManKan) {
 		t.Error("IsTenpai = true, want false")
 	}
+
 	if got := hand.TenpaiDiscards(mustCounts(t, "46m234567p77s1z"), fiveManKan); !got.IsEmpty() {
 		t.Errorf("TenpaiDiscards = %s, want none", kindsString(t, got))
 	}
@@ -121,6 +129,7 @@ func TestTenpaiDiscards_WhenHandHasAClosedKan_ShouldKeepOnlyTheWaitsKeepingDisca
 	if s := kindsString(t, hand.TenpaiDiscards(mustCounts(t, "2345678889m1z"), oneManKan)); s != "9m1z" {
 		t.Errorf("TenpaiDiscards = %s, want 9m1z", s)
 	}
+
 	if s := kindsString(t, hand.Waits(mustCounts(t, "2345678889m"), oneManKan)); s != "479m" {
 		t.Errorf("Waits = %s, want 479m", s)
 	}
@@ -136,6 +145,7 @@ func TestTenpaiDiscards_WhenDrawnHandHoldsFourOfAKind_ShouldKeepTheDiscardsThatL
 	if s := kindsString(t, hand.TenpaiDiscards(mustCounts(t, "1111234567m888p9s"), tile.Counts{})); s != "147m9s" {
 		t.Errorf("TenpaiDiscards = %s, want 147m9s", s)
 	}
+
 	if s := kindsString(t, hand.ClosedWaits(mustCounts(t, "111123456m888p9s"))); s != "9s" {
 		t.Errorf("ClosedWaits = %s, want 9s", s)
 	}
@@ -146,6 +156,7 @@ func countTotal(counts [tile.KindCount]uint8) int {
 	for _, count := range counts {
 		sum += int(count)
 	}
+
 	return sum
 }
 
@@ -153,6 +164,7 @@ func referenceIsMelds(counts [tile.KindCount]uint8, from int) bool {
 	for from < tile.KindCount && counts[from] == 0 {
 		from++
 	}
+
 	if from == tile.KindCount {
 		return true
 	}
@@ -164,6 +176,7 @@ func referenceIsMelds(counts [tile.KindCount]uint8, from int) bool {
 			return true
 		}
 	}
+
 	isSequenceStart := from < int(tile.HonorStart) && from%9 <= 6
 	if isSequenceStart && counts[from+1] > 0 && counts[from+2] > 0 {
 		rest := counts
@@ -172,6 +185,7 @@ func referenceIsMelds(counts [tile.KindCount]uint8, from int) bool {
 		rest[from+2]--
 		return referenceIsMelds(rest, from)
 	}
+
 	return false
 }
 
@@ -185,14 +199,17 @@ func referenceIsAgari(counts [tile.KindCount]uint8) bool {
 		if count == 2 {
 			pairs++
 		}
+
 		if tile.Kind(kind).IsTerminalOrHonor() && count > 0 {
 			orphans++
 			orphanPair = orphanPair || count == 2
 		}
 	}
+
 	if pairs == 7 && countTotal(counts) == 14 {
 		return true
 	}
+
 	if orphans == 13 && orphanPair && countTotal(counts) == 14 {
 		return true
 	}
@@ -201,12 +218,14 @@ func referenceIsAgari(counts [tile.KindCount]uint8) bool {
 		if count < 2 {
 			continue
 		}
+
 		rest := counts
 		rest[kind] -= 2
 		if referenceIsMelds(rest, 0) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -220,12 +239,14 @@ func referenceClosedWaits(counts [tile.KindCount]uint8) []tile.Kind {
 		if counts[kind] >= tile.CopiesPerKind {
 			continue
 		}
+
 		completed := counts
 		completed[kind]++
 		if referenceIsAgari(completed) {
 			waits = append(waits, kind)
 		}
 	}
+
 	return waits
 }
 
@@ -236,6 +257,7 @@ func referenceWaits(closed, melded [tile.KindCount]uint8) []tile.Kind {
 			waits = append(waits, kind)
 		}
 	}
+
 	return waits
 }
 
@@ -249,12 +271,14 @@ func referenceTenpaiDiscards(closed, melded [tile.KindCount]uint8) []tile.Kind {
 		if closed[kind] == 0 {
 			continue
 		}
+
 		rest := closed
 		rest[kind]--
 		if len(referenceWaits(rest, melded)) > 0 {
 			discards = append(discards, kind)
 		}
 	}
+
 	return discards
 }
 
@@ -264,6 +288,7 @@ func lowestShanten(t *testing.T, closed tile.Counts) int {
 	if err != nil {
 		t.Fatalf("Lowest(%v) error = %v", closed.Array(), err)
 	}
+
 	return lowest
 }
 
@@ -277,12 +302,15 @@ func checkWaitsMatchReference(t *testing.T, closed, melded tile.Counts) []tile.K
 	if !slices.Equal(gotClosed, wantClosed) {
 		t.Errorf("ClosedWaits(%v) = %v, want %v", closed.Array(), gotClosed, wantClosed)
 	}
+
 	if !slices.Equal(got, want) {
 		t.Errorf("Waits(%v, %v) = %v, want %v", closed.Array(), melded.Array(), got, want)
 	}
+
 	if tenpai := hand.IsTenpai(closed, melded); tenpai != (len(want) > 0) {
 		t.Errorf("IsTenpai(%v, %v) = %v, want %v", closed.Array(), melded.Array(), tenpai, len(want) > 0)
 	}
+
 	return got
 }
 
@@ -293,6 +321,7 @@ func checkDiscardsMatchReference(t *testing.T, closed, melded tile.Counts) []til
 	if !slices.Equal(got, want) {
 		t.Errorf("TenpaiDiscards(%v, %v) = %v, want %v", closed.Array(), melded.Array(), got, want)
 	}
+
 	return got
 }
 
@@ -302,28 +331,28 @@ func TestTenpaiDiscards_WhenHandIsFixed_ShouldMatchTheReference(t *testing.T) {
 		shanten              int
 		discards             string
 	}{
-		{"tenpai", "123456789m1255p9s", "", 0, "9s"},
-		{"one shanten", "123456789m1358p9s", "", 1, ""},
-		{"two shanten", "123456789m159p1s5z", "", 2, ""},
-		{"complete", "11234567888999m", "", -1, "123456789m"},
-		{"tanki behind a pon left on one discard", "123456789m9p1z", "999p", 0, "9p"},
-		{"karaten behind a closed kan", "46m234567p77s1z", "5555m", 0, ""},
-		{"closed kan of one man", "2345678889m1z", "1111m", 0, "9m1z"},
-		{"four copies in the closed part", "1111234567m888p9s", "", 0, "147m9s"},
-		{"four copies one shanten", "1111m234p567s13s57z", "", 1, ""},
-		{"chiitoitsu tenpai", "1199m1199p1199s12z", "", 0, "12z"},
-		{"chiitoitsu one shanten", "1199m1199p11s1234z", "", 1, ""},
-		{"kokushi tenpai", "19m19p19s1234567z5m", "", 0, "5m"},
-		{"kokushi one shanten", "19m19p19s123456z55m", "", 1, ""},
-		{"eleven tiles tenpai", "123456789m1p5z", "777z", 0, "1p5z"},
-		{"eleven tiles one shanten", "123456m1358p9s", "777z", 1, ""},
-		{"eight tiles tenpai", "123m456p7s5z", "111z222z", 0, "7s5z"},
-		{"eight tiles one shanten", "123m46p8s9s5z", "111z222z", 1, ""},
-		{"eight tiles two shanten", "13m55p9p1s47z", "111z222z", 2, ""},
-		{"five tiles complete", "123m55z", "111z222z333z", -1, "123m5z"},
-		{"five tiles one shanten", "13m5p9s1z", "111z222z333z", 1, ""},
-		{"two tiles karaten on one discard", "1m5z", "555z123p456p789s", 0, "5z"},
-		{"two tiles tanki", "1m9p", "123p456p789s777z", 0, "1m9p"},
+		{name: "tenpai", closed: "123456789m1255p9s", melded: "", shanten: 0, discards: "9s"},
+		{name: "one shanten", closed: "123456789m1358p9s", melded: "", shanten: 1, discards: ""},
+		{name: "two shanten", closed: "123456789m159p1s5z", melded: "", shanten: 2, discards: ""},
+		{name: "complete", closed: "11234567888999m", melded: "", shanten: -1, discards: "123456789m"},
+		{name: "tanki behind a pon left on one discard", closed: "123456789m9p1z", melded: "999p", shanten: 0, discards: "9p"},
+		{name: "karaten behind a closed kan", closed: "46m234567p77s1z", melded: "5555m", shanten: 0, discards: ""},
+		{name: "closed kan of one man", closed: "2345678889m1z", melded: "1111m", shanten: 0, discards: "9m1z"},
+		{name: "four copies in the closed part", closed: "1111234567m888p9s", melded: "", shanten: 0, discards: "147m9s"},
+		{name: "four copies one shanten", closed: "1111m234p567s13s57z", melded: "", shanten: 1, discards: ""},
+		{name: "chiitoitsu tenpai", closed: "1199m1199p1199s12z", melded: "", shanten: 0, discards: "12z"},
+		{name: "chiitoitsu one shanten", closed: "1199m1199p11s1234z", melded: "", shanten: 1, discards: ""},
+		{name: "kokushi tenpai", closed: "19m19p19s1234567z5m", melded: "", shanten: 0, discards: "5m"},
+		{name: "kokushi one shanten", closed: "19m19p19s123456z55m", melded: "", shanten: 1, discards: ""},
+		{name: "eleven tiles tenpai", closed: "123456789m1p5z", melded: "777z", shanten: 0, discards: "1p5z"},
+		{name: "eleven tiles one shanten", closed: "123456m1358p9s", melded: "777z", shanten: 1, discards: ""},
+		{name: "eight tiles tenpai", closed: "123m456p7s5z", melded: "111z222z", shanten: 0, discards: "7s5z"},
+		{name: "eight tiles one shanten", closed: "123m46p8s9s5z", melded: "111z222z", shanten: 1, discards: ""},
+		{name: "eight tiles two shanten", closed: "13m55p9p1s47z", melded: "111z222z", shanten: 2, discards: ""},
+		{name: "five tiles complete", closed: "123m55z", melded: "111z222z333z", shanten: -1, discards: "123m5z"},
+		{name: "five tiles one shanten", closed: "13m5p9s1z", melded: "111z222z333z", shanten: 1, discards: ""},
+		{name: "two tiles karaten on one discard", closed: "1m5z", melded: "555z123p456p789s", shanten: 0, discards: "5z"},
+		{name: "two tiles tanki", closed: "1m9p", melded: "123p456p789s777z", shanten: 0, discards: "1m9p"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -332,6 +361,7 @@ func TestTenpaiDiscards_WhenHandIsFixed_ShouldMatchTheReference(t *testing.T) {
 			if got := lowestShanten(t, closed); got != tc.shanten {
 				t.Errorf("Lowest = %d, want %d", got, tc.shanten)
 			}
+
 			if got := kindListString(t, checkDiscardsMatchReference(t, closed, melded)); got != tc.discards {
 				t.Errorf("TenpaiDiscards = %s, want %s", got, tc.discards)
 			}
@@ -345,28 +375,28 @@ func TestWaits_WhenHandIsFixed_ShouldMatchTheReference(t *testing.T) {
 		shanten                 int
 		closedWaits, waitsKinds string
 	}{
-		{"tenpai", "123456789m1255p", "", 0, "3p", "3p"},
-		{"one shanten", "123456789m1358p", "", 1, "", ""},
-		{"two shanten", "123456789m159p1s", "", 2, "", ""},
-		{"chiitoitsu tenpai", "1199m1199p1199s1z", "", 0, "1z", "1z"},
-		{"chiitoitsu one shanten", "1199m1199p11s123z", "", 1, "", ""},
-		{"kokushi thirteen-sided", "19m19p19s1234567z", "", 0, "19m19p19s1234567z", "19m19p19s1234567z"},
-		{"kokushi single wait", "119m19p19s123456z", "", 0, "7z", "7z"},
-		{"kokushi one shanten", "19m19p19s123456z5m", "", 1, "", ""},
-		{"four copies held", "111123m456p5578s", "", 0, "69s", "69s"},
-		{"fifth copy would complete", "1111234567m888p", "", 0, "47m", "47m"},
-		{"honor quad tanki", "123m456p789s1111z", "", 1, "", ""},
-		{"ten tiles tenpai", "123456m1p234s", "777z", 0, "1p", "1p"},
-		{"ten tiles one shanten", "123456m1358p", "777z", 1, "", ""},
-		{"karaten behind a pon", "123456789m9p", "999p", 0, "9p", ""},
-		{"karaten behind a closed kan", "46m234567p77s", "5555m", 0, "5m", ""},
-		{"seven tiles tenpai", "123m456p7s", "111z222z", 0, "7s", "7s"},
-		{"seven tiles one shanten", "123m46p89s", "111z222z", 1, "", ""},
-		{"seven tiles two shanten", "13m5p9p1s44z", "111z222z", 2, "", ""},
-		{"four tiles tenpai", "1235m", "111z222z333z", 0, "5m", "5m"},
-		{"four tiles one shanten", "13m5p9s", "111z222z333z", 1, "", ""},
-		{"one tile tanki", "5z", "123p456p789s777z", 0, "5z", "5z"},
-		{"one tile karaten", "5z", "555z123p456p789s", 0, "5z", ""},
+		{name: "tenpai", closed: "123456789m1255p", melded: "", shanten: 0, closedWaits: "3p", waitsKinds: "3p"},
+		{name: "one shanten", closed: "123456789m1358p", melded: "", shanten: 1, closedWaits: "", waitsKinds: ""},
+		{name: "two shanten", closed: "123456789m159p1s", melded: "", shanten: 2, closedWaits: "", waitsKinds: ""},
+		{name: "chiitoitsu tenpai", closed: "1199m1199p1199s1z", melded: "", shanten: 0, closedWaits: "1z", waitsKinds: "1z"},
+		{name: "chiitoitsu one shanten", closed: "1199m1199p11s123z", melded: "", shanten: 1, closedWaits: "", waitsKinds: ""},
+		{name: "kokushi thirteen-sided", closed: "19m19p19s1234567z", melded: "", shanten: 0, closedWaits: "19m19p19s1234567z", waitsKinds: "19m19p19s1234567z"},
+		{name: "kokushi single wait", closed: "119m19p19s123456z", melded: "", shanten: 0, closedWaits: "7z", waitsKinds: "7z"},
+		{name: "kokushi one shanten", closed: "19m19p19s123456z5m", melded: "", shanten: 1, closedWaits: "", waitsKinds: ""},
+		{name: "four copies held", closed: "111123m456p5578s", melded: "", shanten: 0, closedWaits: "69s", waitsKinds: "69s"},
+		{name: "fifth copy would complete", closed: "1111234567m888p", melded: "", shanten: 0, closedWaits: "47m", waitsKinds: "47m"},
+		{name: "honor quad tanki", closed: "123m456p789s1111z", melded: "", shanten: 1, closedWaits: "", waitsKinds: ""},
+		{name: "ten tiles tenpai", closed: "123456m1p234s", melded: "777z", shanten: 0, closedWaits: "1p", waitsKinds: "1p"},
+		{name: "ten tiles one shanten", closed: "123456m1358p", melded: "777z", shanten: 1, closedWaits: "", waitsKinds: ""},
+		{name: "karaten behind a pon", closed: "123456789m9p", melded: "999p", shanten: 0, closedWaits: "9p", waitsKinds: ""},
+		{name: "karaten behind a closed kan", closed: "46m234567p77s", melded: "5555m", shanten: 0, closedWaits: "5m", waitsKinds: ""},
+		{name: "seven tiles tenpai", closed: "123m456p7s", melded: "111z222z", shanten: 0, closedWaits: "7s", waitsKinds: "7s"},
+		{name: "seven tiles one shanten", closed: "123m46p89s", melded: "111z222z", shanten: 1, closedWaits: "", waitsKinds: ""},
+		{name: "seven tiles two shanten", closed: "13m5p9p1s44z", melded: "111z222z", shanten: 2, closedWaits: "", waitsKinds: ""},
+		{name: "four tiles tenpai", closed: "1235m", melded: "111z222z333z", shanten: 0, closedWaits: "5m", waitsKinds: "5m"},
+		{name: "four tiles one shanten", closed: "13m5p9s", melded: "111z222z333z", shanten: 1, closedWaits: "", waitsKinds: ""},
+		{name: "one tile tanki", closed: "5z", melded: "123p456p789s777z", shanten: 0, closedWaits: "5z", waitsKinds: "5z"},
+		{name: "one tile karaten", closed: "5z", melded: "555z123p456p789s", shanten: 0, closedWaits: "5z", waitsKinds: ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -375,10 +405,12 @@ func TestWaits_WhenHandIsFixed_ShouldMatchTheReference(t *testing.T) {
 			if got := lowestShanten(t, closed); got != tc.shanten {
 				t.Errorf("Lowest = %d, want %d", got, tc.shanten)
 			}
+
 			checkWaitsMatchReference(t, closed, melded)
 			if got := kindsString(t, hand.ClosedWaits(closed)); got != tc.closedWaits {
 				t.Errorf("ClosedWaits = %s, want %s", got, tc.closedWaits)
 			}
+
 			if got := kindsString(t, hand.Waits(closed, melded)); got != tc.waitsKinds {
 				t.Errorf("Waits = %s, want %s", got, tc.waitsKinds)
 			}
@@ -415,6 +447,7 @@ func (h *generatedHand) heldAll() [tile.KindCount]uint8 {
 	for kind := range held {
 		held[kind] = h.held(kind)
 	}
+
 	return held
 }
 
@@ -423,14 +456,17 @@ func tryAdd(part *[tile.KindCount]uint8, held [tile.KindCount]uint8, kinds []int
 	for _, kind := range kinds {
 		needed[kind]++
 	}
+
 	for _, kind := range kinds {
 		if held[kind]+needed[kind] > tile.CopiesPerKind {
 			return false
 		}
 	}
+
 	for _, kind := range kinds {
 		part[kind]++
 	}
+
 	return true
 }
 
@@ -440,6 +476,7 @@ func randomSet(rng *splitMix64) []int {
 		start := kind - kind%9 + min(kind%9, 6)
 		return []int{start, start + 1, start + 2}
 	}
+
 	return []int{kind, kind, kind}
 }
 
@@ -449,11 +486,13 @@ func (h *generatedHand) addGroup(rng *splitMix64, toMelds bool) {
 		if toMelds && group[0] == group[1] && rng.below(4) == 0 {
 			group = append(group, group[0])
 		}
+
 		held := h.heldAll()
 		part := &h.closed
 		if toMelds {
 			part = &h.melded
 		}
+
 		if tryAdd(part, held, group) {
 			return
 		}
@@ -476,6 +515,7 @@ func (h *generatedHand) removeClosedTile(rng *splitMix64) {
 			h.closed[kind]--
 			return
 		}
+
 		pick -= int(count)
 	}
 }
@@ -505,6 +545,7 @@ func generateHand(rng *splitMix64) generatedHand {
 		for _, kind := range terminalsAndHonors {
 			h.closed[kind] = 1
 		}
+
 		h.closed[terminalsAndHonors[rng.below(len(terminalsAndHonors))]]++
 	case 1:
 		for pairs := 0; pairs < 7; {
@@ -518,15 +559,18 @@ func generateHand(rng *splitMix64) generatedHand {
 		for range melds {
 			h.addGroup(rng, true)
 		}
+
 		for range 4 - melds {
 			h.addGroup(rng, false)
 		}
+
 		h.addClosedPair(rng)
 	}
 
 	for range rng.below(4) {
 		h.replaceClosedTile(rng)
 	}
+
 	return h
 }
 
@@ -540,15 +584,16 @@ func generateHands(seed uint64, dropATile bool) []generatedHand {
 		if dropATile {
 			h.removeClosedTile(&rng)
 		}
+
 		hands = append(hands, h)
 	}
+
 	return hands
 }
 
 func TestTenpaiDiscards_WhenHandsAreGenerated_ShouldMatchTheReference(t *testing.T) {
 	t.Parallel()
 	withTenpaiDiscard, guardedOut, openWithTenpaiDiscard := 0, 0, 0
-
 	for _, h := range generateHands(0x5EED0E6E00000001, false) {
 		closed, melded := mustCountsFromArray(t, h.closed), mustCountsFromArray(t, h.melded)
 		if found := checkDiscardsMatchReference(t, closed, melded); len(found) > 0 {
@@ -557,6 +602,7 @@ func TestTenpaiDiscards_WhenHandsAreGenerated_ShouldMatchTheReference(t *testing
 				openWithTenpaiDiscard++
 			}
 		}
+
 		if lowestShanten(t, closed) >= 1 {
 			guardedOut++
 		}
@@ -571,7 +617,6 @@ func TestTenpaiDiscards_WhenHandsAreGenerated_ShouldMatchTheReference(t *testing
 func TestWaits_WhenHandsAreGenerated_ShouldMatchTheReference(t *testing.T) {
 	t.Parallel()
 	tenpai, guardedOut, openTenpai, karaten := 0, 0, 0, 0
-
 	for _, h := range generateHands(0x5EED0E6E00000002, true) {
 		closed, melded := mustCountsFromArray(t, h.closed), mustCountsFromArray(t, h.melded)
 		found := checkWaitsMatchReference(t, closed, melded)
@@ -581,9 +626,11 @@ func TestWaits_WhenHandsAreGenerated_ShouldMatchTheReference(t *testing.T) {
 				openTenpai++
 			}
 		}
+
 		if len(found) < hand.ClosedWaits(closed).Len() {
 			karaten++
 		}
+
 		if lowestShanten(t, closed) >= 1 {
 			guardedOut++
 		}

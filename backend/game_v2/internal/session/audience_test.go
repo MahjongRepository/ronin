@@ -34,6 +34,7 @@ func (c *recordingConn) Send(data []byte) {
 	if err != nil {
 		panic("the session sent an undecodable message: " + err.Error())
 	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if v, ok := m.Get(wire.KeyEventType); ok {
@@ -71,12 +72,14 @@ func TestSendEvents_WhenAnEventHasNoAudience_ShouldFailTheGameAndSendNothingOfIt
 		if err != nil {
 			t.Fatalf("store.Open error = %v", err)
 		}
+
 		t.Cleanup(func() {
 			closeErr := db.Close()
 			if closeErr != nil {
 				t.Errorf("db.Close error = %v", closeErr)
 			}
 		})
+
 		m, err := New(context.Background(), Config{
 			Timing: DefaultTiming(), Capacity: 1, DB: db,
 			Replays: replayfile.New(filepath.Join(dir, "replays")), Logger: logger,
@@ -84,6 +87,7 @@ func TestSendEvents_WhenAnEventHasNoAudience_ShouldFailTheGameAndSendNothingOfIt
 		if err != nil {
 			t.Fatalf("New error = %v", err)
 		}
+
 		err = m.CreatePendingGame("game-audience", []PlayerSpec{
 			{Name: "Alice", UserID: "user-Alice", Ticket: "ticket-Alice"},
 			{Name: "Bob", UserID: "user-Bob", Ticket: "ticket-Bob"},
@@ -91,11 +95,15 @@ func TestSendEvents_WhenAnEventHasNoAudience_ShouldFailTheGameAndSendNothingOfIt
 		if err != nil {
 			t.Fatalf("CreatePendingGame error = %v", err)
 		}
+
 		alice, bob := &recordingConn{id: "conn-alice"}, &recordingConn{id: "conn-bob"}
 		for _, joining := range []struct {
 			conn   *recordingConn
 			ticket string
-		}{{alice, "ticket-Alice"}, {bob, "ticket-Bob"}} {
+		}{
+			{conn: alice, ticket: "ticket-Alice"},
+			{conn: bob, ticket: "ticket-Bob"},
+		} {
 			m.Connect(joining.conn)
 			m.Join(joining.conn, joining.ticket)
 		}
@@ -113,6 +121,7 @@ func TestSendEvents_WhenAnEventHasNoAudience_ShouldFailTheGameAndSendNothingOfIt
 		g.postAndWait(func() {
 			g.guard("send the test events", func() error { return g.sendEvents(events, nil, g.lazyTable()) })
 		})
+
 		synctest.Wait()
 
 		for _, conn := range []*recordingConn{alice, bob} {

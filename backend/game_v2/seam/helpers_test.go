@@ -31,6 +31,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -40,6 +41,7 @@ func id(t *testing.T, n int) tile.TileID {
 	if !ok {
 		t.Fatalf("NewTileID(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -57,6 +59,7 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 		ids = append(ids, id(t, int(kind)*tile.CopiesPerKind+first+seen[kind]))
 		seen[kind]++
 	}
+
 	return ids
 }
 
@@ -66,6 +69,7 @@ func copyOf(t *testing.T, first int, mpsz string) tile.TileID {
 	if len(ids) != 1 {
 		t.Fatalf("%q holds %d tiles, want 1", mpsz, len(ids))
 	}
+
 	return ids[0]
 }
 
@@ -88,6 +92,7 @@ func dealSlot(offset, i int) int {
 	if block := i / dealBlockSize; block < dealBlocks {
 		return block*dealRoundSize + offset*dealBlockSize + i%dealBlockSize
 	}
+
 	return finalDealStart + offset
 }
 
@@ -104,17 +109,21 @@ func (w startWall) tiles(t *testing.T, dealer tile.Seat) [tile.TileIDCount]tile.
 		if slices.Contains(placed, at) {
 			t.Fatalf("start wall places tile %d twice", at.Index())
 		}
+
 		slots[slot], filled[slot] = at, true
 		placed = append(placed, at)
 	}
+
 	for _, s := range tile.Seats() {
 		if len(w.hands[s.Index()]) > handSize {
 			t.Fatalf("start wall deals seat %d %d tiles", s.Index(), len(w.hands[s.Index()]))
 		}
+
 		for i, held := range w.hands[s.Index()] {
 			place(dealSlot(s.DistanceFrom(dealer), i), held)
 		}
 	}
+
 	for i, drawn := range w.draws {
 		place(firstDrawSlot+i, drawn)
 	}
@@ -125,11 +134,13 @@ func (w startWall) tiles(t *testing.T, dealer tile.Seat) [tile.TileIDCount]tile.
 			free = append(free, unplaced)
 		}
 	}
+
 	for slot := range slots {
 		if !filled[slot] {
 			slots[slot], free = free[0], free[1:]
 		}
 	}
+
 	return slots
 }
 
@@ -144,6 +155,7 @@ func seedOf(t *testing.T, pair string) engine.Seed {
 	if err != nil {
 		t.Fatalf("ParseSeed error = %v", err)
 	}
+
 	return seed
 }
 
@@ -158,6 +170,7 @@ func newGame(t *testing.T, setup engine.Setup) (engine.Game, []play.Emitted) {
 	if err != nil {
 		t.Fatalf("NewGame error = %v", err)
 	}
+
 	return g, events
 }
 
@@ -167,6 +180,7 @@ func act(t *testing.T, g engine.Game, s tile.Seat, action play.Action) (engine.G
 	if refusal.OK {
 		t.Fatalf("Act(seat %d, %v) refused: %v", s.Index(), action, refusal.Value)
 	}
+
 	return next, events
 }
 
@@ -176,6 +190,7 @@ func dealNextRound(t *testing.T, g engine.Game) (engine.Game, []play.Emitted) {
 	if refusal.OK {
 		t.Fatalf("DealNextRound refused: %v", refusal.Value)
 	}
+
 	return next, events
 }
 
@@ -185,6 +200,7 @@ func begun(t *testing.T, g engine.Game) (engine.Game, []play.Emitted) {
 	if refusal.OK {
 		t.Fatalf("Begin refused: %v", refusal.Value)
 	}
+
 	return next, events
 }
 
@@ -193,6 +209,7 @@ func dealOrBegin(t *testing.T, g engine.Game) (engine.Game, []play.Emitted) {
 	if _, dealt := g.Awaiting().(play.AwaitingDealt); dealt {
 		return begun(t, g)
 	}
+
 	return dealNextRound(t, g)
 }
 
@@ -202,6 +219,7 @@ func turnSeat(t *testing.T, g engine.Game) tile.Seat {
 	if !ok {
 		t.Fatalf("Awaiting = %#v, want a turn", g.Awaiting())
 	}
+
 	return turn.Seat
 }
 
@@ -213,8 +231,10 @@ func discardDrawn(t *testing.T, g engine.Game, turns int) engine.Game {
 		if !drawn.OK {
 			t.Fatalf("seat %d has drawn no tile", s.Index())
 		}
+
 		g, _ = act(t, g, s, play.DiscardAction(drawn.Value))
 	}
+
 	return g
 }
 
@@ -243,6 +263,7 @@ func scoreTotal(scores [tile.SeatCount]int) int {
 	for _, score := range scores {
 		total += score
 	}
+
 	return total
 }
 

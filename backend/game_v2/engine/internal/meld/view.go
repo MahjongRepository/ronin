@@ -15,6 +15,7 @@ func FromView(view play.MeldView) (Meld, bool) {
 	if len(view.Tiles) > len(tiles) {
 		return Meld{}, false
 	}
+
 	for i, id := range view.Tiles {
 		tiles[i] = id.Tile(rules.AkaDora)
 	}
@@ -23,6 +24,7 @@ func FromView(view play.MeldView) (Meld, bool) {
 	if view.Kind == play.MeldChi || view.Kind == play.MeldPon {
 		size = 3
 	}
+
 	if len(view.Tiles) != size {
 		return Meld{}, false
 	}
@@ -41,6 +43,7 @@ func FromView(view play.MeldView) (Meld, bool) {
 	default:
 		return Meld{}, false
 	}
+
 	return m, err == nil
 }
 
@@ -74,14 +77,17 @@ func CheckHandInput(hand []tile.TileID, melds []play.MeldView) error {
 		if held[id.Index()] {
 			return DuplicateTileError{Tile: id}
 		}
+
 		held[id.Index()] = true
 		return nil
 	}
+
 	for _, id := range hand {
 		if err := check(id); err != nil {
 			return err
 		}
 	}
+
 	for _, view := range melds {
 		for _, id := range view.Tiles {
 			if err := check(id); err != nil {
@@ -89,5 +95,6 @@ func CheckHandInput(hand []tile.TileID, melds []play.MeldView) error {
 			}
 		}
 	}
+
 	return nil
 }

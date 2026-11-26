@@ -49,7 +49,10 @@ func TestJoin_WhenTheLastPlayerJoins_ShouldSendTheStartAndTheDealOpeningTheStart
 		for _, tc := range []struct {
 			conn *fakeConn
 			seat int
-		}{{alice, 0}, {bob, 1}} {
+		}{
+			{conn: alice, seat: 0},
+			{conn: bob, seat: 1},
+		} {
 			messages := tc.conn.messages()
 			started := ofEvent(messages, wire.EventGameStarted)
 			if len(started) != 1 || intOf(t, started[0], wire.KeySeat) != tc.seat {
@@ -84,6 +87,7 @@ func TestGameStartConfirm_WhenEveryPlayerConfirms_ShouldSendTheDealersDrawAtOnce
 		if got := len(ofEvent(alice.messages(), wire.EventDraw)); got != 0 {
 			t.Fatalf("the dealer drew with %d draws before every seat confirmed", got)
 		}
+
 		h.confirm(bob)
 
 		draws := ofEvent(alice.messages(), wire.EventDraw)
@@ -111,8 +115,8 @@ func TestGameStartConfirm_WhenItsTimeoutFires_ShouldConfirmForTheSeatsLeftAndDra
 		if got := len(ofEvent(alice.messages(), wire.EventDraw)); got != 0 {
 			t.Fatalf("the dealer drew before the confirmation timed out")
 		}
-		sleep(time.Millisecond)
 
+		sleep(time.Millisecond)
 		if got := len(ofEvent(alice.messages(), wire.EventDraw)); got != 1 {
 			t.Errorf("the dealer got %d draws after the timeout, want 1", got)
 		}
@@ -131,6 +135,7 @@ func TestGameStartConfirm_WhenItsTimeoutIsZero_ShouldDrawRightAfterTheDeal(t *te
 		if _, stamped := dealt[0].Get(wire.KeyWaitID); stamped {
 			t.Error("the deal opens a confirmation with no start pause")
 		}
+
 		draws := ofEvent(messages, wire.EventDraw)
 		if len(draws) != 1 || intOf(t, draws[0], wire.KeyWaitID) != 1 {
 			t.Errorf("draws = %v, want one opening wait 1", draws)
@@ -149,7 +154,10 @@ func TestConfirmRound_WhenTheSeatConfirmedOrEchoesAnOldID_ShouldAnswerStaleActio
 		for _, tc := range []struct {
 			conn   *fakeConn
 			waitID int
-		}{{alice, 1}, {bob, 0}} {
+		}{
+			{conn: alice, waitID: 1},
+			{conn: bob, waitID: 0},
+		} {
 			errs := ofEvent(tc.conn.messages(), wire.EventError)
 			if len(errs) != 1 {
 				t.Fatalf("%s got %d errors, want 1", tc.conn.id, len(errs))

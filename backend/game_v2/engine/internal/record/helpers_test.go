@@ -21,6 +21,7 @@ func seat(t *testing.T, n int) tile.Seat {
 	if !ok {
 		t.Fatalf("NewSeat(%d) refused", n)
 	}
+
 	return got
 }
 
@@ -30,6 +31,7 @@ func copies(t *testing.T, first int, mpsz string) []tile.TileID {
 	if err != nil {
 		t.Fatalf("Copies(%d, %q) error = %v", first, mpsz, err)
 	}
+
 	return got
 }
 
@@ -39,6 +41,7 @@ func tileOf(t *testing.T, mpsz string) tile.TileID {
 	if len(got) != 1 {
 		t.Fatalf("%q holds %d tiles, want 1", mpsz, len(got))
 	}
+
 	return got[0]
 }
 
@@ -48,6 +51,7 @@ func junk(t *testing.T, first int) []tile.TileID {
 	if err != nil {
 		t.Fatalf("Junk(%d) error = %v", first, err)
 	}
+
 	return got
 }
 
@@ -57,6 +61,7 @@ func begun(t *testing.T, w testkit.StartWall) game.Game {
 	if err != nil {
 		t.Fatalf("BegunGame error = %v", err)
 	}
+
 	return g
 }
 
@@ -70,6 +75,7 @@ func script(t *testing.T, g game.Game, actions ...testkit.SeatAction) (game.Game
 	if err != nil {
 		t.Fatalf("Script error = %v", err)
 	}
+
 	return next, events
 }
 
@@ -79,6 +85,7 @@ func firstPon(t *testing.T, g game.Game, s tile.Seat) play.Action {
 	if err != nil {
 		t.Fatalf("FirstPon error = %v", err)
 	}
+
 	return pon
 }
 
@@ -88,6 +95,7 @@ func threePinWithTwoRonCallers(t *testing.T) game.Game {
 	if err != nil {
 		t.Fatalf("ThreePinWithTwoRonCallers error = %v", err)
 	}
+
 	return g
 }
 
@@ -123,6 +131,7 @@ func followed(t *testing.T, g game.Game, r play.SeatRecord, actions ...testkit.S
 	for _, e := range events {
 		r = record.Apply(r, e)
 	}
+
 	assertEqual(t, "record", r, g.SeatView(r.Seat).Record)
 	return g, r
 }

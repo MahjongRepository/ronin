@@ -16,6 +16,7 @@ func tiles(tb testing.TB, mpsz string) []tile.Tile {
 	if err != nil {
 		tb.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	return parsed
 }
 
@@ -25,6 +26,7 @@ func oneTile(tb testing.TB, mpsz string) tile.Tile {
 	if err != nil {
 		tb.Fatalf("ParseTile(%q) error = %v", mpsz, err)
 	}
+
 	return parsed
 }
 
@@ -34,6 +36,7 @@ func chi(tb testing.TB, mpsz string) meld.Meld {
 	if err != nil {
 		tb.Fatalf("NewChi(%q) error = %v", mpsz, err)
 	}
+
 	return m
 }
 
@@ -43,6 +46,7 @@ func pon(tb testing.TB, mpsz string) meld.Meld {
 	if err != nil {
 		tb.Fatalf("NewPon(%q) error = %v", mpsz, err)
 	}
+
 	return m
 }
 
@@ -52,6 +56,7 @@ func openKan(tb testing.TB, mpsz string) meld.Meld {
 	if err != nil {
 		tb.Fatalf("NewOpenKan(%q) error = %v", mpsz, err)
 	}
+
 	return m
 }
 
@@ -61,6 +66,7 @@ func closedKan(tb testing.TB, mpsz string) meld.Meld {
 	if err != nil {
 		tb.Fatalf("NewClosedKan(%q) error = %v", mpsz, err)
 	}
+
 	return m
 }
 
@@ -70,6 +76,7 @@ func threeTiles(tb testing.TB, mpsz string) []tile.Tile {
 	if len(parsed) != 3 {
 		tb.Fatalf("%q holds %d tiles, want 3", mpsz, len(parsed))
 	}
+
 	return parsed
 }
 
@@ -79,6 +86,7 @@ func fourTiles(tb testing.TB, mpsz string) []tile.Tile {
 	if len(parsed) != 4 {
 		tb.Fatalf("%q holds %d tiles, want 4", mpsz, len(parsed))
 	}
+
 	return parsed
 }
 
@@ -106,13 +114,16 @@ func concealedOf(tb testing.TB, wholeHand, winTile string, melds []meld.Meld) []
 	for _, m := range melds {
 		taken = append(taken, m.Tiles()...)
 	}
+
 	for _, t := range taken {
 		at := slices.Index(concealed, t)
 		if at < 0 {
 			tb.Fatalf("%q holds no %v of the melds and the winning tile", wholeHand, t)
 		}
+
 		concealed = slices.Delete(concealed, at, at+1)
 	}
+
 	return concealed
 }
 
@@ -138,5 +149,6 @@ func yakuIDs(value score.HandValue) []play.YakuID {
 	for _, y := range value.Yaku {
 		ids = append(ids, y.ID)
 	}
+
 	return ids
 }

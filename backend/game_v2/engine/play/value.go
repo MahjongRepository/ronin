@@ -38,6 +38,7 @@ func (v Yakuman) String() string {
 	if v.Count == 1 {
 		return "yakuman"
 	}
+
 	return strconv.Itoa(v.Count) + "x yakuman"
 }
 

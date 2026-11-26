@@ -27,6 +27,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 	if err != nil {
 		return exitUsage
 	}
+
 	if *dir == "" {
 		return report(stderr, "no replay directory: set GAME_REPLAY_DIR or pass -replay-dir\n", exitUsage)
 	}
@@ -49,11 +50,13 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		failures++
 		lines.WriteString("FAILED  " + id + ": " + problem.Error() + "\n")
 	}
+
 	lines.WriteString(strconv.Itoa(len(ids)-failures) + "/" + strconv.Itoa(len(ids)) + " game(s) verified\n")
 
 	if failures > 0 {
 		return report(stdout, lines.String(), exitFailed)
 	}
+
 	return report(stdout, lines.String(), 0)
 }
 
@@ -62,5 +65,6 @@ func report(w io.Writer, text string, code int) int {
 	if err != nil {
 		return exitFailed
 	}
+
 	return code
 }

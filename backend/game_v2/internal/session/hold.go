@@ -38,6 +38,7 @@ func discardHoldOf(roll, shape float64) time.Duration {
 	if shape < rise/span {
 		return discardHoldFloor + time.Duration(math.Sqrt(shape*span*rise))
 	}
+
 	fall := float64(discardHoldPauseMax - discardHoldPauseMode)
 	return discardHoldPauseMax - time.Duration(math.Sqrt((1-shape)*span*fall))
 }
@@ -64,6 +65,7 @@ func startsHold(emitted play.Emitted) bool {
 	if _, discarded := emitted.Event.(play.Discarded); discarded {
 		return true
 	}
+
 	called, ok := emitted.Event.(play.Called)
 	return ok && (called.Meld.Kind == play.MeldClosedKan || called.Meld.Kind == play.MeldAddedKan)
 }
@@ -73,6 +75,7 @@ func furitenAhead(events []play.Emitted) []play.Emitted {
 		_, furiten := e.Event.(play.FuritenChanged)
 		return furiten
 	}
+
 	if !slices.ContainsFunc(events, isFuriten) {
 		return events
 	}
@@ -95,6 +98,7 @@ func splitAtHoldStart(events []play.Emitted, start int) (shown, kept []play.Emit
 			kept = append(kept, e)
 		}
 	}
+
 	return shown, kept
 }
 
@@ -116,10 +120,12 @@ func (g *game) heldPart(events []play.Emitted) (shown, kept []play.Emitted, hold
 		g.hold.floor = now.Add(discardHoldFloor)
 		g.hold.until = now.Add(max(discardHoldFloor, sample()))
 	}
+
 	_, callOpen := g.engine.Awaiting().(play.AwaitingCall)
 	if callOpen || !now.Before(g.hold.until) {
 		return nil, nil, false
 	}
+
 	shown, kept = splitAtHoldStart(events, start)
 	return shown, kept, true
 }
@@ -129,6 +135,7 @@ func (g *game) holdUpdate(shown, kept []play.Emitted, actor play.Option[tile.Sea
 	for _, p := range g.participants {
 		p.timer.stop()
 	}
+
 	if len(shown) > 0 {
 		err := g.sendEvents(shown, nil, g.lazyTable())
 		if err != nil {
@@ -142,6 +149,7 @@ func (g *game) holdUpdate(shown, kept []play.Emitted, actor play.Option[tile.Sea
 			g.guard("discard hold failed", func() error { return g.holdDue(token) })
 		})
 	})
+
 	return nil
 }
 
@@ -149,6 +157,7 @@ func (g *game) holdDue(token uint64) error {
 	if !g.hold.release.claim(token) {
 		return nil
 	}
+
 	return g.showHeld()
 }
 
@@ -173,5 +182,6 @@ func (g *game) shownView(seat tile.Seat) play.SeatView {
 	for _, e := range g.hold.shown {
 		view.Record = engine.Follow(view.Record, e)
 	}
+
 	return view
 }

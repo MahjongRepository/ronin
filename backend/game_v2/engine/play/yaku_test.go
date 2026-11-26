@@ -18,57 +18,57 @@ type yakuRow struct {
 
 func TestAllYaku_ShouldMatchTheYakuTable(t *testing.T) {
 	yakuTable := [...]yakuRow{
-		{play.YakuTsumo, 0, "Menzen Tsumo", 0, 1, false},
-		{play.YakuRiichi, 1, "Riichi", 0, 1, false},
-		{play.YakuIppatsu, 3, "Ippatsu", 0, 1, false},
-		{play.YakuChankan, 4, "Chankan", 1, 1, false},
-		{play.YakuRinshan, 5, "Rinshan Kaihou", 1, 1, false},
-		{play.YakuHaitei, 6, "Haitei Raoyue", 1, 1, false},
-		{play.YakuHoutei, 7, "Houtei Raoyui", 1, 1, false},
-		{play.YakuDaburuRiichi, 8, "Double Riichi", 0, 2, false},
-		{play.YakuPinfu, 12, "Pinfu", 0, 1, false},
-		{play.YakuTanyao, 13, "Tanyao", 1, 1, false},
-		{play.YakuIipeikou, 14, "Iipeiko", 0, 1, false},
-		{play.YakuHaku, 15, "Yakuhai (haku)", 1, 1, false},
-		{play.YakuHatsu, 16, "Yakuhai (hatsu)", 1, 1, false},
-		{play.YakuChun, 17, "Yakuhai (chun)", 1, 1, false},
-		{play.YakuSeatWindEast, 18, "Yakuhai (seat wind east)", 1, 1, false},
-		{play.YakuSeatWindSouth, 19, "Yakuhai (seat wind south)", 1, 1, false},
-		{play.YakuSeatWindWest, 20, "Yakuhai (seat wind west)", 1, 1, false},
-		{play.YakuSeatWindNorth, 21, "Yakuhai (seat wind north)", 1, 1, false},
-		{play.YakuRoundWindEast, 22, "Yakuhai (round wind east)", 1, 1, false},
-		{play.YakuRoundWindSouth, 23, "Yakuhai (round wind south)", 1, 1, false},
-		{play.YakuRoundWindWest, 24, "Yakuhai (round wind west)", 1, 1, false},
-		{play.YakuRoundWindNorth, 25, "Yakuhai (round wind north)", 1, 1, false},
-		{play.YakuSanshoku, 26, "Sanshoku Doujun", 1, 2, false},
-		{play.YakuIttsu, 27, "Ittsu", 1, 2, false},
-		{play.YakuChantai, 28, "Chantai", 1, 2, false},
-		{play.YakuHonroutou, 29, "Honroutou", 2, 2, false},
-		{play.YakuToitoi, 30, "Toitoi", 2, 2, false},
-		{play.YakuSanankou, 31, "San Ankou", 2, 2, false},
-		{play.YakuSankantsu, 32, "San Kantsu", 2, 2, false},
-		{play.YakuSanshokuDoukou, 33, "Sanshoku Doukou", 2, 2, false},
-		{play.YakuChiitoitsu, 34, "Chiitoitsu", 0, 2, false},
-		{play.YakuShousangen, 35, "Shou Sangen", 2, 2, false},
-		{play.YakuHonitsu, 36, "Honitsu", 2, 3, false},
-		{play.YakuJunchan, 37, "Junchan", 2, 3, false},
-		{play.YakuRyanpeikou, 38, "Ryanpeikou", 0, 3, false},
-		{play.YakuChinitsu, 39, "Chinitsu", 5, 6, false},
-		{play.YakuKokushiMusou, 100, "Kokushi Musou", 0, 13, true},
-		{play.YakuChuurenPoutou, 101, "Chuuren Poutou", 0, 13, true},
-		{play.YakuSuuankou, 102, "Suu Ankou", 0, 13, true},
-		{play.YakuDaisangen, 103, "Daisangen", 13, 13, true},
-		{play.YakuShousuushii, 104, "Shousuushii", 13, 13, true},
-		{play.YakuRyuuiisou, 105, "Ryuuiisou", 13, 13, true},
-		{play.YakuSuukantsu, 106, "Suu Kantsu", 13, 13, true},
-		{play.YakuTsuuiisou, 107, "Tsuu Iisou", 13, 13, true},
-		{play.YakuChinroutou, 108, "Chinroutou", 13, 13, true},
-		{play.YakuDaisuushii, 111, "Dai Suushii", 26, 26, true},
-		{play.YakuDaburuKokushiMusou, 112, "Kokushi Musou Juusanmen Matchi", 0, 26, true},
-		{play.YakuSuuankouTanki, 113, "Suu Ankou Tanki", 0, 26, true},
-		{play.YakuDaburuChuurenPoutou, 114, "Junsei Chuuren Poutou", 0, 26, true},
-		{play.YakuTenhou, 115, "Tenhou", 0, 13, true},
-		{play.YakuChiihou, 116, "Chiihou", 0, 13, true},
+		{yaku: play.YakuTsumo, id: 0, name: "Menzen Tsumo", hanOpen: 0, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuRiichi, id: 1, name: "Riichi", hanOpen: 0, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuIppatsu, id: 3, name: "Ippatsu", hanOpen: 0, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuChankan, id: 4, name: "Chankan", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuRinshan, id: 5, name: "Rinshan Kaihou", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuHaitei, id: 6, name: "Haitei Raoyue", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuHoutei, id: 7, name: "Houtei Raoyui", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuDaburuRiichi, id: 8, name: "Double Riichi", hanOpen: 0, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuPinfu, id: 12, name: "Pinfu", hanOpen: 0, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuTanyao, id: 13, name: "Tanyao", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuIipeikou, id: 14, name: "Iipeiko", hanOpen: 0, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuHaku, id: 15, name: "Yakuhai (haku)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuHatsu, id: 16, name: "Yakuhai (hatsu)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuChun, id: 17, name: "Yakuhai (chun)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuSeatWindEast, id: 18, name: "Yakuhai (seat wind east)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuSeatWindSouth, id: 19, name: "Yakuhai (seat wind south)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuSeatWindWest, id: 20, name: "Yakuhai (seat wind west)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuSeatWindNorth, id: 21, name: "Yakuhai (seat wind north)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuRoundWindEast, id: 22, name: "Yakuhai (round wind east)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuRoundWindSouth, id: 23, name: "Yakuhai (round wind south)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuRoundWindWest, id: 24, name: "Yakuhai (round wind west)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuRoundWindNorth, id: 25, name: "Yakuhai (round wind north)", hanOpen: 1, hanClosed: 1, isYakuman: false},
+		{yaku: play.YakuSanshoku, id: 26, name: "Sanshoku Doujun", hanOpen: 1, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuIttsu, id: 27, name: "Ittsu", hanOpen: 1, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuChantai, id: 28, name: "Chantai", hanOpen: 1, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuHonroutou, id: 29, name: "Honroutou", hanOpen: 2, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuToitoi, id: 30, name: "Toitoi", hanOpen: 2, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuSanankou, id: 31, name: "San Ankou", hanOpen: 2, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuSankantsu, id: 32, name: "San Kantsu", hanOpen: 2, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuSanshokuDoukou, id: 33, name: "Sanshoku Doukou", hanOpen: 2, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuChiitoitsu, id: 34, name: "Chiitoitsu", hanOpen: 0, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuShousangen, id: 35, name: "Shou Sangen", hanOpen: 2, hanClosed: 2, isYakuman: false},
+		{yaku: play.YakuHonitsu, id: 36, name: "Honitsu", hanOpen: 2, hanClosed: 3, isYakuman: false},
+		{yaku: play.YakuJunchan, id: 37, name: "Junchan", hanOpen: 2, hanClosed: 3, isYakuman: false},
+		{yaku: play.YakuRyanpeikou, id: 38, name: "Ryanpeikou", hanOpen: 0, hanClosed: 3, isYakuman: false},
+		{yaku: play.YakuChinitsu, id: 39, name: "Chinitsu", hanOpen: 5, hanClosed: 6, isYakuman: false},
+		{yaku: play.YakuKokushiMusou, id: 100, name: "Kokushi Musou", hanOpen: 0, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuChuurenPoutou, id: 101, name: "Chuuren Poutou", hanOpen: 0, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuSuuankou, id: 102, name: "Suu Ankou", hanOpen: 0, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuDaisangen, id: 103, name: "Daisangen", hanOpen: 13, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuShousuushii, id: 104, name: "Shousuushii", hanOpen: 13, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuRyuuiisou, id: 105, name: "Ryuuiisou", hanOpen: 13, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuSuukantsu, id: 106, name: "Suu Kantsu", hanOpen: 13, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuTsuuiisou, id: 107, name: "Tsuu Iisou", hanOpen: 13, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuChinroutou, id: 108, name: "Chinroutou", hanOpen: 13, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuDaisuushii, id: 111, name: "Dai Suushii", hanOpen: 26, hanClosed: 26, isYakuman: true},
+		{yaku: play.YakuDaburuKokushiMusou, id: 112, name: "Kokushi Musou Juusanmen Matchi", hanOpen: 0, hanClosed: 26, isYakuman: true},
+		{yaku: play.YakuSuuankouTanki, id: 113, name: "Suu Ankou Tanki", hanOpen: 0, hanClosed: 26, isYakuman: true},
+		{yaku: play.YakuDaburuChuurenPoutou, id: 114, name: "Junsei Chuuren Poutou", hanOpen: 0, hanClosed: 26, isYakuman: true},
+		{yaku: play.YakuTenhou, id: 115, name: "Tenhou", hanOpen: 0, hanClosed: 13, isYakuman: true},
+		{yaku: play.YakuChiihou, id: 116, name: "Chiihou", hanOpen: 0, hanClosed: 13, isYakuman: true},
 	}
 
 	all := play.AllYaku()
@@ -77,26 +77,33 @@ func TestAllYaku_ShouldMatchTheYakuTable(t *testing.T) {
 	}
 
 	for i, row := range yakuTable {
-		yaku := all[i]
-		if yaku != row.yaku {
-			t.Errorf("AllYaku()[%d] = %d, want %s", i, yaku, row.name)
-		}
-		if int(yaku) != row.id {
-			t.Errorf("%s id = %d, want %d", row.name, yaku, row.id)
-		}
-		if got := yaku.Name(); got != row.name {
-			t.Errorf("yaku %d Name = %q, want %q", row.id, got, row.name)
-		}
-		hanOpen, isOpen := yaku.HanOpen()
-		if hanOpen != row.hanOpen || isOpen != (row.hanOpen != 0) {
-			t.Errorf("%s HanOpen = %d, %t, want %d", row.name, hanOpen, isOpen, row.hanOpen)
-		}
-		if got := yaku.HanClosed(); got != row.hanClosed {
-			t.Errorf("%s HanClosed = %d, want %d", row.name, got, row.hanClosed)
-		}
-		if got := yaku.IsYakuman(); got != row.isYakuman {
-			t.Errorf("%s IsYakuman = %t, want %t", row.name, got, row.isYakuman)
-		}
+		t.Run(row.name, func(t *testing.T) {
+			yaku := all[i]
+			if yaku != row.yaku {
+				t.Errorf("AllYaku()[%d] = %d, want %s", i, yaku, row.name)
+			}
+
+			if int(yaku) != row.id {
+				t.Errorf("id = %d, want %d", yaku, row.id)
+			}
+
+			if got := yaku.Name(); got != row.name {
+				t.Errorf("yaku %d Name = %q, want %q", row.id, got, row.name)
+			}
+
+			hanOpen, isOpen := yaku.HanOpen()
+			if hanOpen != row.hanOpen || isOpen != (row.hanOpen != 0) {
+				t.Errorf("HanOpen = %d, %t, want %d", hanOpen, isOpen, row.hanOpen)
+			}
+
+			if got := yaku.HanClosed(); got != row.hanClosed {
+				t.Errorf("HanClosed = %d, want %d", got, row.hanClosed)
+			}
+
+			if got := yaku.IsYakuman(); got != row.isYakuman {
+				t.Errorf("IsYakuman = %t, want %t", got, row.isYakuman)
+			}
+		})
 	}
 }
 

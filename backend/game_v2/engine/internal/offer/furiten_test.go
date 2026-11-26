@@ -18,10 +18,12 @@ func waitsOf(t *testing.T, mpsz string) tile.Kinds {
 	if err != nil {
 		t.Fatalf("ParseTiles(%q) error = %v", mpsz, err)
 	}
+
 	closed, err := tile.CountsFromTiles(parsed)
 	if err != nil {
 		t.Fatalf("CountsFromTiles(%q) error = %v", mpsz, err)
 	}
+
 	return hand.Waits(closed, tile.Counts{})
 }
 
@@ -62,30 +64,34 @@ func TestFuritenBlocksRon_WhenTemporaryOrRiichiFuriten_ShouldBeTrue(t *testing.T
 	if !(offer.Furiten{Temporary: true}).BlocksRon() || !(offer.Furiten{Riichi: true}).BlocksRon() {
 		t.Error("BlocksRon = false for temporary or riichi furiten, want true")
 	}
+
 	if (offer.Furiten{Shown: true}).BlocksRon() {
 		t.Error("BlocksRon = true for a shown value only, want false")
 	}
 }
 
 func TestFuriten_WhenARonIsDeclinedOrMissed_ShouldSetTheFlagsOfTheSeatsRiichi(t *testing.T) {
-	for _, c := range []struct {
+	tests := []struct {
 		name string
 		got  offer.Furiten
 		want offer.Furiten
 	}{
-		{"declined", offer.Furiten{}.DeclineRon(false), offer.Furiten{Temporary: true}},
-		{"declined in riichi", offer.Furiten{}.DeclineRon(true), offer.Furiten{Temporary: true, Riichi: true}},
-		{"missed", offer.Furiten{}.MissRon(false), offer.Furiten{Temporary: true}},
-		{"missed in riichi", offer.Furiten{}.MissRon(true), offer.Furiten{Riichi: true}},
+		{name: "declined", got: offer.Furiten{}.DeclineRon(false), want: offer.Furiten{Temporary: true}},
+		{name: "declined in riichi", got: offer.Furiten{}.DeclineRon(true), want: offer.Furiten{Temporary: true, Riichi: true}},
+		{name: "missed", got: offer.Furiten{}.MissRon(false), want: offer.Furiten{Temporary: true}},
+		{name: "missed in riichi", got: offer.Furiten{}.MissRon(true), want: offer.Furiten{Riichi: true}},
 		{
-			"declined after riichi furiten",
-			offer.Furiten{Riichi: true}.DeclineRon(false),
-			offer.Furiten{Temporary: true, Riichi: true},
+			name: "declined after riichi furiten",
+			got:  offer.Furiten{Riichi: true}.DeclineRon(false),
+			want: offer.Furiten{Temporary: true, Riichi: true},
 		},
-	} {
-		if c.got != c.want {
-			t.Errorf("%s: furiten = %+v, want %+v", c.name, c.got, c.want)
-		}
+	}
+	for _, c := range tests {
+		t.Run(c.name, func(t *testing.T) {
+			if c.got != c.want {
+				t.Errorf("furiten = %+v, want %+v", c.got, c.want)
+			}
+		})
 	}
 }
 
@@ -115,16 +121,19 @@ func TestDiscardRon_WhenTheCompleteHandHasAYaku_ShouldBeOffered(t *testing.T) {
 }
 
 func TestDiscardRon_WhenFuritenOrAWaitIsInTheRiver_ShouldBeMissed(t *testing.T) {
-	for _, c := range []struct {
+	tests := []struct {
 		name      string
 		candidate offer.RonCandidate
 	}{
-		{"temporary furiten", offer.RonCandidate{Hand: tanyaoHand(t), Furiten: offer.Furiten{Temporary: true}}},
-		{"discarded wait", offer.RonCandidate{Hand: tanyaoHand(t), River: river(copies(t, 2, "5s"))}},
-	} {
-		if got := offer.DiscardRon(c.candidate, copyOf(t, 1, "8s"), ronSituation()); got != offer.RonMissed {
-			t.Errorf("%s: DiscardRon = %v, want %v", c.name, got, offer.RonMissed)
-		}
+		{name: "temporary furiten", candidate: offer.RonCandidate{Hand: tanyaoHand(t), Furiten: offer.Furiten{Temporary: true}}},
+		{name: "discarded wait", candidate: offer.RonCandidate{Hand: tanyaoHand(t), River: river(copies(t, 2, "5s"))}},
+	}
+	for _, c := range tests {
+		t.Run(c.name, func(t *testing.T) {
+			if got := offer.DiscardRon(c.candidate, copyOf(t, 1, "8s"), ronSituation()); got != offer.RonMissed {
+				t.Errorf("DiscardRon = %v, want %v", got, offer.RonMissed)
+			}
+		})
 	}
 }
 
@@ -143,13 +152,16 @@ func TestDiscardRon_ShouldMatchScoringWithRealDoraIndicators(t *testing.T) {
 	if !errors.Is(noYakuErr, score.NoYakuError{}) {
 		t.Errorf("HandValue with an east dora error = %v, want %v", noYakuErr, score.NoYakuError{})
 	}
+
 	noYakuCandidate := offer.RonCandidate{Hand: noYakuHand, Melds: melds}
 	if got := offer.DiscardRon(noYakuCandidate, noYakuTile, ronSituation()); got != offer.RonMissed {
 		t.Errorf("DiscardRon of the no-yaku hand = %v, want %v", got, offer.RonMissed)
 	}
+
 	if tanyaoErr != nil {
 		t.Errorf("HandValue of tanyao error = %v, want nil", tanyaoErr)
 	}
+
 	if got := offer.DiscardRon(offer.RonCandidate{Hand: tanyao}, tanyaoTile, ronSituation()); got != offer.RonOffered {
 		t.Errorf("DiscardRon of tanyao = %v, want %v", got, offer.RonOffered)
 	}
@@ -164,6 +176,7 @@ func TestDiscardRon_WhenTheScorerRejectsTheCompletedHand_ShouldPanicWithAnEngine
 	if !ok {
 		t.Fatalf("DiscardRon fault = %v, want a score.WrongTileCountError", fault)
 	}
+
 	if !strings.Contains(fault.Error(), wrongCount.Error()) {
 		t.Errorf("DiscardRon fault text = %q, want it to name %q", fault.Error(), wrongCount.Error())
 	}
@@ -176,23 +189,38 @@ func TestMayRobKan_WhenWaitingOnTheTile_ShouldRobAnAddedKanButAClosedKanOnlyOnAK
 	terminalChiitoitsu := offer.RonCandidate{Hand: copies(t, 0, "1199m1199p1199s1z")}
 	furiten := offer.RonCandidate{Hand: tanyaoHand(t), Furiten: offer.Furiten{Riichi: true}}
 
-	for _, c := range []struct {
+	tests := []struct {
 		name      string
 		candidate offer.RonCandidate
 		kind      play.KanKind
 		robbed    tile.TileID
 		want      bool
 	}{
-		{"added kan on a wait", tanyao, play.KanAdded, copyOf(t, 1, "8s"), true},
-		{"added kan off the waits", tanyao, play.KanAdded, copyOf(t, 1, "9s"), false},
-		{"closed kan on a plain wait", tanyao, play.KanClosed, copyOf(t, 1, "8s"), false},
-		{"closed kan on a kokushi wait", kokushi, play.KanClosed, copyOf(t, 1, "1m"), true},
-		{"closed kan on a twelve-kind kokushi wait", kokushiWithAPair, play.KanClosed, copyOf(t, 1, "7z"), true},
-		{"closed kan on a terminal and honor chiitoitsu wait", terminalChiitoitsu, play.KanClosed, copyOf(t, 2, "1z"), false},
-		{"furiten", furiten, play.KanAdded, copyOf(t, 1, "8s"), false},
-	} {
-		if got := offer.MayRobKan(c.candidate, c.kind, c.robbed); got != c.want {
-			t.Errorf("%s: MayRobKan = %t, want %t", c.name, got, c.want)
-		}
+		{name: "added kan on a wait", candidate: tanyao, kind: play.KanAdded, robbed: copyOf(t, 1, "8s"), want: true},
+		{name: "added kan off the waits", candidate: tanyao, kind: play.KanAdded, robbed: copyOf(t, 1, "9s"), want: false},
+		{name: "closed kan on a plain wait", candidate: tanyao, kind: play.KanClosed, robbed: copyOf(t, 1, "8s"), want: false},
+		{name: "closed kan on a kokushi wait", candidate: kokushi, kind: play.KanClosed, robbed: copyOf(t, 1, "1m"), want: true},
+		{
+			name:      "closed kan on a twelve-kind kokushi wait",
+			candidate: kokushiWithAPair,
+			kind:      play.KanClosed,
+			robbed:    copyOf(t, 1, "7z"),
+			want:      true,
+		},
+		{
+			name:      "closed kan on a terminal and honor chiitoitsu wait",
+			candidate: terminalChiitoitsu,
+			kind:      play.KanClosed,
+			robbed:    copyOf(t, 2, "1z"),
+			want:      false,
+		},
+		{name: "furiten", candidate: furiten, kind: play.KanAdded, robbed: copyOf(t, 1, "8s"), want: false},
+	}
+	for _, c := range tests {
+		t.Run(c.name, func(t *testing.T) {
+			if got := offer.MayRobKan(c.candidate, c.kind, c.robbed); got != c.want {
+				t.Errorf("MayRobKan = %t, want %t", got, c.want)
+			}
+		})
 	}
 }

@@ -32,15 +32,17 @@ func main() {
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	err := runProfiled(ctx, *addr, *profileDir)
+	err := runProfiled(ctx, os.Getenv, *addr, *profileDir)
 	stop()
 
 	if err == nil {
 		return
 	}
+
 	if rest := unlogged(err); rest != nil {
 		slog.Error(logStopped, "error", rest)
 	}
+
 	os.Exit(1)
 }
 
@@ -59,19 +61,23 @@ func unlogged(err error) error {
 		for _, part := range parts {
 			rest = append(rest, unlogged(part))
 		}
+
 		return errors.Join(rest...)
 	}
+
 	if _, logged := errors.AsType[loggedError](err); logged {
 		return nil
 	}
+
 	return err
 }
 
-func run(ctx context.Context, addr string) (err error) {
-	cfg, err := loadConfig(os.Getenv)
+func run(ctx context.Context, getenv func(string) string, addr string) (err error) {
+	cfg, err := loadConfig(getenv)
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
+
 	logger, closeLog, err := newLogger(cfg)
 	if err != nil {
 		return err
@@ -83,6 +89,7 @@ func run(ctx context.Context, addr string) (err error) {
 		logger.Error(logStopped, "error", err)
 		return loggedError{err}
 	}
+
 	return nil
 }
 
@@ -99,10 +106,12 @@ func runLogged(ctx context.Context, addr string, cfg config, logger *slog.Logger
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", addr, err)
 	}
+
 	srv, err := startServer(storeCtx, cfg, db, logger)
 	if err != nil {
 		return errors.Join(err, listener.Close())
 	}
+
 	return serve(ctx, listener, srv, logger, cancelStore)
 }
 
@@ -111,6 +120,7 @@ func startServer(storeCtx context.Context, cfg config, db *store.DB, logger *slo
 	if err != nil {
 		return nil, err
 	}
+
 	logger.Info("closed unfinished games", "count", closed)
 	return newServer(storeCtx, cfg, db, logger)
 }
@@ -123,6 +133,7 @@ func newLogger(cfg config) (*slog.Logger, func() error, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+
 		out, closeLog = io.MultiWriter(os.Stdout, file), file.Close
 	}
 
@@ -130,6 +141,7 @@ func newLogger(cfg config) (*slog.Logger, func() error, error) {
 	if cfg.logJSON {
 		return slog.New(slog.NewJSONHandler(out, options)), closeLog, nil
 	}
+
 	return slog.New(slog.NewTextHandler(out, options)), closeLog, nil
 }
 
@@ -163,6 +175,7 @@ func newServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.
 	if err != nil {
 		return nil, fmt.Errorf("start server: %w", err)
 	}
+
 	return srv, nil
 }
 
@@ -180,6 +193,7 @@ func serve(
 	go func() {
 		serveErr <- httpServer.Serve(listener)
 	}()
+
 	logger.Info("game server ready", "addr", addr)
 
 	select {
@@ -199,5 +213,6 @@ func serve(
 	if errors.Is(err, http.ErrServerClosed) {
 		err = nil
 	}
+
 	return errors.Join(httpErr, shutdownErr, err)
 }

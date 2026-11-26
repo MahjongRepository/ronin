@@ -23,6 +23,7 @@ func unfinishedReplay(t *testing.T) []byte {
 	if err != nil {
 		t.Fatalf("read %s: %v", unfinishedReplayPath, err)
 	}
+
 	return content
 }
 
@@ -41,6 +42,7 @@ func finishedReplay(t *testing.T) []byte {
 			{Key: wire.KeyFinalScore, Value: wire.Int(0)},
 		})
 	}
+
 	records = append(records, wire.Map{
 		{Key: wire.KeyEventType, Value: wire.Int(wire.EventGameEnd)},
 		{Key: wire.KeyWinnerSeat, Value: wire.Int(2)},
@@ -54,6 +56,7 @@ func finishedReplay(t *testing.T) []byte {
 	if err != nil {
 		t.Fatalf("EncodeReplay error = %v", err)
 	}
+
 	return content
 }
 
@@ -75,10 +78,10 @@ func TestTenhouReplay_WhenTheReplayIsStored_ShouldAnswerItsTenhouXMLAndOtherwise
 	}
 
 	got := h.internal(http.MethodGet, "/replays/"+storedGameID+"/tenhou")
-
 	if got.status != http.StatusOK || got.header.Get("Content-Type") != "application/xml" || got.text != want {
 		t.Errorf("GET tenhou = %d %q %q, want 200 application/xml %q", got.status, got.header.Get("Content-Type"), got.text, want)
 	}
+
 	missing := h.internal(http.MethodGet, "/replays/missing-game/tenhou")
 	if missing.status != http.StatusNotFound || !cmp.Equal(missing.body, map[string]any{"error": "Replay not found"}) {
 		t.Errorf("GET tenhou of a missing replay = %d %v, want 404", missing.status, missing.body)
@@ -90,7 +93,6 @@ func TestTenhouReplay_WhenTheReplayIsAFailedGame_ShouldAnswer422NotATruncatedLog
 	h.storeReplay(failedGameID, unfinishedReplay(t))
 
 	got := h.internal(http.MethodGet, "/replays/"+failedGameID+"/tenhou")
-
 	if got.status != http.StatusUnprocessableEntity || !cmp.Equal(got.body, map[string]any{"error": "Replay has no game end"}) {
 		t.Errorf("GET tenhou = %d %v, want 422", got.status, got.body)
 	}
@@ -101,7 +103,6 @@ func TestTenhouReplay_WhenCallerLacksTheInternalSecret_ShouldAnswer401(t *testin
 	h.storeReplay(storedGameID, finishedReplay(t))
 
 	got := h.request(http.MethodGet, "/replays/"+storedGameID+"/tenhou", nil, map[string]string{"Authorization": "Bearer wrong"})
-
 	if got.status != http.StatusUnauthorized || got.body["error"] != "Unauthorized" {
 		t.Errorf("GET tenhou = %d %v, want 401", got.status, got.body)
 	}

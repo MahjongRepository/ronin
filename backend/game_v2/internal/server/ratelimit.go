@@ -21,6 +21,7 @@ func (b *tokenBucket) take(now time.Time) bool {
 	if b.tokens < 1 {
 		return false
 	}
+
 	b.tokens--
 	return true
 }

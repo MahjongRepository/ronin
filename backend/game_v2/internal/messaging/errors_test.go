@@ -48,11 +48,13 @@ func TestRefusalError_WhenTheEngineRefusesAnAction_ShouldAnswerItsWireCodeAndMes
 			"invalid_riichi", "hand is not tenpai after discarding tile 7",
 		},
 	} {
-		got, ok := messaging.RefusalError(c.action, c.refusal, 6)
-		want := messaging.GameError{Code: c.code, Message: c.message, WaitID: 6}
-		if !ok || got != want {
-			t.Errorf("%s: RefusalError = %+v, %v; want %+v", c.name, got, ok, want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := messaging.RefusalError(c.action, c.refusal, 6)
+			want := messaging.GameError{Code: c.code, Message: c.message, WaitID: 6}
+			if !ok || got != want {
+				t.Errorf("%s: RefusalError = %+v, %v; want %+v", c.name, got, ok, want)
+			}
+		})
 	}
 }
 
@@ -87,6 +89,8 @@ func TestGameError_ShouldShapeTheErrorEventNamingTheEchoedWaitID(t *testing.T) {
 			{Key: wire.KeyWaitID, Value: wire.Int(2)},
 		}},
 	} {
-		assertMap(t, c.name, c.got.Payload(), c.want)
+		t.Run(c.name, func(t *testing.T) {
+			assertMap(t, c.name, c.got.Payload(), c.want)
+		})
 	}
 }

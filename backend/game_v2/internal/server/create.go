@@ -37,18 +37,22 @@ func parseCreateGame(body []byte) (createGameRequest, bool) {
 	if !ok || !replayfile.IsValidGameID(gameID) {
 		return createGameRequest{}, false
 	}
+
 	aiPlayers, ok := aiPlayersOf(fields)
 	if !ok {
 		return createGameRequest{}, false
 	}
+
 	players, ok := playersOf(fields["players"])
 	if !ok || len(players) != tile.SeatCount-aiPlayers || !unique(players) {
 		return createGameRequest{}, false
 	}
+
 	seating, ok := seatingOf(fields)
 	if !ok {
 		return createGameRequest{}, false
 	}
+
 	return createGameRequest{gameID: gameID, players: players, seating: seating}, true
 }
 
@@ -59,6 +63,7 @@ func seatingOf(fields map[string]json.RawMessage) (session.Seating, bool) {
 	case "true":
 		return session.SeatingFixed, true
 	}
+
 	return session.SeatingShuffled, false
 }
 
@@ -66,6 +71,7 @@ func objectOf(data []byte, keys ...string) (map[string]json.RawMessage, bool) {
 	if !utf8.Valid(data) {
 		return nil, false
 	}
+
 	var fields map[string]json.RawMessage
 	err := json.Unmarshal(data, &fields)
 	if err != nil || fields == nil {
@@ -76,11 +82,13 @@ func objectOf(data []byte, keys ...string) (map[string]json.RawMessage, bool) {
 	for _, k := range keys {
 		allowed[k] = true
 	}
+
 	for k := range fields {
 		if !allowed[k] {
 			return nil, false
 		}
 	}
+
 	return fields, true
 }
 
@@ -88,6 +96,7 @@ func stringOf(raw json.RawMessage, minLength, maxLength int) (string, bool) {
 	if len(raw) == 0 || raw[0] != '"' {
 		return "", false
 	}
+
 	var s string
 	err := json.Unmarshal(raw, &s)
 	if err != nil {
@@ -98,6 +107,7 @@ func stringOf(raw json.RawMessage, minLength, maxLength int) (string, bool) {
 	if length < minLength || (maxLength > 0 && length > maxLength) {
 		return "", false
 	}
+
 	return s, true
 }
 
@@ -106,13 +116,16 @@ func aiPlayersOf(fields map[string]json.RawMessage) (int, bool) {
 	if !present {
 		return defaultAIPlayers, true
 	}
+
 	if !strictInteger.Match(raw) {
 		return 0, false
 	}
+
 	n, err := strconv.Atoi(string(raw))
 	if err != nil || n < 0 || n > maxAIPlayers {
 		return 0, false
 	}
+
 	return n, true
 }
 
@@ -120,6 +133,7 @@ func playersOf(raw json.RawMessage) ([]session.PlayerSpec, bool) {
 	if len(raw) == 0 || raw[0] != '[' {
 		return nil, false
 	}
+
 	var items []json.RawMessage
 	err := json.Unmarshal(raw, &items)
 	if err != nil || len(items) == 0 || len(items) > tile.SeatCount {
@@ -132,8 +146,10 @@ func playersOf(raw json.RawMessage) ([]session.PlayerSpec, bool) {
 		if !ok {
 			return nil, false
 		}
+
 		players = append(players, player)
 	}
+
 	return players, true
 }
 
@@ -142,12 +158,14 @@ func playerOf(raw json.RawMessage) (session.PlayerSpec, bool) {
 	if !ok {
 		return session.PlayerSpec{}, false
 	}
+
 	name, nameOK := stringOf(fields["name"], 1, maxNameLength)
 	userID, userOK := stringOf(fields["user_id"], 1, maxUserIDLength)
 	ticket, ticketOK := stringOf(fields["game_ticket"], 1, maxTicketLength)
 	if !nameOK || !userOK || !ticketOK {
 		return session.PlayerSpec{}, false
 	}
+
 	return session.PlayerSpec{Name: name, UserID: userID, Ticket: ticket}, true
 }
 
@@ -159,7 +177,9 @@ func unique(players []session.PlayerSpec) bool {
 		if names[p.Name] || userIDs[p.UserID] || tickets[p.Ticket] {
 			return false
 		}
+
 		names[p.Name], userIDs[p.UserID], tickets[p.Ticket] = true, true, true
 	}
+
 	return true
 }

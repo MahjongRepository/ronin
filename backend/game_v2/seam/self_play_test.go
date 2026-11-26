@@ -21,6 +21,7 @@ func selfPlaySeed(game uint64) engine.Seed {
 	for i := range seed {
 		seed[i] = 0x5a
 	}
+
 	binary.LittleEndian.PutUint64(seed[:8], game)
 	return seed
 }
@@ -35,6 +36,7 @@ func selfPlayAgents(game uint64) agents {
 			seated[i] = tsumogiri{}
 		}
 	}
+
 	return seated
 }
 

@@ -82,6 +82,7 @@ func (d Decomposition) KindSets() [][]tile.Kind {
 	for _, b := range blocks.all() {
 		sets = append(sets, b.kinds())
 	}
+
 	return sets
 }
 
@@ -103,22 +104,25 @@ type heldWinBlock struct {
 func (d Decomposition) winBlocks(win tile.Kind) [blocksPerTile]heldWinBlock {
 	var blocks [blocksPerTile]heldWinBlock
 	if d.sevenPairs {
-		blocks[0] = heldWinBlock{PairWinBlock(), slices.Contains(d.pairs[:], win)}
+		blocks[0] = heldWinBlock{block: PairWinBlock(), held: slices.Contains(d.pairs[:], win)}
 		return blocks
 	}
 
 	heldSet := func(set Set) heldWinBlock {
-		return heldWinBlock{SetWinBlock(set), d.hand.holds(set)}
+		return heldWinBlock{block: SetWinBlock(set), held: d.hand.holds(set)}
 	}
+
 	if start, ok := checkedSub(win, 2); ok {
-		blocks[0] = heldSet(Set{Sequence, start})
+		blocks[0] = heldSet(Set{Shape: Sequence, Kind: start})
 	}
+
 	if start, ok := checkedSub(win, 1); ok {
-		blocks[1] = heldSet(Set{Sequence, start})
+		blocks[1] = heldSet(Set{Shape: Sequence, Kind: start})
 	}
-	blocks[2] = heldSet(Set{Triplet, win})
-	blocks[3] = heldWinBlock{PairWinBlock(), d.hand.pair == win}
-	blocks[4] = heldSet(Set{Sequence, win})
+
+	blocks[2] = heldSet(Set{Shape: Triplet, Kind: win})
+	blocks[3] = heldWinBlock{block: PairWinBlock(), held: d.hand.pair == win}
+	blocks[4] = heldSet(Set{Shape: Sequence, Kind: win})
 	return blocks
 }
 
@@ -126,6 +130,7 @@ func checkedSub(kind, n tile.Kind) (tile.Kind, bool) {
 	if kind < n {
 		return 0, false
 	}
+
 	return kind - n, true
 }
 
@@ -142,6 +147,7 @@ func (d Decomposition) Reading(melds MeldSets) Reading {
 		OpenTriplets: melds.openTriplets,
 		Kans:         melds.kans,
 	}
+
 	var unpairedSequences uint64
 	for _, set := range d.hand.sets[:d.hand.len] {
 		bit := uint64(1) << set.Kind
@@ -150,12 +156,14 @@ func (d Decomposition) Reading(melds MeldSets) Reading {
 			if unpairedSequences&bit != 0 {
 				reading.IdenticalSequencePairs++
 			}
+
 			unpairedSequences ^= bit
 			reading.Sequences |= bit
 		case Triplet:
 			reading.Triplets |= bit
 		}
 	}
+
 	return reading
 }
 
@@ -211,6 +219,7 @@ func MeldSetsOf(melds []meld.Meld) MeldSets {
 			sets.kans |= bit
 		}
 	}
+
 	return sets
 }
 
@@ -271,14 +280,16 @@ func Divide(concealed tile.Counts) (Decompositions, error) {
 	ds := divideConcealed(counts)
 	var keyed [maxDecompositions]keyedDecomposition
 	for i, d := range ds.readings[:ds.len] {
-		keyed[i] = keyedDecomposition{d, d.blocks()}
+		keyed[i] = keyedDecomposition{decomposition: d, key: d.blocks()}
 	}
+
 	slices.SortStableFunc(keyed[:ds.len], func(a, b keyedDecomposition) int {
 		return slices.CompareFunc(a.key.all(), b.key.all(), block.compare)
 	})
 	for i, k := range keyed[:ds.len] {
 		ds.readings[i] = k.decomposition
 	}
+
 	return ds, nil
 }
 
@@ -308,13 +319,15 @@ func blockOf(set Set) block {
 	case Triplet:
 		shape = tripletBlock
 	}
-	return block{set.Kind, shape}
+
+	return block{kind: set.Kind, shape: shape}
 }
 
 func (b block) compare(other block) int {
 	if c := cmp.Compare(b.kind, other.kind); c != 0 {
 		return c
 	}
+
 	return cmp.Compare(b.shape, other.shape)
 }
 
@@ -328,6 +341,7 @@ func (b block) kinds() []tile.Kind {
 	case sequenceBlock:
 		kinds = []tile.Kind{b.kind, b.kind + 1, b.kind + 2}
 	}
+
 	return kinds
 }
 
@@ -349,14 +363,16 @@ func (d Decomposition) blocks() blockList {
 	var list blockList
 	if d.sevenPairs {
 		for _, kind := range d.pairs {
-			list.push(block{kind, pairBlock})
+			list.push(block{kind: kind, shape: pairBlock})
 		}
 	} else {
 		for _, set := range d.hand.sets[:d.hand.len] {
 			list.push(blockOf(set))
 		}
-		list.push(block{d.hand.pair, pairBlock})
+
+		list.push(block{kind: d.hand.pair, shape: pairBlock})
 	}
+
 	slices.SortFunc(list.all(), block.compare)
 	return list
 }
@@ -396,6 +412,7 @@ func divideConcealed(counts [tile.KindCount]uint8) Decompositions {
 	if !isOnePairSplit(remainders, honorCounts) {
 		return ds
 	}
+
 	honors, ok := honorsReading(honorCounts)
 	if !ok {
 		return ds
@@ -416,6 +433,7 @@ func divideConcealed(counts [tile.KindCount]uint8) Decompositions {
 			}
 		}
 	}
+
 	return ds
 }
 
@@ -425,8 +443,10 @@ func joinParts(parts [4]partReading) SetsAndPair {
 		if part.hasPair {
 			hand.pair = part.pair
 		}
+
 		hand.len += copy(hand.sets[hand.len:], part.sets[:part.len])
 	}
+
 	slices.SortFunc(hand.sets[:hand.len], func(a, b Set) int {
 		return blockOf(a).compare(blockOf(b))
 	})
@@ -443,11 +463,13 @@ func sevenPairsOf(counts [tile.KindCount]uint8) ([sevenPairs]tile.Kind, bool) {
 			if found < sevenPairs {
 				pairs[found] = tile.Kind(kind)
 			}
+
 			found++
 		default:
 			return pairs, false
 		}
 	}
+
 	return pairs, found == sevenPairs
 }
 
@@ -462,11 +484,13 @@ func suitReadingsOf(suit suitCounts, start tile.Kind, remainder int) suitReading
 		if suit[at] < 2 {
 			continue
 		}
+
 		rest := suit
 		rest[at] -= 2
 		pair := partReading{pair: start + tile.Kind(at), hasPair: true}
 		collectReadings(rest, pair, 0, start, &readings)
 	}
+
 	return readings
 }
 
@@ -476,6 +500,7 @@ func collectReadings(
 	for at < kindsPerSuit && suit[at] == 0 {
 		at++
 	}
+
 	if at == kindsPerSuit {
 		readings.push(reading)
 		return
@@ -487,12 +512,13 @@ func collectReadings(
 		rest[at]--
 		rest[at+1]--
 		rest[at+2]--
-		collectReadings(rest, reading.with(Set{Sequence, kind}), at, start, readings)
+		collectReadings(rest, reading.with(Set{Shape: Sequence, Kind: kind}), at, start, readings)
 	}
+
 	if suit[at] == setTiles {
 		rest := suit
 		rest[at] = 0
-		collectReadings(rest, reading.with(Set{Triplet, kind}), at+1, start, readings)
+		collectReadings(rest, reading.with(Set{Shape: Triplet, Kind: kind}), at+1, start, readings)
 	}
 }
 
@@ -505,10 +531,11 @@ func honorsReading(honors []uint8) (partReading, bool) {
 		case 2:
 			reading.pair, reading.hasPair = kind, true
 		case setTiles:
-			reading = reading.with(Set{Triplet, kind})
+			reading = reading.with(Set{Shape: Triplet, Kind: kind})
 		default:
 			return reading, false
 		}
 	}
+
 	return reading, true
 }

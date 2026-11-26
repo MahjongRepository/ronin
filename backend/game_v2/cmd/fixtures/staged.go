@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
@@ -32,6 +33,7 @@ func stagedSeed() engine.Seed {
 	for i := range seed {
 		seed[i] = stagedSeedByte
 	}
+
 	return seed
 }
 
@@ -70,36 +72,45 @@ func (w stagedWall) tiles() ([tile.TileIDCount]tile.TileID, error) {
 			placed[dealSlot(seat.DistanceFrom(w.dealer), i)] = id
 		}
 	}
+
 	for i, d := range w.draws {
 		placed[firstDrawSlot+i] = d.id
 	}
+
 	for i, id := range w.rinshan {
 		placed[liveWallSize+rinshanSlots()[i]] = id
 	}
+
 	for i, id := range w.ura {
 		placed[liveWallSize+firstUraSlot+i] = id
 	}
 
 	var used [tile.TileIDCount]bool
-	for _, id := range placed {
+	for _, slot := range slices.Sorted(maps.Keys(placed)) {
+		id := placed[slot]
 		if used[id.Index()] {
 			return tiles, fmt.Errorf("a staged wall places tile %d twice", id.Index())
 		}
+
 		used[id.Index()] = true
 	}
+
 	var rest []tile.TileID
 	for _, id := range tile.AllTileIDs() {
 		if !used[id.Index()] {
 			rest = append(rest, id)
 		}
 	}
+
 	for slot := range tiles {
 		id, ok := placed[slot]
 		if !ok {
 			id, rest = rest[0], rest[1:]
 		}
+
 		tiles[slot] = id
 	}
+
 	return tiles, nil
 }
 
@@ -111,6 +122,7 @@ func dealSlot(offset, i int) int {
 	if block := i / dealBlockSize; block < dealBlocks {
 		return block*dealRoundSize + offset*dealBlockSize + i%dealBlockSize
 	}
+
 	return finalDealStart + offset
 }
 
@@ -123,12 +135,15 @@ func stagedSetup(
 		if err != nil {
 			return engine.Setup{}, err
 		}
+
 		walls = append(walls, tiles)
 	}
+
 	for n := range uint32(fillerWalls) {
 		roundNumber := firstFillerRound(rounds, start) + n
 		walls = append(walls, seededWall(seed, roundNumber, dealers.of(roundNumber, rounds[len(rounds)-1].dealer)))
 	}
+
 	return engine.Setup{Walls: play.Fixed{Walls: walls}, Start: start}, nil
 }
 
@@ -145,6 +160,7 @@ func (d fillerDealers) of(roundNumber uint32, lastStaged tile.Seat) tile.Seat {
 			dealer = known
 		}
 	}
+
 	return dealer
 }
 
@@ -165,10 +181,12 @@ func seededWall(seed engine.Seed, roundNumber uint32, dealer tile.Seat) [tile.Ti
 		k := (start + i) % totalStacks
 		tiles[liveWallSize+i], tiles[liveWallSize+deadWallStacks+i] = shuffled[2*k], shuffled[2*k+1]
 	}
+
 	for i := range totalStacks - deadWallStacks {
 		k := (start + totalStacks - 1 - i) % totalStacks
 		tiles[2*i], tiles[2*i+1] = shuffled[2*k], shuffled[2*k+1]
 	}
+
 	return tiles
 }
 
@@ -193,9 +211,11 @@ func (s *staging) ids(first int, mpsz string) []tile.TileID {
 			s.err = errors.Join(s.err, fmt.Errorf("%q repeats a kind past its copies", mpsz))
 			return nil
 		}
+
 		ids = append(ids, id)
 		seen[kind]++
 	}
+
 	return ids
 }
 
@@ -205,6 +225,7 @@ func (s *staging) id(first int, mpsz string) tile.TileID {
 		s.err = errors.Join(s.err, fmt.Errorf("%q names %d tiles, not one", mpsz, len(ids)))
 		return tile.TileID{}
 	}
+
 	return ids[0]
 }
 
@@ -213,6 +234,7 @@ func (s *staging) seat(n int) tile.Seat {
 	if !ok {
 		s.err = errors.Join(s.err, fmt.Errorf("no seat %d", n))
 	}
+
 	return seat
 }
 

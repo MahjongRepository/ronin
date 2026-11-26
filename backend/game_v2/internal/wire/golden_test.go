@@ -24,6 +24,7 @@ func goldenBytes(tb testing.TB, node any) []byte {
 	if err != nil {
 		tb.Fatalf("hex %q: %v", text, err)
 	}
+
 	return content
 }
 
@@ -36,8 +37,10 @@ func goldenFrames(tb testing.TB, golden jsonObject) []jsonObject {
 		if !ok {
 			tb.Fatalf("frame %v is no object", node)
 		}
+
 		frames = append(frames, frame)
 	}
+
 	return frames
 }
 
@@ -48,6 +51,7 @@ func goldenRecords(t *testing.T, golden jsonObject) []Map {
 	for _, node := range nodes {
 		records = append(records, wireRecordOf(t, node))
 	}
+
 	return records
 }
 
@@ -63,8 +67,10 @@ func TestLiveGolden_ShouldEncodeAndDecodeEveryFrameByteForByte(t *testing.T) {
 			if err != nil {
 				t.Fatalf("encode frame %v: %v", frame.get("name"), err)
 			}
+
 			updated = append(updated, frame.with("hex", hex.EncodeToString(content)))
 		}
+
 		golden = golden.with("frames", updated).with("named_keys", namedKeys(&liveKeys))
 		writeJSONFile(t, liveGoldenPath, golden)
 		frames = goldenFrames(t, golden)
@@ -77,11 +83,13 @@ func TestLiveGolden_ShouldEncodeAndDecodeEveryFrameByteForByte(t *testing.T) {
 		if err != nil || !bytes.Equal(content, want) {
 			t.Errorf("Encode(%v) = %x, %v; want %x", frame.get("name"), content, err, want)
 		}
+
 		decoded, err := Decode(want)
 		if err != nil || !reflect.DeepEqual(decoded, payload) {
 			t.Errorf("Decode(%v) = %v, %v; want %v", frame.get("name"), decoded, err, payload)
 		}
 	}
+
 	if names := golden.get("named_keys"); !reflect.DeepEqual(names, namedKeys(&liveKeys)) {
 		t.Errorf("named_keys = %v, want %v", names, namedKeys(&liveKeys))
 	}
@@ -96,6 +104,7 @@ func TestReplayGolden_ShouldEncodeAndDecodeTheRecordsByteForByte(t *testing.T) {
 		if err != nil {
 			t.Fatalf("encode records: %v", err)
 		}
+
 		golden = golden.with("hex", hex.EncodeToString(content)).with("named_keys", namedKeys(&replayKeys))
 		writeJSONFile(t, replayGoldenPath, golden)
 	}
@@ -105,10 +114,12 @@ func TestReplayGolden_ShouldEncodeAndDecodeTheRecordsByteForByte(t *testing.T) {
 	if err != nil || !bytes.Equal(content, want) {
 		t.Errorf("EncodeReplay = %x, %v; want %x", content, err, want)
 	}
+
 	decoded, err := DecodeReplay(want)
 	if err != nil || !reflect.DeepEqual(decoded, records) {
 		t.Errorf("DecodeReplay = %v, %v; want %v", decoded, err, records)
 	}
+
 	if names := golden.get("named_keys"); !reflect.DeepEqual(names, namedKeys(&replayKeys)) {
 		t.Errorf("named_keys = %v, want %v", names, namedKeys(&replayKeys))
 	}
@@ -130,6 +141,7 @@ func TestLiveGolden_WhenAPythonFrameKeepsItsShape_ShouldEncodeToThePythonBytes(t
 			t.Errorf("Decode(python %s): %v", name, err)
 			continue
 		}
+
 		content, err := Encode(decoded)
 		if err != nil || !bytes.Equal(content, pythonBytes) {
 			t.Errorf("Encode(Decode(python %s)) = %x, %v; want %x", name, content, err, pythonBytes)
@@ -140,6 +152,7 @@ func TestLiveGolden_WhenAPythonFrameKeepsItsShape_ShouldEncodeToThePythonBytes(t
 			reshaped = append(reshaped, name)
 			continue
 		}
+
 		if goBytes := goldenBytes(t, goFrame.get("hex")); !bytes.Equal(goBytes, pythonBytes) {
 			t.Errorf("go golden %s = %x, want the python bytes %x", name, goBytes, pythonBytes)
 		}

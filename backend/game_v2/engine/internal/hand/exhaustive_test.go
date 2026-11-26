@@ -49,14 +49,17 @@ func everySuitShapeWithAWinningTileCount() []suitShape {
 			if total%3 != 1 {
 				shapes = append(shapes, counts)
 			}
+
 			return
 		}
+
 		for count := 0; count <= min(tile.CopiesPerKind, tile.MaxConcealedTiles-total); count++ {
 			next := counts
 			next[kind] = uint8(count)
 			collect(next, kind+1, total+count)
 		}
 	}
+
 	collect(suitShape{}, 0, 0)
 	return shapes
 }
@@ -66,6 +69,7 @@ func needsHonorPair(counts suitShape) bool {
 	for _, count := range counts {
 		sum += int(count)
 	}
+
 	return sum%3 == 0
 }
 
@@ -79,15 +83,17 @@ func splitIntoSets(counts suitShape) [][]refBlock {
 	if counts[lowest] >= 3 {
 		rest := counts
 		rest[lowest] -= 3
-		splits = append(splits, prependSet(refBlock{tile.Kind(lowest), tripletShape}, rest)...)
+		splits = append(splits, prependSet(refBlock{kind: tile.Kind(lowest), shape: tripletShape}, rest)...)
 	}
+
 	if lowest+2 < kindsInSuit && counts[lowest+1] > 0 && counts[lowest+2] > 0 {
 		rest := counts
 		rest[lowest]--
 		rest[lowest+1]--
 		rest[lowest+2]--
-		splits = append(splits, prependSet(refBlock{tile.Kind(lowest), sequenceShape}, rest)...)
+		splits = append(splits, prependSet(refBlock{kind: tile.Kind(lowest), shape: sequenceShape}, rest)...)
 	}
+
 	return splits
 }
 
@@ -96,6 +102,7 @@ func prependSet(set refBlock, rest suitShape) [][]refBlock {
 	for _, sets := range splitIntoSets(rest) {
 		splits = append(splits, append([]refBlock{set}, sets...))
 	}
+
 	return splits
 }
 
@@ -109,7 +116,7 @@ func bruteForceManReadings(counts suitShape) [][]refBlock {
 	var readings [][]refBlock
 	honorPair := []refBlock{}
 	if needsHonorPair(counts) {
-		honorPair = []refBlock{{tile.KindEast, pairShape}}
+		honorPair = []refBlock{{kind: tile.KindEast, shape: pairShape}}
 		for _, sets := range splitIntoSets(counts) {
 			readings = append(readings, sortedReading(sets, honorPair...))
 		}
@@ -118,10 +125,11 @@ func bruteForceManReadings(counts suitShape) [][]refBlock {
 			if count < 2 {
 				continue
 			}
+
 			rest := counts
 			rest[pair] -= 2
 			for _, sets := range splitIntoSets(rest) {
-				readings = append(readings, sortedReading(sets, refBlock{tile.Kind(pair), pairShape}))
+				readings = append(readings, sortedReading(sets, refBlock{kind: tile.Kind(pair), shape: pairShape}))
 			}
 		}
 	}
@@ -131,9 +139,10 @@ func bruteForceManReadings(counts suitShape) [][]refBlock {
 	for kind, count := range counts {
 		onlyPairs = onlyPairs && (count == 0 || count == 2)
 		if count == 2 {
-			suitPairs = append(suitPairs, refBlock{tile.Kind(kind), pairShape})
+			suitPairs = append(suitPairs, refBlock{kind: tile.Kind(kind), shape: pairShape})
 		}
 	}
+
 	if onlyPairs && len(suitPairs)+len(honorPair) == sevenPairsInAHand {
 		readings = append(readings, sortedReading(suitPairs, honorPair...))
 	}
@@ -150,21 +159,24 @@ func shiftedToSuit(readings [][]refBlock, suitStart tile.Kind) [][]refBlock {
 			if b.kind != tile.KindEast {
 				b.kind += suitStart
 			}
+
 			blocks = append(blocks, b)
 		}
+
 		shifted = append(shifted, blocks)
 	}
+
 	return shifted
 }
 
 func blockOfKinds(kinds []tile.Kind) (refBlock, bool) {
 	switch {
 	case len(kinds) == 2 && kinds[0] == kinds[1]:
-		return refBlock{kinds[0], pairShape}, true
+		return refBlock{kind: kinds[0], shape: pairShape}, true
 	case len(kinds) == 3 && kinds[0] == kinds[1] && kinds[1] == kinds[2]:
-		return refBlock{kinds[0], tripletShape}, true
+		return refBlock{kind: kinds[0], shape: tripletShape}, true
 	case len(kinds) == 3 && kinds[1] == kinds[0]+1 && kinds[2] == kinds[0]+2:
-		return refBlock{kinds[0], sequenceShape}, true
+		return refBlock{kind: kinds[0], shape: sequenceShape}, true
 	default:
 		return refBlock{}, false
 	}
@@ -177,8 +189,10 @@ func readingOfKindSets(d hand.Decomposition) ([]refBlock, bool) {
 		if !ok {
 			return nil, false
 		}
+
 		blocks = append(blocks, b)
 	}
+
 	return blocks, true
 }
 
@@ -199,6 +213,7 @@ func typedReadingMatches(d hand.Decomposition, reading []refBlock) bool {
 	if sevenPairs, ok := d.SevenPairs(); ok {
 		return len(pairs) == sevenPairsInAHand && slices.Equal(sevenPairs[:], pairs)
 	}
+
 	setsAndPair, _ := d.SetsAndPair()
 	return len(pairs) == 1 && setsAndPair.Pair() == pairs[0] && slices.Equal(setsAndPair.Sets(), sets)
 }
@@ -209,6 +224,7 @@ func countsInSuit(counts suitShape, suitStart tile.Kind) [tile.KindCount]uint8 {
 	if needsHonorPair(counts) {
 		all[tile.KindEast] = 2
 	}
+
 	return all
 }
 
@@ -219,6 +235,7 @@ func isSevenPairsReading(reading []refBlock) bool {
 			pairs++
 		}
 	}
+
 	return pairs == sevenPairsInAHand
 }
 
@@ -229,6 +246,7 @@ func countShapesRead(cases []shapeCase, sevenPairs bool) int {
 			shapes++
 		}
 	}
+
 	return shapes
 }
 
@@ -240,23 +258,28 @@ type shapeCase struct {
 func TestDivide_WhenEverySingleSuitShapeIsSplitByBruteForce_ShouldGiveTheSameReadings(t *testing.T) {
 	var withSuitPair, withHonorPair []shapeCase
 	for _, counts := range everySuitShapeWithAWinningTileCount() {
-		c := shapeCase{counts, bruteForceManReadings(counts)}
+		c := shapeCase{counts: counts, manReadings: bruteForceManReadings(counts)}
 		if needsHonorPair(counts) {
 			withHonorPair = append(withHonorPair, c)
 		} else {
 			withSuitPair = append(withSuitPair, c)
 		}
 	}
-	for name, got := range map[string][2]int{
-		"shapes with a suit pair":               {len(withSuitPair), shapesWithSuitPair},
-		"shapes with an honor pair":             {len(withHonorPair), shapesWithHonorPair},
-		"dividing shapes with a suit pair":      {countShapesRead(withSuitPair, false), dividingShapesWithSuitPair},
-		"dividing shapes with an honor pair":    {countShapesRead(withHonorPair, false), dividingShapesWithHonorPair},
-		"seven-pairs shapes with a suit pair":   {countShapesRead(withSuitPair, true), sevenPairsShapesWithSuitPair},
-		"seven-pairs shapes with an honor pair": {countShapesRead(withHonorPair, true), sevenPairsShapesWithHonorPair},
-	} {
-		if got[0] != got[1] {
-			t.Fatalf("%s = %d, want %d", name, got[0], got[1])
+
+	counts := []struct {
+		name      string
+		got, want int
+	}{
+		{name: "shapes with a suit pair", got: len(withSuitPair), want: shapesWithSuitPair},
+		{name: "shapes with an honor pair", got: len(withHonorPair), want: shapesWithHonorPair},
+		{name: "dividing shapes with a suit pair", got: countShapesRead(withSuitPair, false), want: dividingShapesWithSuitPair},
+		{name: "dividing shapes with an honor pair", got: countShapesRead(withHonorPair, false), want: dividingShapesWithHonorPair},
+		{name: "seven-pairs shapes with a suit pair", got: countShapesRead(withSuitPair, true), want: sevenPairsShapesWithSuitPair},
+		{name: "seven-pairs shapes with an honor pair", got: countShapesRead(withHonorPair, true), want: sevenPairsShapesWithHonorPair},
+	}
+	for _, c := range counts {
+		if c.got != c.want {
+			t.Fatalf("%s = %d, want %d", c.name, c.got, c.want)
 		}
 	}
 
@@ -268,6 +291,7 @@ func TestDivide_WhenEverySingleSuitShapeIsSplitByBruteForce_ShouldGiveTheSameRea
 			}
 		}
 	}
+
 	if mismatches > 0 {
 		t.Errorf("%d mismatches", mismatches)
 	}
@@ -287,8 +311,10 @@ func dividesAsTheReference(t *testing.T, c shapeCase, suitStart tile.Kind) bool 
 		blocks, ok := readingOfKindSets(got[i])
 		matches = ok && slices.Equal(blocks, want[i]) && typedReadingMatches(got[i], want[i])
 	}
+
 	if !matches {
 		t.Errorf("Divide(%v at %d) = %v, want %v", c.counts, suitStart, got, want)
 	}
+
 	return matches
 }

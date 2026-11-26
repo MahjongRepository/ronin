@@ -50,6 +50,7 @@ func appendValue(b []byte, v Value) []byte {
 		if v {
 			return append(b, tagTrue)
 		}
+
 		return append(b, tagFalse)
 	case Int:
 		return appendInt(b, int64(v))
@@ -64,20 +65,24 @@ func appendValue(b []byte, v Value) []byte {
 		for _, item := range v {
 			b = appendValue(b, item)
 		}
+
 		return b
 	case Map:
 		b = appendLength(b, len(v), fixMapBase, maxFixLen, 0, tagMap16, tagMap32)
 		for _, f := range v {
 			b = appendValue(appendInt(b, int64(f.Key)), f.Value)
 		}
+
 		return b
 	case StrMap:
 		b = appendLength(b, len(v), fixMapBase, maxFixLen, 0, tagMap16, tagMap32)
 		for _, f := range v {
 			b = appendValue(appendValue(b, Str(f.Key)), f.Value)
 		}
+
 		return b
 	}
+
 	return append(b, tagNil)
 }
 

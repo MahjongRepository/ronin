@@ -17,35 +17,38 @@ import (
 
 func TestRewrite_WhenEveryLegacyReplayIsRewritten_ShouldWriteItsCommittedRewriteByteForByte(t *testing.T) {
 	for _, name := range legacyNames(t) {
-		rewritten, err := migrate.Rewrite(legacyContent(t, name))
-		if err != nil {
-			t.Errorf("Rewrite(%s): %v", name, err)
-			continue
-		}
-
-		path := filepath.Join(rewrittenDir, name+".msgpack")
-		if *update {
-			err = os.WriteFile(path, rewritten.Content, 0o600)
+		t.Run(name, func(t *testing.T) {
+			rewritten, err := migrate.Rewrite(legacyContent(t, name))
 			if err != nil {
-				t.Fatalf("write %s: %v", path, err)
+				t.Fatalf("Rewrite: %v", err)
 			}
-		}
-		if want := readFile(t, path); !bytes.Equal(rewritten.Content, want) {
-			t.Errorf("Rewrite(%s) = %x, want the committed %x", name, rewritten.Content, want)
-		}
+
+			path := filepath.Join(rewrittenDir, name+".msgpack")
+			if *update {
+				err = os.WriteFile(path, rewritten.Content, 0o600)
+				if err != nil {
+					t.Fatalf("write %s: %v", path, err)
+				}
+			}
+
+			if want := readFile(t, path); !bytes.Equal(rewritten.Content, want) {
+				t.Errorf("Rewrite = %x, want the committed %x", rewritten.Content, want)
+			}
+		})
 	}
 }
 
 func TestRewrittenReplays_ShouldDecodeAndConvertToATenhouLogExactlyWhenTheGameEnded(t *testing.T) {
 	for _, name := range legacyNames(t) {
-		records := rewrittenRecords(t, name)
-		ended := eventOf(t, records[len(records)-1]) == wire.EventGameEnd
+		t.Run(name, func(t *testing.T) {
+			records := rewrittenRecords(t, name)
+			ended := eventOf(t, records[len(records)-1]) == wire.EventGameEnd
 
-		_, err := tenhou.Convert(readFile(t, filepath.Join(rewrittenDir, name+".msgpack")))
-
-		if ended && err != nil || !ended && !errors.Is(err, tenhou.ErrNoGameEnd) {
-			t.Errorf("tenhou.Convert(rewritten %s) error = %v; game ended %v", name, err, ended)
-		}
+			_, err := tenhou.Convert(readFile(t, filepath.Join(rewrittenDir, name+".msgpack")))
+			if ended && err != nil || !ended && !errors.Is(err, tenhou.ErrNoGameEnd) {
+				t.Errorf("tenhou.Convert(rewritten) error = %v; game ended %v", err, ended)
+			}
+		})
 	}
 }
 
@@ -108,6 +111,7 @@ func TestRewrittenPao_ShouldAssignPaoRightAfterTheThirdDragonPonFromTheLiableSea
 		intField(t, records[at], wire.KeyPaoSeat) != 0 {
 		t.Errorf("pao record %v after %v, want seat 1 made liable by seat 0 after the pon of 132-134", records[at], records[at-1])
 	}
+
 	if tsumo := records[lastOf(t, records, wire.EventRoundEnd)]; intField(t, tsumo, wire.KeyPaoSeat) != 0 {
 		t.Errorf("tsumo = %v, want it still naming seat 0 liable", tsumo)
 	}
@@ -129,7 +133,12 @@ func TestRewrittenDoubleYakuman_ShouldKeepTheDoubleAsScoredAndHoldTheFinalScores
 
 	var finals []int
 	for _, standing := range arrayField(t, gameEnd, wire.KeyStandings) {
-		finals = append(finals, intField(t, standing.(wire.Map), wire.KeyFinalScore))
+		object, isMap := standing.(wire.Map)
+		if !isMap {
+			t.Fatalf("standing %v is no map", standing)
+		}
+
+		finals = append(finals, intField(t, object, wire.KeyFinalScore))
 	}
 	if want := []int{1310, -270, -470, -570}; !slices.Equal(finals, want) {
 		t.Errorf("final scores = %v, want %v, the old whole points in tenths", finals, want)
@@ -141,6 +150,7 @@ func TestRewrittenCallsRedFives_ShouldKeepTheChiAndPonWithTheRedFivesTheyTook(t 
 	if err != nil {
 		t.Fatalf("DecodeRecords: %v", err)
 	}
+
 	records := rewrittenRecords(t, "calls_red_fives")
 
 	var melds []wire.Meld
@@ -149,6 +159,7 @@ func TestRewrittenCallsRedFives_ShouldKeepTheChiAndPonWithTheRedFivesTheyTook(t 
 			melds = append(melds, meldOf(t, record))
 		}
 	}
+
 	want := []wire.Meld{
 		calledMeld(t, play.MeldChi, 1, 0, 52, 48, 52, 56),
 		calledMeld(t, play.MeldPon, 3, 2, 17, 16, 17, 18),
@@ -156,6 +167,7 @@ func TestRewrittenCallsRedFives_ShouldKeepTheChiAndPonWithTheRedFivesTheyTook(t 
 	if !reflect.DeepEqual(melds, want) {
 		t.Errorf("melds = %v, want %v", melds, want)
 	}
+
 	if end := len(records) - 1; !reflect.DeepEqual(records[1:end], legacy[1:end]) {
 		t.Errorf("records before the ron differ from the legacy ones")
 	}
@@ -194,47 +206,51 @@ func TestRewrite_WhenTheOldReplayCannotBeCarriedOverWhole_ShouldRefuseItWithTheK
 					events[i] = edit(e)
 				}
 			}
+
 			return events
 		}
 	}
+
 	tests := []struct {
 		name    string
 		content []byte
 		kind    migrate.FailureKind
 	}{
-		{"not MessagePack", []byte{0xc1}, migrate.FailureUnreadable},
-		{"current version", readFile(t, filepath.Join(rewrittenDir, "kans.msgpack")), migrate.FailureVersion},
-		{"a pao event", legacyEdited(t, "kans", func(events []wire.Map) []wire.Map {
+		{name: "not MessagePack", content: []byte{0xc1}, kind: migrate.FailureUnreadable},
+		{name: "current version", content: readFile(t, filepath.Join(rewrittenDir, "kans.msgpack")), kind: migrate.FailureVersion},
+		{name: "a pao event", content: legacyEdited(t, "kans", func(events []wire.Map) []wire.Map {
 			return append(events, wire.Map{{Key: wire.KeyEventType, Value: wire.Int(wire.EventPaoAssigned)}})
-		}), migrate.FailureShape},
-		{"an abort showing hands", legacyEdited(t, "kyuushu", roundEndEdit(func(m wire.Map) wire.Map {
+		}), kind: migrate.FailureShape},
+		{name: "an abort showing hands", content: legacyEdited(t, "kyuushu", roundEndEdit(func(m wire.Map) wire.Map {
 			return with(m, wire.KeyShownHands, wire.Array{})
-		})), migrate.FailureShape},
-		{"a record after the game end", legacyEdited(t, "pao", func(events []wire.Map) []wire.Map {
+		})), kind: migrate.FailureShape},
+		{name: "a record after the game end", content: legacyEdited(t, "pao", func(events []wire.Map) []wire.Map {
 			return append(events, events[0])
-		}), migrate.FailureShape},
-		{"a win without the pao its calls set", legacyEdited(t, "pao", roundEndEdit(func(m wire.Map) wire.Map {
+		}), kind: migrate.FailureShape},
+		{name: "a win without the pao its calls set", content: legacyEdited(t, "pao", roundEndEdit(func(m wire.Map) wire.Map {
 			return without(without(m, wire.KeyPaoSeat), wire.KeyPaoLiability)
-		})), migrate.FailureInconsistent},
-		{"a robbed added kan of no pon", legacyEdited(t, "chankan_added", func(events []wire.Map) []wire.Map {
+		})), kind: migrate.FailureInconsistent},
+		{name: "a robbed added kan of no pon", content: legacyEdited(t, "chankan_added", func(events []wire.Map) []wire.Map {
 			return slices.DeleteFunc(events, func(e wire.Map) bool { v, _ := e.Get(wire.KeyEventType); return v == wire.Int(wire.EventMeld) })
-		}), migrate.FailureInconsistent},
-		{"a draw with no tiles remaining", legacyEdited(t, "kans", func(events []wire.Map) []wire.Map {
+		}), kind: migrate.FailureInconsistent},
+		{name: "a draw with no tiles remaining", content: legacyEdited(t, "kans", func(events []wire.Map) []wire.Map {
 			return append(events[:1], without(events[1], wire.KeyTilesRemaining))
-		}), migrate.FailureEncode},
-		{"a yaku no Tenhou log names", legacyEdited(t, "pao", roundEndEdit(func(m wire.Map) wire.Map {
+		}), kind: migrate.FailureEncode},
+		{name: "a yaku no Tenhou log names", content: legacyEdited(t, "pao", roundEndEdit(func(m wire.Map) wire.Map {
 			hand := with(mapField(t, m, wire.KeyHandResult), wire.KeyYaku, wire.Array{wire.Map{
 				{Key: wire.KeyYakuID, Value: wire.Int(99)}, {Key: wire.KeyHan, Value: wire.Int(13)}, {Key: wire.KeyYakuYakumanCount, Value: wire.Int(1)},
 			}})
 			return with(m, wire.KeyHandResult, hand)
-		})), migrate.FailureExport},
+		})), kind: migrate.FailureExport},
 	}
-	for _, tc := range tests {
-		_, err := migrate.Rewrite(tc.content)
 
-		rewriteErr, ok := errors.AsType[migrate.RewriteError](err)
-		if !ok || rewriteErr.Kind != tc.kind {
-			t.Errorf("Rewrite(%s) error = %v, want a %s", tc.name, err, tc.kind)
-		}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := migrate.Rewrite(tc.content)
+			rewriteErr, ok := errors.AsType[migrate.RewriteError](err)
+			if !ok || rewriteErr.Kind != tc.kind {
+				t.Errorf("Rewrite error = %v, want a %s", err, tc.kind)
+			}
+		})
 	}
 }

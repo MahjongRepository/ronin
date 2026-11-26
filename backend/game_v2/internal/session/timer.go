@@ -33,6 +33,7 @@ func (d *delayed) cancel() {
 	if d.armed {
 		d.stop()
 	}
+
 	d.armed = false
 }
 
@@ -40,6 +41,7 @@ func (d *delayed) claim(token uint64) bool {
 	if !d.armed || token != d.token {
 		return false
 	}
+
 	d.armed = false
 	return true
 }
@@ -76,6 +78,7 @@ func (t *turnTimer) elapsed() play.Option[float64] {
 	if !t.running.armed {
 		return play.Option[float64]{}
 	}
+
 	return play.Some(t.clock.Now().Sub(t.startedAt).Seconds())
 }
 
@@ -84,6 +87,7 @@ func (t *turnTimer) suspend() {
 		t.stop()
 		return
 	}
+
 	t.running.cancel()
 	t.suspended = play.Some(t.clock.Now())
 }
@@ -99,10 +103,12 @@ func (t *turnTimer) stop() {
 	if !t.charging {
 		return
 	}
+
 	end := t.clock.Now()
 	if t.suspended.OK {
 		end = t.suspended.Value
 	}
+
 	overtime := max(0, end.Sub(t.startedAt)-t.timing.BaseTurn)
 	t.bank = max(0, t.bank-overtime)
 	t.charging = false
@@ -117,5 +123,6 @@ func seconds(d time.Duration) messaging.Seconds {
 	if d%time.Second == 0 {
 		return messaging.WholeSeconds(int(d / time.Second))
 	}
+
 	return messaging.FractionalSeconds(d.Seconds())
 }

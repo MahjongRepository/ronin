@@ -46,6 +46,7 @@ func EstimateHandValue(h Hand, situation Situation, dora Dora, rules Rules) (Han
 	if err != nil {
 		return HandValue{}, err
 	}
+
 	err = validateSituation(situation, h.Melds)
 	if err != nil {
 		return HandValue{}, err
@@ -58,6 +59,7 @@ func EstimateHandValue(h Hand, situation Situation, dora Dora, rules Rules) (Han
 	if situation.Riichi.OK {
 		doraCount.UraDora = countDoraForHand(counts.tiles, dora.UraIndicators)
 	}
+
 	open := slices.ContainsFunc(h.Melds, meld.Meld.IsOpen)
 	winning := func(win tile.Kind) winningHand {
 		return winningHand{
@@ -79,6 +81,7 @@ func EstimateHandValue(h Hand, situation Situation, dora Dora, rules Rules) (Han
 	if isTenhou(situation) {
 		winKinds = tile.KindsFromBits(counts.kinds)
 	}
+
 	melds := hand.MeldSetsOf(h.Melds)
 	isKokushi := counts.readings.Len() == 0 && len(h.Melds) == 0 && isKokushiMusou(counts.tiles)
 	var best bestHand
@@ -90,10 +93,12 @@ func EstimateHandValue(h Hand, situation Situation, dora Dora, rules Rules) (Han
 				best.offer(scoring.score(reading, block))
 			}
 		}
+
 		if isKokushi {
 			best.offer(scoring.scoreKokushi())
 		}
 	}
+
 	return best.value()
 }
 
@@ -122,12 +127,15 @@ func countHand(h Hand) (handCounts, error) {
 			counts.akaDora++
 		}
 	}
+
 	for _, t := range h.Concealed {
 		add(t)
 		concealed[t.Kind()]++
 	}
+
 	add(h.WinTile)
 	concealed[h.WinTile.Kind()]++
+
 	for _, m := range h.Melds {
 		for _, t := range m.Tiles() {
 			add(t)
@@ -138,6 +146,7 @@ func countHand(h Hand) (handCounts, error) {
 	if err != nil {
 		return handCounts{}, err
 	}
+
 	concealedCounts, concealedErr := tile.CountsFromArray(concealed)
 	readings, divideErr := hand.Divide(concealedCounts)
 	counts.readings = readings
@@ -220,6 +229,7 @@ func (w winningHand) score(reading hand.Reading, winBlock hand.WinBlock) calcula
 	if hasYakuman {
 		yaku = slices.DeleteFunc(yaku, Yaku.isNotYakuman)
 	}
+
 	han := sumHan(yaku)
 	hasYaku := han > 0
 
@@ -227,6 +237,7 @@ func (w winningHand) score(reading hand.Reading, winBlock hand.WinBlock) calcula
 	if hasYaku && !hasYakuman {
 		dora = w.dora
 	}
+
 	han = min(han+dora.Dora+dora.AkaDora+dora.UraDora, sextupleYakumanHan)
 
 	calculated := calculatedHand{
@@ -243,6 +254,7 @@ func (w winningHand) score(reading hand.Reading, winBlock hand.WinBlock) calcula
 	case hasYaku:
 		calculated.scored = w.scoreValue(play.Han{Han: han, Fu: fu}, dora)
 	}
+
 	return calculated
 }
 
@@ -271,6 +283,7 @@ func sumHan(yaku yakuList) int {
 	for _, y := range yaku {
 		han += y.Han
 	}
+
 	return han
 }
 
@@ -289,12 +302,14 @@ func (c calculatedHand) rank() handRank {
 	if c.hasYaku {
 		total = c.scored.total
 	}
+
 	doubleForms := 0
 	for _, y := range c.yaku {
 		if y.ID.IsDoubleYakuman() {
 			doubleForms++
 		}
 	}
+
 	return handRank{
 		total:          total,
 		hasYakuman:     slices.ContainsFunc(c.yaku, Yaku.isYakuman),
@@ -355,6 +370,7 @@ func (b bestHand) value() (HandValue, error) {
 	slices.SortFunc(yaku, func(a, b Yaku) int { return cmp.Compare(a.ID, b.ID) })
 	fuDetails := slices.Clone(best.fuDetails.all())
 	slices.SortStableFunc(fuDetails, func(a, b FuDetail) int { return cmp.Compare(b.Fu, a.Fu) })
+
 	return HandValue{
 		Value:     best.scored.value,
 		Limit:     best.scored.limit,

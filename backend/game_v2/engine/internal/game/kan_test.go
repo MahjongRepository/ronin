@@ -17,6 +17,7 @@ func kans(g game.Game, s tile.Seat) []play.Action {
 			offered = append(offered, action)
 		}
 	}
+
 	return offered
 }
 
@@ -56,6 +57,7 @@ func meldKinds(events []play.Emitted) []seatMeld {
 	for _, called := range testkit.CalledMelds(events) {
 		melds = append(melds, seatMeld{called.Seat, called.Meld.Kind})
 	}
+
 	return melds
 }
 
@@ -69,7 +71,6 @@ func TestClosedKan_WhenASecondKanFollowsTheFirst_ShouldAllowItAndRevealANewDora(
 	})
 
 	g, first := script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, oneMan[2])))
-
 	assertEqual(t, "first kinds", testkit.EventKinds(first),
 		[]string{"called", "dora_revealed", "drew", "drew", "drew", "drew"})
 	assertEqual(t, "first melds", testkit.CalledMelds(first), []play.Called{{Seat: seat(t, 0), Meld: play.MeldView{
@@ -81,7 +82,6 @@ func TestClosedKan_WhenASecondKanFollowsTheFirst_ShouldAllowItAndRevealANewDora(
 	assertEqual(t, "kans left", kans(g, seat(t, 0)), []play.Action{play.KanAction(play.KanClosed, twoMan[0])})
 
 	g, second := script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, twoMan[0])))
-
 	assertEqual(t, "second dora", testkit.DoraReveals(second), kanDora[1:2])
 	assertEqual(t, "second rinshan", testkit.DrawnRinshan(second), []play.Drew{rinshanDraw(t, 0, rinshan[1])})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 0)))
@@ -91,14 +91,12 @@ func TestClosedKan_WhenASecondKanFollowsTheFirst_ShouldAllowItAndRevealANewDora(
 func TestKanOffers_WhenTheHandHoldsThreeQuads_ShouldListOneClosedKanPerKindAndAcceptAnyCopy(t *testing.T) {
 	hand := copies(t, 0, "1111222233334p")
 	g := dealerGame(t, hand, copies(t, 1, "4p"), testkit.StartWall{})
-
 	assertEqual(t, "kans", kans(g, seat(t, 0)), []play.Action{
 		play.KanAction(play.KanClosed, hand[0]), play.KanAction(play.KanClosed, hand[4]),
 		play.KanAction(play.KanClosed, hand[8]),
 	})
 
 	_, events := script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, hand[5])))
-
 	assertEqual(t, "melds", meldKinds(events), []seatMeld{{seat(t, 0), play.MeldClosedKan}})
 	assertEqual(t, "kan tiles", testkit.CalledMelds(events)[0].Meld.Tiles, hand[4:8])
 }
@@ -135,7 +133,6 @@ func TestClosedKan_WhenOneLiveTileIsLeft_ShouldBeOfferedWithANonHaiteiRinshanDra
 	}
 
 	g, _ = script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, quad[0])))
-
 	assertEqual(t, "live tiles", g.LiveTiles(), 0)
 	if draw, ok := turnContext(t, g).(play.TurnAfterDraw); !ok || !draw.Rinshan || draw.Haitei {
 		t.Errorf("context = %+v, want a rinshan draw that is not haitei", turnContext(t, g))
@@ -163,7 +160,6 @@ func TestAddedKan_WhenOneLiveTileIsLeft_ShouldBeOffered(t *testing.T) {
 	g, oneMan := seatOnePonOfDealerFirstDiscard(t)
 
 	g = playDefaultsWhileLiveTilesExceed(t, g, 1)
-
 	assertEqual(t, "awaiting and live tiles", [2]any{g.Awaiting(), g.LiveTiles()}, [2]any{awaitingTurn(seat(t, 1)), 1})
 	assertEqual(t, "kans", kans(g, seat(t, 1)), []play.Action{play.KanAction(play.KanAdded, oneMan[2])})
 }
@@ -199,7 +195,6 @@ func TestAddedKan_WhenThePonSeatDrawsTheFourthCopy_ShouldBeOffered(t *testing.T)
 	g, oneMan := onePonAndFourthCopy(t)
 
 	g, _ = discardDrawn(t, g, 3)
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 0)))
 	assertEqual(t, "kans", kans(g, seat(t, 0)), []play.Action{play.KanAction(play.KanAdded, oneMan[3])})
 }
@@ -209,7 +204,6 @@ func TestAddedKan_WhenNoSeatMayRobIt_ShouldUpgradeThePonToAnAddedKanAndDrawTheRi
 	g, _ = discardDrawn(t, g, 3)
 
 	g, events := script(t, g, act(seat(t, 0), play.KanAction(play.KanAdded, oneMan[0])))
-
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{{Seat: seat(t, 0), Meld: play.MeldView{
 		Kind: play.MeldAddedKan, Tiles: oneMan, Called: play.Some(oneMan[2]), From: play.Some(seat(t, 3)), Added: play.Some(oneMan[3]),
 	}}})
@@ -263,7 +257,6 @@ func TestAddedKan_WhenTheTileIDNamesAMeldedCopy_ShouldKanTheCopyInHand(t *testin
 	g := fivePinPonBySeatOne(t, slices.Concat(fivePin[3:], copies(t, 0, "12345678m56z")))
 
 	g, events := script(t, g, act(seat(t, 1), play.KanAction(play.KanAdded, fivePin[0])))
-
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{{Seat: seat(t, 1), Meld: play.MeldView{
 		Kind: play.MeldAddedKan, Tiles: fivePin, Called: play.Some(fivePin[2]), From: play.Some(seat(t, 0)), Added: play.Some(fivePin[3]),
 	}}})
@@ -329,7 +322,6 @@ func TestTsumo_WhenTheOpenKansRinshanCompletesTheHand_ShouldBeOfferedAndAccepted
 		[]play.Action{play.KanAction(play.KanOpen, oneMan[3]), firstPon(t, g, seat(t, 1)), play.PassAction()})
 
 	g, events := script(t, g, act(seat(t, 1), play.KanAction(play.KanOpen, oneMan[0])))
-
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{{Seat: seat(t, 1), Meld: play.MeldView{
 		Kind: play.MeldOpenKan, Tiles: oneMan, Called: play.Some(oneMan[3]), From: play.Some(seat(t, 0)),
 	}}})
@@ -362,7 +354,6 @@ func TestCallPrompt_WhenAnOpenKanIsDeclaredOnTheLastLiveTile_ShouldResolveTheKan
 		[]play.Action{play.KanAction(play.KanOpen, fiveMan[0]), firstPon(t, g, seat(t, 1)), play.PassAction()})
 
 	g, events := script(t, g, act(seat(t, 1), play.KanAction(play.KanOpen, fiveMan[0])))
-
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"called", "drew", "drew", "drew", "drew"})
 	assertEqual(t, "melds", meldKinds(events), []seatMeld{{seat(t, 1), play.MeldOpenKan}})
 	assertEqual(t, "live tiles", g.LiveTiles(), 0)
@@ -383,7 +374,6 @@ func TestCallPrompt_WhenAnOpenKanAndAChiAreDeclared_ShouldMakeTheKan(t *testing.
 
 	g, _ = script(t, g, act(seat(t, 1), play.ChiAction([2]tile.TileID{tileOf(t, 0, "4m"), tileOf(t, 0, "6m")})))
 	g, events := script(t, g, act(seat(t, 3), play.KanAction(play.KanOpen, fiveMan)))
-
 	assertEqual(t, "melds", meldKinds(events), []seatMeld{{seat(t, 3), play.MeldOpenKan}})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 3)))
 }
@@ -413,7 +403,6 @@ func TestChankanPass_WhenARiichiSeatPasses_ShouldSetItsRiichiFuriten(t *testing.
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 1)))
 
 	g, passed := script(t, g, act(seat(t, 1), play.PassAction()))
-
 	assertEqual(t, "furiten", testkit.FuritenChanges(passed), []play.FuritenChanged{{Seat: seat(t, 1), Furiten: true}})
 	g, _ = discardDrawn(t, g, 2)
 	g, sixPinDiscard := discardDrawn(t, g, 1)
@@ -431,7 +420,6 @@ func TestChankanPass_WhenANonRiichiSeatPasses_ShouldRefuseItARonOnTheNextDiscard
 	assertEqual(t, "awaiting the chankan", g.Awaiting(), awaitingCall(seat(t, 3)))
 
 	g, passed := script(t, g, act(seat(t, 3), play.PassAction()))
-
 	assertEqual(t, "furiten", testkit.FuritenChanges(passed), []play.FuritenChanged{{Seat: seat(t, 3), Furiten: true}})
 	drawn, _ := testkit.Drawn(g)
 	assertEqual(t, "rinshan", drawn, sixPin)
@@ -453,7 +441,6 @@ func TestFourKans_WhenOneSeatDeclaresAllFour_ShouldNotAbort(t *testing.T) {
 	}
 
 	g, events := script(t, g, act(seat(t, 0), play.DiscardAction(loneChun)))
-
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"discarded", "drew", "drew", "drew", "drew"})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 1)))
 }
@@ -472,6 +459,7 @@ func TestAddedKan_WhenTheTableHoldsFourKans_ShouldBeNotOfferedAndChangeNothing(t
 		for _, kan := range []string{"1s", "2s", "3s", "4s"} {
 			g, _ = script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, tileOf(t, 0, kan))))
 		}
+
 		g, _ = script(t, g, act(seat(t, 0), play.DiscardAction(fivePin[3])))
 		return g
 	}
@@ -519,6 +507,7 @@ func threeKansOnTable(t *testing.T, table threeKans) game.Game {
 	for _, kan := range []string{"1s", "9s"} {
 		g, _ = script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, tileOf(t, 0, kan))))
 	}
+
 	g, _ = script(t, g,
 		act(seat(t, 0), play.DiscardAction(tileOf(t, 0, "9m"))),
 		act(seat(t, 1), play.KanAction(play.KanClosed, tileOf(t, 0, "4z"))),
@@ -567,7 +556,6 @@ func TestFourKans_WhenTheReplacementDiscardIsRonned_ShouldScoreTheRon(t *testing
 
 func TestFourKans_WhenTheRonCallerPassesTheReplacementDiscard_ShouldAbort(t *testing.T) {
 	g, events := script(t, ronnableReplacementDiscard(t), act(seat(t, 0), play.PassAction()))
-
 	assertEqual(t, "result", roundResult(t, events), play.RoundResult(play.Abortive{Kind: play.FourKans{}}))
 	assertEqual(t, "phase", g.Phase(), play.PhaseRoundOver)
 }
@@ -583,7 +571,6 @@ func TestFourKans_WhenTheOpenFourthKansReplacementDiscardPasses_ShouldRevealTheK
 	g, _ = script(t, g, act(seat(t, 2), play.DiscardAction(fiveMan[0])))
 
 	g, kan := script(t, g, act(seat(t, 3), play.KanAction(play.KanOpen, fiveMan[0])))
-
 	assertEqual(t, "kan kinds", testkit.EventKinds(kan), []string{"called", "drew", "drew", "drew", "drew"})
 	assertEqual(t, "rinshan", testkit.DrawnRinshan(kan), []play.Drew{rinshanDraw(t, 3, eightPin(t, 3))})
 	if !containsAction(g.LegalActions(seat(t, 3)), play.TsumoAction()) {
@@ -591,7 +578,6 @@ func TestFourKans_WhenTheOpenFourthKansReplacementDiscardPasses_ShouldRevealTheK
 	}
 
 	_, discard := script(t, g, act(seat(t, 3), play.DiscardAction(eightPin(t, 0))))
-
 	assertEqual(t, "discard kinds", testkit.EventKinds(discard), []string{"discarded", "dora_revealed", "round_ended"})
 	assertEqual(t, "dora", testkit.DoraReveals(discard), fourKansDora(t)[3:])
 	assertEqual(t, "result", roundResult(t, discard), play.RoundResult(play.Abortive{Kind: play.FourKans{}}))
@@ -618,13 +604,11 @@ func TestFourKans_WhenTheChankanOnTheFourthKanIsDeclined_ShouldDrawTheRinshanThe
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 0)))
 
 	g, declined := script(t, g, act(seat(t, 0), play.PassAction()))
-
 	assertEqual(t, "declined kinds", testkit.EventKinds(declined)[:4], []string{"drew", "drew", "drew", "drew"})
 	assertEqual(t, "declined dora", testkit.DoraReveals(declined), []tile.TileID(nil))
 	assertEqual(t, "phase", g.Phase(), play.PhasePlaying)
 
 	_, discard := script(t, g, act(seat(t, 3), play.DiscardAction(eightPin(t, 0))))
-
 	assertEqual(t, "dora", testkit.DoraReveals(discard), fourKansDora(t)[3:])
 	assertEqual(t, "result", roundResult(t, discard), play.RoundResult(play.Abortive{Kind: play.FourKans{}}))
 }

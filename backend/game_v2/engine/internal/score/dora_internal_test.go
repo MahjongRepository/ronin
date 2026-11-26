@@ -11,9 +11,11 @@ func TestIndicatorToDora_ShouldPointToTheNextTileOfItsGroup(t *testing.T) {
 	for _, tc := range []struct{ indicator, dora string }{
 		{"4m", "5m"}, {"1p", "2p"}, {"1s", "2s"}, {"9m", "1m"}, {"2z", "3z"}, {"4z", "1z"}, {"5z", "6z"}, {"7z", "5z"},
 	} {
-		if got := indicatorToDora(kindOf(t, tc.indicator)); got != kindOf(t, tc.dora) {
-			t.Errorf("indicatorToDora(%s) = %d, want %s", tc.indicator, got, tc.dora)
-		}
+		t.Run(tc.indicator, func(t *testing.T) {
+			if got := indicatorToDora(kindOf(t, tc.indicator)); got != kindOf(t, tc.dora) {
+				t.Errorf("indicatorToDora(%s) = %d, want %s", tc.indicator, got, tc.dora)
+			}
+		})
 	}
 }
 
@@ -28,8 +30,10 @@ func TestCountDoraForHand_WhenIndicatorsPointToHeldKinds_ShouldCountEachTileOnce
 		{"133m456p789s11z", mustTiles(t, "22m"), 4},
 		{"133m456p789s11z", slices.Concat(mustTiles(t, "2m"), mustTiles(t, "3p")), 3},
 	} {
-		if got := countDoraForHand(countsOf(t, tc.mpsz), tc.indicators); got != tc.want {
-			t.Errorf("countDoraForHand(%s, %v) = %d, want %d", tc.mpsz, tc.indicators, got, tc.want)
-		}
+		t.Run(tc.mpsz, func(t *testing.T) {
+			if got := countDoraForHand(countsOf(t, tc.mpsz), tc.indicators); got != tc.want {
+				t.Errorf("countDoraForHand(%s, %v) = %d, want %d", tc.mpsz, tc.indicators, got, tc.want)
+			}
+		})
 	}
 }

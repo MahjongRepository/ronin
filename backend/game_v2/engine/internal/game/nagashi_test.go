@@ -39,6 +39,7 @@ func nagashiWall(
 	isForced := func(id tile.TileID) bool {
 		return slices.ContainsFunc(forced, func(f forcedDraw) bool { return f.id == id })
 	}
+
 	var terminals, simples []tile.TileID
 	for _, free := range w.UnplacedTiles() {
 		switch {
@@ -54,10 +55,12 @@ func nagashiWall(
 		if len(*tiles) == 0 {
 			t.Fatal("no free tile is left for a draw")
 		}
+
 		last := (*tiles)[len(*tiles)-1]
 		*tiles = (*tiles)[:len(*tiles)-1]
 		return last
 	}
+
 	var drawnOnce [tile.SeatCount]bool
 	for index := range wall.LiveTilesAtDeal {
 		drawer := seatOfDraw(index)
@@ -75,6 +78,7 @@ func nagashiWall(
 			w.Draws = append(w.Draws, pop(&terminals))
 		}
 	}
+
 	return w
 }
 
@@ -89,6 +93,7 @@ func playOut(t *testing.T, g game.Game) []play.Emitted {
 			events = append(events, batch...)
 		}
 	}
+
 	return events
 }
 
@@ -98,6 +103,7 @@ func exhaustiveDraw(t *testing.T, events []play.Emitted) play.ExhaustiveDraw {
 	if !ok {
 		t.Fatalf("result = %+v, want an exhaustive draw", roundResult(t, events))
 	}
+
 	return draw
 }
 
@@ -106,6 +112,7 @@ func nagashiSeats(draw play.ExhaustiveDraw) []tile.Seat {
 	for i, river := range draw.Nagashi {
 		seats[i] = river.Seat
 	}
+
 	return seats
 }
 
@@ -163,7 +170,6 @@ func TestNagashiMangan_WhenASimpleIsDiscarded_ShouldNotQualify(t *testing.T) {
 	w := nagashiWall(t, notenHands(t), []forcedDraw{simple}, []tile.Seat{seat(t, 0), seat(t, 2)}, inSeatOrder)
 
 	events := playOut(t, begun(t, w, noStart()))
-
 	assertEqual(t, "nagashi", nagashiSeats(exhaustiveDraw(t, events)), []tile.Seat{seat(t, 2)})
 }
 
@@ -175,6 +181,7 @@ func TestNagashiMangan_WhenADiscardWasClaimed_ShouldNotQualify(t *testing.T) {
 		if index == 0 {
 			return seat(t, 0)
 		}
+
 		return inSeatOrder(index + 1)
 	}
 	w := nagashiWall(t, hands, []forcedDraw{claimedEast}, []tile.Seat{seat(t, 0), seat(t, 2)}, dealerFirst)
@@ -183,7 +190,6 @@ func TestNagashiMangan_WhenADiscardWasClaimed_ShouldNotQualify(t *testing.T) {
 	g, _ = script(t, g, act(seat(t, 1), firstPon(t, g, seat(t, 1))), act(seat(t, 1), play.DiscardAction(tileOf(t, 1, "8p"))))
 
 	events := playOut(t, g)
-
 	assertEqual(t, "nagashi", nagashiSeats(exhaustiveDraw(t, events)), []tile.Seat{seat(t, 2)})
 }
 
@@ -196,6 +202,7 @@ func TestNagashiMangan_WhenTheSeatCalledAnothersTile_ShouldStillQualify(t *testi
 		if index < tile.SeatCount {
 			return inSeatOrder(index)
 		}
+
 		return inSeatOrder(index + 1)
 	}
 	w := nagashiWall(t, hands, forced, []tile.Seat{seat(t, 0)}, firstGoAroundThenFromSeatOne)
@@ -243,6 +250,7 @@ func discardsOf(events []play.Emitted, discarder tile.Seat) []play.RiverTile {
 			river = append(river, play.RiverTile{Tile: d.Tile, Tsumogiri: d.Tsumogiri, Riichi: d.Riichi})
 		}
 	}
+
 	return river
 }
 
@@ -254,6 +262,7 @@ func TestExhaustiveDraw_WhenTheNagashiManganSeatDeclaredRiichi_ShouldShowItsRive
 		if len(awaitedSeats(g)) == 0 {
 			t.Fatal("the round ended before seat 0's turn")
 		}
+
 		for _, awaited := range awaitedSeats(g) {
 			action, _ := g.DefaultAction(awaited)
 			var batch []play.Emitted
@@ -261,10 +270,12 @@ func TestExhaustiveDraw_WhenTheNagashiManganSeatDeclaredRiichi_ShouldShowItsRive
 			events = append(events, batch...)
 		}
 	}
+
 	riichiDiscard, ok := testkit.Drawn(g)
 	if !ok {
 		t.Fatal("seat 0's turn follows no draw")
 	}
+
 	g, declared := script(t, g, act(seat(t, 0), play.RiichiAction(riichiDiscard)))
 	events = append(events, declared...)
 
@@ -279,6 +290,7 @@ func TestExhaustiveDraw_WhenTheNagashiManganSeatDeclaredRiichi_ShouldShowItsRive
 	if len(river) < 2 {
 		t.Fatalf("river = %+v, want discards after the riichi", river)
 	}
+
 	for _, discard := range river[1:] {
 		if !discard.Tsumogiri || discard.Riichi {
 			t.Errorf("discard after the riichi = %+v, want a plain tsumogiri", discard)

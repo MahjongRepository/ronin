@@ -23,6 +23,7 @@ func TurnDiscards(
 			discards = append(discards, held)
 		}
 	}
+
 	return discards
 }
 
@@ -48,6 +49,7 @@ func meldedTiles(melds []play.MeldView) []tile.TileID {
 	for _, view := range melds {
 		tiles = append(tiles, view.Tiles...)
 	}
+
 	return tiles
 }
 

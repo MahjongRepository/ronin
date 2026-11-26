@@ -21,8 +21,10 @@ func with(m wire.Map, k wire.Key, v wire.Value) wire.Map {
 		if f.Key == k {
 			f.Value = v
 		}
+
 		edited = append(edited, f)
 	}
+
 	return edited
 }
 
@@ -51,7 +53,6 @@ func TestLoad_WhenTheGameStartIsNotOfThisServersRules_ShouldRefuseItsRecord(t *t
 			}
 
 			_, err = replay.Load(content)
-
 			if got, ok := errors.AsType[replay.LoadError](err); !ok || got.Record != 2 {
 				t.Errorf("Load error = %v, want a LoadError at record 2", err)
 			}
@@ -74,6 +75,7 @@ func TestLoad_WhenARonRobsAClosedKan_ShouldNameTheKanByTheRobbedCopy(t *testing.
 		if err != nil {
 			t.Fatalf("EventPayload(%T) error = %v", event, err)
 		}
+
 		records = append(records, record)
 	}
 

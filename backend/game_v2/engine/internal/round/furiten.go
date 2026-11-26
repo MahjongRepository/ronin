@@ -24,6 +24,7 @@ func (r *Round) waits(seat tile.Seat) tile.Kinds {
 	if !held.waitsUntilHandMoves.OK {
 		held.waitsUntilHandMoves = play.Some(hand.Waits(countsOf(held.view()), countsOf(r.meldedTiles(seat))))
 	}
+
 	return held.waitsUntilHandMoves.Value
 }
 
@@ -36,6 +37,7 @@ func (r *Round) shownFuriten(seat tile.Seat) bool {
 	if r.hands[seat.Index()].count%3 == drawnHandRemainder {
 		return furiten.Shown || furiten.BlocksRon()
 	}
+
 	river := r.rivers[seat.Index()]
 	return furiten.BlocksRon() || (len(river) > 0 && offer.IsDiscardFuriten(r.waits(seat), river))
 }
@@ -49,6 +51,7 @@ func (r *Round) endsOnceItsPromptPasses() bool {
 	for _, seat := range tile.Seats() {
 		lastRiichi = lastRiichi && (r.InRiichi(seat) || r.undepositedRiichi.Value == seat)
 	}
+
 	return r.LiveTiles() == 0 || r.isFourKans() || lastRiichi
 }
 
@@ -69,5 +72,6 @@ func (r *Round) ReportFuriten() []play.Emitted {
 			events = append(events, toSeat(seat, play.FuritenChanged{Seat: seat, Furiten: furiten}))
 		}
 	}
+
 	return events
 }

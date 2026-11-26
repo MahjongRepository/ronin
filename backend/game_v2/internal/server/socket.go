@@ -55,6 +55,7 @@ func (s *Server) serveSocket(w http.ResponseWriter, r *http.Request) {
 		s.log.Info(logAcceptFailed, "game_id", gameID, "error", err)
 		return
 	}
+
 	ws.SetReadLimit(wire.MaxMessageBytes)
 
 	conn := newConnection(ws, gameID, s)
@@ -109,9 +110,11 @@ func (s *Server) readMessages(ctx context.Context, conn *connection) websocket.S
 		if err != nil {
 			return websocket.CloseStatus(err)
 		}
+
 		if !rd.handleFrame(typ, data) {
 			return noCloseStatus
 		}
+
 		if readBuffer.Cap() > maxIdleReadBufferCapacity {
 			readBuffer = bytes.Buffer{}
 		}
@@ -124,6 +127,7 @@ func readFrame(ctx context.Context, ws *websocket.Conn, readBuffer *bytes.Buffer
 	if err != nil {
 		return 0, nil, err
 	}
+
 	_, err = readBuffer.ReadFrom(r)
 	return typ, readBuffer.Bytes(), err
 }
@@ -145,6 +149,7 @@ func (rd *reader) handleFrame(typ websocket.MessageType, data []byte) (keepReadi
 	if errorType != "" {
 		return rd.strike(received, errorType)
 	}
+
 	rd.strikes = 0
 
 	if !rd.budget.take(received) {
@@ -155,6 +160,7 @@ func (rd *reader) handleFrame(typ websocket.MessageType, data []byte) (keepReadi
 		))
 		return true
 	}
+
 	if rd.answeredBeforeRouting(m, received) {
 		return true
 	}
@@ -168,10 +174,12 @@ func decodeFrame(typ websocket.MessageType, data []byte) (wire.Map, string) {
 	if typ != websocket.MessageBinary {
 		return nil, textFrameErrorType
 	}
+
 	m, err := wire.Decode(data)
 	if err != nil {
 		return nil, msgpackErrorType
 	}
+
 	return m, ""
 }
 
@@ -190,6 +198,7 @@ func (rd *reader) strike(at time.Time, errorType string) bool {
 	if rd.strikes < rd.s.cfg.Socket.MaxDecodeErrors {
 		return true
 	}
+
 	rd.conn.log.Info(logTooManyDecodes)
 	rd.conn.Close(closeTooManyDecodes, decodeErrorsReason)
 	return false
@@ -205,10 +214,12 @@ func (rd *reader) answeredBeforeRouting(m wire.Map, at time.Time) bool {
 		if rd.resyncs.take(at) {
 			return false
 		}
+
 		rd.s.stats.rateLimited.Add(1)
 		rd.s.send(rd.conn, messaging.SessionError(messaging.SessionRateLimited, tooManyResyncs, play.Option[int]{}))
 		return true
 	}
+
 	return false
 }
 

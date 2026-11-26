@@ -22,6 +22,7 @@ func NotenWall() (StartWall, error) {
 	for i := range w.Hands {
 		w.Hands[i] = b.copies(i, "1357m2468p13579s")
 	}
+
 	return w, b.err
 }
 
@@ -55,9 +56,9 @@ func DealerCallFromSeatThree(
 	g, err := BegunGame(w, play.Option[play.StartPosition]{})
 	g, _, drawnErr := DiscardDrawn(g, 3)
 	g, _, scriptErr := Script(g,
-		SeatAction{seats[3], play.DiscardAction(called)},
-		SeatAction{seats[0], call},
-		SeatAction{seats[0], play.DiscardAction(discardAfterCall)},
+		SeatAction{Seat: seats[3], Action: play.DiscardAction(called)},
+		SeatAction{Seat: seats[0], Action: call},
+		SeatAction{Seat: seats[0], Action: play.DiscardAction(discardAfterCall)},
 	)
 	return g, errors.Join(b.err, err, drawnErr, scriptErr)
 }

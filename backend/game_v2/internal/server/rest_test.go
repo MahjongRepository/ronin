@@ -28,7 +28,6 @@ func TestHealth_ShouldAnswerOKWithVersionAndCommit(t *testing.T) {
 	h := newHarness(t)
 
 	got := h.get("/health")
-
 	want := map[string]any{"status": "ok", "version": testVersion, "commit": testCommit}
 	if got.status != http.StatusOK || !cmp.Equal(got.body, want) {
 		t.Errorf("GET /health = %d %v, want 200 %v", got.status, got.body, want)
@@ -43,16 +42,19 @@ func telegrafFields(t *testing.T) []string {
 	if err != nil {
 		t.Fatalf("read telegraf.conf: %v", err)
 	}
+
 	match := telegrafGameStatus.FindSubmatch(conf)
 	if match == nil {
 		t.Fatal("telegraf.conf has no game_status fieldinclude")
 	}
+
 	var fields []string
 	for item := range strings.SplitSeq(string(match[1]), ",") {
 		if name := strings.Trim(strings.TrimSpace(item), `"`); name != "" {
 			fields = append(fields, name)
 		}
 	}
+
 	return fields
 }
 
@@ -74,11 +76,13 @@ func TestStatus_ShouldCarryTheTelegrafFieldsAndOnlyTheLobbysOthers(t *testing.T)
 	if want := []string{"capacity_used", "commit", "max_capacity", "status", "version"}; !cmp.Equal(unlisted, want) {
 		t.Errorf("/status keys outside the Telegraf allow-list = %v, want %v", unlisted, want)
 	}
+
 	for _, field := range listed {
 		if _, ok := status[field]; !ok {
 			t.Errorf("/status lacks the Telegraf field %s", field)
 		}
 	}
+
 	startedAt := counter(t, status, "started_at")
 	if float64(startedAt) != status["started_at"] || time.Since(time.Unix(int64(startedAt), 0)) > time.Minute {
 		t.Errorf("/status started_at = %v, want the process start in whole epoch seconds", status["started_at"])
@@ -107,7 +111,6 @@ func TestCreateGame_WhenBodyValid_ShouldAnswer201Pending(t *testing.T) {
 	h := newHarness(t)
 
 	got := h.postGame(gameBody(testGameID, "alice", strings.Repeat("あ", 50)))
-
 	want := map[string]any{"game_id": testGameID, "status": "pending"}
 	if got.status != http.StatusCreated || !cmp.Equal(got.body, want) {
 		t.Errorf("POST /games = %d %v, want 201 %v", got.status, got.body, want)
@@ -174,11 +177,13 @@ func TestPlayingGames_WhenOneFixedSeatGameStartedAndOnePending_ShouldListTheStar
 	if dealer, _, _ := engine.FirstDealer(seed); dealer.Index() != 3 || engine.SeatPermutation(seed)[0].Index() == 3 {
 		t.Fatalf("seed deals from seat %d and shuffles alice to %v, want a dealer the shuffle would not seat her at", dealer.Index(), engine.SeatPermutation(seed)[0])
 	}
+
 	h := newHarness(t, withSeed(seed))
 	fixed := map[string]any{"game_id": testGameID, "num_ai_players": 3, "players": gameBody(testGameID, "alice").Players, "fixed_seats": true}
 	if got := h.postGame(fixed); got.status != http.StatusCreated {
 		t.Fatalf("POST /games with fixed seats = %d %v, want 201", got.status, got.body)
 	}
+
 	ws := h.joinAlice()
 	readUntil(t, ws, isGameStarted)
 	if got := h.postGame(gameBody("game-0002", "bob")); got.status != http.StatusCreated {
@@ -192,11 +197,13 @@ func TestPlayingGames_WhenOneFixedSeatGameStartedAndOnePending_ShouldListTheStar
 	if len(games) != 1 {
 		t.Fatalf("GET /games = %d %v, want the one started game", listed.status, listed.body)
 	}
+
 	game, _ := games[0].(map[string]any)
 	startedAt, _ := game["started_at"].(float64)
 	if age := time.Since(time.UnixMicro(int64(startedAt * 1e6))); age < 0 || age > time.Minute {
 		t.Errorf("GET /games started_at = %v, want the start in epoch seconds", game["started_at"])
 	}
+
 	delete(game, "started_at")
 	want := []any{map[string]any{
 		"game_id":   testGameID,
@@ -245,15 +252,18 @@ func (h *harness) observe(from int) observed {
 	if got.status != http.StatusOK || got.header.Get("Content-Type") != "application/msgpack" {
 		h.t.Fatalf("GET observe from %d = %d %q %q, want 200 msgpack", from, got.status, got.header.Get("Content-Type"), got.text)
 	}
+
 	fields, err := wire.DecodeStrMap([]byte(got.text))
 	if err != nil {
 		h.t.Fatalf("decode the observe answer from %d: %v", from, err)
 	}
+
 	raw, _ := fields.Get("records")
 	content, ok := raw.(wire.Bin)
 	if !ok {
 		h.t.Fatalf("observe answer records = %T, want bin", raw)
 	}
+
 	var records []wire.Map
 	if len(content) > 0 {
 		records, err = wire.DecodeRecords(content)
@@ -261,6 +271,7 @@ func (h *harness) observe(from int) observed {
 			h.t.Fatalf("decode the observed records from %d: %v", from, err)
 		}
 	}
+
 	return observed{fields: fields, records: records}
 }
 
@@ -271,6 +282,7 @@ func (o observed) number(t *testing.T, key string) int {
 	if !ok {
 		t.Fatalf("observe answer %s = %v, want an int", key, v)
 	}
+
 	return int(n)
 }
 
@@ -281,14 +293,17 @@ func (o observed) stamps(t *testing.T) []int {
 	if !ok {
 		t.Fatalf("observe answer stamps = %v, want an array", v)
 	}
+
 	stamps := make([]int, 0, len(values))
 	for _, value := range values {
 		stamp, ok := value.(wire.Int)
 		if !ok {
 			t.Fatalf("observe answer stamp = %v, want an int", value)
 		}
+
 		stamps = append(stamps, int(stamp))
 	}
+
 	return stamps
 }
 
@@ -307,6 +322,7 @@ func versionRecords(records []wire.Map) int {
 			count++
 		}
 	}
+
 	return count
 }
 
@@ -335,6 +351,7 @@ func TestObserveGame_WhenPolledAcrossTheDelay_ShouldServeOldRecordsOnceVersioned
 			t.Errorf("observe during the delay = %v, want no records or stamps, next 0, the wait left and a cutoff before the start", poll.fields)
 		}
 	}
+
 	startedAt := time.UnixMilli(int64(early.number(t, "started_at")))
 	if age := time.Since(startedAt); age < 0 || age > time.Minute {
 		t.Errorf("observe started_at = %v, want the start in Unix milliseconds", startedAt)
@@ -357,6 +374,7 @@ func TestObserveGame_WhenPolledAcrossTheDelay_ShouldServeOldRecordsOnceVersioned
 	if len(delta.records) == 0 || versionRecords(delta.records) != 0 {
 		t.Fatalf("observed delta = %v, want bob's leave and no version record", delta.records)
 	}
+
 	checkStamps(t, first, len(first.records)-1)
 	checkStamps(t, delta, len(delta.records))
 	if slices.Min(delta.stamps(t)) < 30_000 || delta.number(t, "cutoff_ms") < 31_000 {
@@ -366,14 +384,22 @@ func TestObserveGame_WhenPolledAcrossTheDelay_ShouldServeOldRecordsOnceVersioned
 	if seeded(first.records) || seeded(delta.records) {
 		t.Errorf("an observed record holds the seed")
 	}
+}
+
+func TestObserveGame_WhenTheRequestIsRefused_ShouldAnswerNotFoundUnauthorizedOrBadRequest(t *testing.T) {
+	h := newHarness(t, withObserving(&shiftedClock{}, time.Minute))
+	h.create("alice")
+
 	if gone := h.internal(http.MethodGet, "/games/game-9999/observe"); gone.status != http.StatusNotFound {
 		t.Errorf("GET observe of an unknown game = %d, want 404", gone.status)
 	}
+
 	refused := h.get("/games/" + testGameID + "/observe")
 	if refused.status != http.StatusUnauthorized || refused.header.Get("Cache-Control") != "no-store" {
 		t.Errorf("GET observe without the secret = %d, Cache-Control %q, want 401 no-store",
 			refused.status, refused.header.Get("Cache-Control"))
 	}
+
 	if negative := h.internal(http.MethodGet, "/games/"+testGameID+"/observe?from=-1"); negative.status != http.StatusBadRequest {
 		t.Errorf("GET observe from -1 = %d, want 400", negative.status)
 	}
@@ -384,7 +410,6 @@ func TestCreateGame_WhenIDTaken_ShouldAnswer409(t *testing.T) {
 	h.create("alice")
 
 	got := h.postGame(gameBody(testGameID, "bob"))
-
 	if got.status != http.StatusConflict || got.body["error"] != "Game with this ID already exists" {
 		t.Errorf("POST /games = %d %v, want 409 for the taken id", got.status, got.body)
 	}
@@ -395,7 +420,6 @@ func TestCreateGame_WhenAPlayerIsAlreadyPlaying_ShouldAnswer409(t *testing.T) {
 	h.create("alice")
 
 	got := h.postGame(gameBody("game-0002", "alice"))
-
 	if got.status != http.StatusConflict || got.body["error"] != "Player already in a game" {
 		t.Errorf("POST /games = %d %v, want 409 for the playing player", got.status, got.body)
 	}
@@ -406,7 +430,6 @@ func TestCreateGame_WhenAtCapacity_ShouldAnswer503(t *testing.T) {
 	h.create("alice")
 
 	got := h.postGame(gameBody("game-0002", "bob"))
-
 	if got.status != http.StatusServiceUnavailable || got.body["error"] != "Server at capacity" {
 		t.Errorf("POST /games = %d %v, want 503", got.status, got.body)
 	}
@@ -416,7 +439,6 @@ func TestCreateGame_WhenBodyOversized_ShouldAnswer413(t *testing.T) {
 	h := newHarness(t)
 
 	got := h.request(http.MethodPost, "/games", bytes.NewReader(bytes.Repeat([]byte(" "), 4097)), nil)
-
 	if got.status != http.StatusRequestEntityTooLarge {
 		t.Errorf("POST /games status = %d, want 413", got.status)
 	}
@@ -427,7 +449,6 @@ func TestWithdrawGame_WhenNobodyJoined_ShouldAnswer204AndRefuseTheID(t *testing.
 	h.create("alice")
 
 	got := h.internal(http.MethodDelete, "/games/"+testGameID)
-
 	if got.status != http.StatusNoContent {
 		t.Errorf("DELETE /games/%s status = %d, want 204", testGameID, got.status)
 	}
@@ -442,7 +463,6 @@ func TestWithdrawGame_WhenAPlayerJoined_ShouldAnswer409AndKeepIt(t *testing.T) {
 	h.joinAlice()
 
 	got := h.internal(http.MethodDelete, "/games/"+testGameID)
-
 	if got.status != http.StatusConflict || got.body["error"] != "Game already joined" {
 		t.Errorf("DELETE /games/%s = %d %v, want 409", testGameID, got.status, got.body)
 	}
@@ -453,7 +473,6 @@ func TestWithdrawGame_WhenCallerLacksTheInternalSecret_ShouldAnswer401(t *testin
 	h.create("alice")
 
 	got := h.request(http.MethodDelete, "/games/"+testGameID, nil, map[string]string{"Authorization": "Bearer wrong"})
-
 	if got.status != http.StatusUnauthorized {
 		t.Errorf("DELETE /games/%s status = %d, want 401", testGameID, got.status)
 	}
@@ -467,7 +486,6 @@ func TestPlayerGame_WhenUserPlays_ShouldAnswerTheGameAndOtherwise404(t *testing.
 	h.create("alice")
 
 	playing, idle := h.get("/players/user-alice"), h.get("/players/user-bob")
-
 	if playing.status != http.StatusOK || !cmp.Equal(playing.body, map[string]any{"game_id": testGameID}) {
 		t.Errorf("GET /players/user-alice = %d %v, want 200 with the game", playing.status, playing.body)
 	}
@@ -482,7 +500,6 @@ func TestPlayerGameSession_WhenCallerIsInternal_ShouldAnswerTheTicketUncached(t 
 	h.postGame(body)
 
 	got := h.internal(http.MethodGet, "/players/user-alice/game-session")
-
 	want := map[string]any{"game_id": testGameID, "game_ticket": body.Players[0].Ticket}
 	if got.status != http.StatusOK || !cmp.Equal(got.body, want) {
 		t.Errorf("GET game-session = %d %v, want 200 %v", got.status, got.body, want)
@@ -497,7 +514,6 @@ func TestPlayerGameSession_WhenCallerLacksTheInternalSecret_ShouldAnswer401Witho
 	h.create("alice")
 
 	got := h.get("/players/user-alice/game-session")
-
 	if got.status != http.StatusUnauthorized || got.body["game_ticket"] != nil {
 		t.Errorf("GET game-session = %d %v, want 401 without a ticket", got.status, got.body)
 	}
@@ -510,7 +526,6 @@ func TestCORS_WhenOriginAllowed_ShouldLetItReadTheAnswer(t *testing.T) {
 	h := newHarness(t)
 
 	got := h.request(http.MethodGet, "/health", nil, map[string]string{"Origin": lobbyOrigin})
-
 	if got.header.Get("Access-Control-Allow-Origin") != lobbyOrigin || got.header.Get("Vary") != "Origin" {
 		t.Errorf("CORS headers = %v, want the lobby origin allowed", got.header)
 	}

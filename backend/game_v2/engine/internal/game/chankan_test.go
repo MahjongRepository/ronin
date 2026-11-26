@@ -67,11 +67,13 @@ func threePinPonnedBySeatTwo(t *testing.T, w testkit.StartWall, seatZeroOpening 
 	if !slices.Contains(pending, seat(t, 2)) {
 		t.Fatalf("awaited seats = %v, want seat 2 among them", pending)
 	}
+
 	for _, other := range pending {
 		if other != seat(t, 2) {
 			g, _ = script(t, g, act(other, play.PassAction()))
 		}
 	}
+
 	g, _ = script(t, g,
 		act(seat(t, 2), firstPon(t, g, seat(t, 2))),
 		act(seat(t, 2), play.DiscardAction(seatTwoDiscardAfterPon(t))),
@@ -122,6 +124,7 @@ func ronResult(t *testing.T, events []play.Emitted) play.Ron {
 	if !ok {
 		t.Fatalf("result = %+v, want a ron", roundResult(t, events))
 	}
+
 	return ron
 }
 
@@ -129,7 +132,6 @@ func TestChankan_WhenNoSeatWaitsOnTheTile_ShouldNotBePossible(t *testing.T) {
 	waitingOnFourAndSevenPin := copies(t, 0, "123456789m5677p")
 
 	g, events := kanAfterGoAround(t, waitingOnFourAndSevenPin, chankanBystander(t, 3))
-
 	assertKanStoodUnrobbed(t, g, events)
 }
 
@@ -140,7 +142,6 @@ func TestChankan_WhenTheWaitingSeatIsInDiscardFuriten_ShouldNotBePossible(t *tes
 	g, _ := discardDrawn(t, threePinPonnedBySeatTwo(t, w, play.DiscardAction), 3)
 
 	g, events := addedThreePinKan(t, g)
-
 	assertKanStoodUnrobbed(t, g, events)
 }
 
@@ -167,7 +168,6 @@ func TestChankan_WhenTheWaitingSeatIsInRiichiFuriten_ShouldNotBePossible(t *test
 	g, _ := discardDrawn(t, threePinPonnedBySeatTwo(t, w, play.RiichiAction), 3)
 
 	g, events := addedThreePinKan(t, g)
-
 	assertKanStoodUnrobbed(t, g, events)
 }
 
@@ -180,13 +180,11 @@ func TestChankan_WhenTheWaitingSeatIsInTemporaryFuriten_ShouldNotBePossible(t *t
 	g, _ = script(t, g, act(seat(t, 3), play.PassAction()))
 
 	g, events := addedThreePinKan(t, g)
-
 	assertKanStoodUnrobbed(t, g, events)
 }
 
 func TestAddedKan_WhenASeatMayRobIt_ShouldPromptTheChankan(t *testing.T) {
 	g, events := kanAfterGoAround(t, chankanBystander(t, 2), otherPenchanOnThreePin(t))
-
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"called"})
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{threePinAddedKan(t)})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 3)))
@@ -208,7 +206,6 @@ func TestChankan_WhenARiichiSeatRobsTheAddedKanWithinIppatsu_ShouldKeepIppatsu(t
 	g, declared := addedThreePinKan(t, g)
 
 	_, events := script(t, g, act(seat(t, 0), play.RonAction()))
-
 	assertEqual(t, "yaku", firstWin(t, events).Yaku,
 		[]play.YakuID{play.YakuRiichi, play.YakuIppatsu, play.YakuChankan, play.YakuIttsu})
 	assertEqual(t, "dora", testkit.DoraReveals(slices.Concat(declared, events)), []tile.TileID(nil))
@@ -228,7 +225,6 @@ func TestChankan_WhenTheRobbedAddedKanFollowsAnOpenKanWithItsDoraPending_ShouldR
 	g, robbed := addedThreePinKan(t, g)
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 3)))
 	_, events := script(t, g, act(seat(t, 3), play.RonAction()))
-
 	assertEqual(t, "dora", testkit.DoraReveals(slices.Concat(robbed, events)), []tile.TileID(nil))
 	win := firstWin(t, events)
 	assertEqual(t, "winner and loser", [2]any{win.Winner, win.Loser}, [2]any{seat(t, 3), play.Some(seat(t, 2))})
@@ -292,7 +288,6 @@ func openYakulessWaitRobsFourManAddedKan(t *testing.T) (game.Game, []tile.Seat) 
 
 func TestChankan_WhenAnOpenHandHasNoYakuButChankan_ShouldBePossible(t *testing.T) {
 	g, _ := openYakulessWaitRobsFourManAddedKan(t)
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 1)))
 	assertEqual(t, "offers", g.LegalActions(seat(t, 1)), []play.Action{play.RonAction(), play.PassAction()})
 }
@@ -337,7 +332,6 @@ func closedOneManKan(t *testing.T) testkit.SeatAction {
 
 func TestKokushiChankan_WhenKokushiWaitsOnTheClosedKanTile_ShouldPromptTheRobbery(t *testing.T) {
 	g, events := script(t, oneManQuadAfterDraw(t, kokushiOnOneMan(t), tileOf(t, 0, "7s")), closedOneManKan(t))
-
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"called"})
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{oneManClosedKan(t)})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 1)))
@@ -361,7 +355,6 @@ func TestKokushiChankan_WhenTheTenpaiHandIsNotKokushi_ShouldNotRobTheClosedKan(t
 	}
 
 	g, events := script(t, begun(t, w, noStart()), closedOneManKan(t))
-
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 0)))
 	called := testkit.CalledMelds(events)
 	if len(called) != 1 || called[0].Seat != seat(t, 0) || called[0].Meld.Kind != play.MeldClosedKan {
@@ -376,7 +369,6 @@ func TestClosedKan_WhenKokushiMayRobItAndDeclines_ShouldCompleteTheKan(t *testin
 	assertEqual(t, "prompted dora", testkit.DoraReveals(prompted), []tile.TileID(nil))
 
 	g, declined := script(t, g, act(seat(t, 1), play.PassAction()))
-
 	assertEqual(t, "kinds", testkit.EventKinds(declined),
 		[]string{"dora_revealed", "drew", "drew", "drew", "drew", "furiten_changed"})
 	assertEqual(t, "dora", testkit.DoraReveals(declined), []tile.TileID{kanDora})
@@ -391,7 +383,6 @@ func TestChankan_WhenTheAddedKanIsRobbed_ShouldAnnounceTheKanThenEndTheRoundWith
 	assertOwnership(t, g)
 
 	g, robbed := script(t, g, act(seat(t, 3), play.RonAction()))
-
 	assertEqual(t, "kinds", testkit.EventKinds(robbed), []string{"round_ended"})
 	ron := ronResult(t, robbed)
 	assertEqual(t, "discarder", ron.Discarder, seat(t, 2))
@@ -408,7 +399,6 @@ func TestChankan_WhenEveryRobberPasses_ShouldLetTheAddedKanStandWithItsRinshanDr
 	assertEqual(t, "declared", testkit.CalledMelds(declared), []play.Called{threePinAddedKan(t)})
 
 	g, passed := script(t, g, act(seat(t, 3), play.PassAction()))
-
 	assertEqual(t, "melds", testkit.CalledMelds(passed), []play.Called(nil))
 	assertEqual(t, "dora", testkit.DoraReveals(passed), []tile.TileID(nil))
 	assertEqual(t, "kinds", testkit.EventKinds(passed)[:4], []string{"drew", "drew", "drew", "drew"})
@@ -416,7 +406,6 @@ func TestChankan_WhenEveryRobberPasses_ShouldLetTheAddedKanStandWithItsRinshanDr
 	assertOwnership(t, g)
 
 	_, discarded := discardDrawn(t, g, 1)
-
 	assertEqual(t, "discard kinds", testkit.EventKinds(discarded)[:2], []string{"discarded", "dora_revealed"})
 	assertEqual(t, "dora count", len(testkit.DoraReveals(discarded)), 1)
 }
@@ -429,7 +418,6 @@ func TestKokushiChankan_WhenTheClosedKanIsRobbed_ShouldAnnounceTheKanThenEndTheR
 	assertOwnership(t, g)
 
 	g, robbed := script(t, g, act(seat(t, 1), play.RonAction()))
-
 	assertEqual(t, "kinds", testkit.EventKinds(robbed), []string{"round_ended", "game_ended"})
 	win := firstWin(t, robbed)
 	assertEqual(t, "win", [3]any{win.Winner, win.Loser, win.WinTile}, [3]any{seat(t, 1), play.Some(seat(t, 0)), oneMan[0]})
@@ -446,7 +434,6 @@ func TestChankanPrompt_WhenTheDeclarerWaitsOnItsOwnDiscard_ShouldAnnounceOnlyThe
 	g, _ := discardDrawn(t, threePinPonnedBySeatTwo(t, w, play.DiscardAction), 3)
 
 	g, declared := addedThreePinKan(t, g)
-
 	assertEqual(t, "kinds", testkit.EventKinds(declared), []string{"called"})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 3)))
 }

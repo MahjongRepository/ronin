@@ -47,6 +47,7 @@ func Load(content []byte) (Replay, error) {
 	if err != nil {
 		return Replay{}, err
 	}
+
 	if len(records) < gameStartPosition {
 		return Replay{}, LoadError{Record: gameStartPosition, Err: errors.New("the replay records no game start")}
 	}
@@ -55,15 +56,18 @@ func Load(content []byte) (Replay, error) {
 	if err != nil {
 		return Replay{}, LoadError{Record: gameStartPosition, Err: err}
 	}
+
 	r.Records = records
 
 	for i, record := range records[gameStartPosition:] {
-		actions, err := recordActions(record)
-		if err != nil {
-			return Replay{}, LoadError{Record: gameStartPosition + 1 + i, Err: err}
+		actions, actionsErr := recordActions(record)
+		if actionsErr != nil {
+			return Replay{}, LoadError{Record: gameStartPosition + 1 + i, Err: actionsErr}
 		}
+
 		r.Actions = append(namingRobbedClosedKan(r.Actions, record), actions...)
 	}
+
 	return r, nil
 }
 
@@ -82,6 +86,7 @@ func namingRobbedClosedKan(actions []SeatAction, record wire.Map) []SeatAction {
 	if !isKan || kind != play.KanClosed || named.Kind() != robbed.Kind() {
 		return actions
 	}
+
 	actions[len(actions)-1].Action = play.KanAction(play.KanClosed, robbed)
 	return actions
 }
@@ -96,10 +101,12 @@ func readGameStart(record wire.Map) (Replay, error) {
 	if gameType != wire.Int(wire.GameHanchan) {
 		return r, errors.New("the game is no hanchan")
 	}
+
 	scheme, _ := record.Get(wire.KeyRNGVersion)
 	if scheme != wire.Str(engine.RNGVersion) {
 		return r, fmt.Errorf("the game's randomness is not %s", engine.RNGVersion)
 	}
+
 	settings, _ := record.Get(wire.KeyGameSettings)
 	envelope, _ := settings.(wire.StrMap)
 	profile, _ := envelope.Get("id")
@@ -112,6 +119,7 @@ func readGameStart(record wire.Map) (Replay, error) {
 	if len(bin) != len(r.Seed) {
 		return r, errors.New("the game start holds no seed")
 	}
+
 	copy(r.Seed[:], bin)
 
 	err := readPlayers(&r, record)
@@ -132,9 +140,11 @@ func readPlayers(r *Replay, record wire.Map) error {
 		if !ok || name == "" || r.Names[s.Index()] != "" {
 			return errors.New("the game start does not name one player at each seat")
 		}
+
 		ai, _ := player.Int(wire.KeyAIPlayer)
 		r.Names[s.Index()], r.AI[s.Index()] = name, ai == 1
 	}
+
 	return nil
 }
 
@@ -153,6 +163,7 @@ func recordActions(record wire.Map) ([]SeatAction, error) {
 	case wire.EventGameStarted, wire.EventCallPrompt, wire.EventError, wire.EventFuriten, wire.EventTurn,
 		wire.EventDrawNotice:
 	}
+
 	return nil, errors.New("no replay of this server holds this record after its game start")
 }
 
@@ -162,9 +173,11 @@ func discardAction(record wire.Map) ([]SeatAction, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if move.Riichi {
 		return []SeatAction{{Seat: move.Seat, Action: play.RiichiAction(move.Tile)}}, nil
 	}
+
 	return []SeatAction{{Seat: move.Seat, Action: play.DiscardAction(move.Tile)}}, nil
 }
 
@@ -193,6 +206,7 @@ func meldAction(record wire.Map) ([]SeatAction, error) {
 	case play.MeldClosedKan:
 		action = play.KanAction(play.KanClosed, m.Tiles[0])
 	}
+
 	return []SeatAction{{Seat: m.Caller, Action: action}}, nil
 }
 
@@ -212,6 +226,7 @@ func roundEndActions(record wire.Map) ([]SeatAction, error) {
 		return abortActions(record)
 	case wire.ResultExhaustiveDraw:
 	}
+
 	return nil, nil
 }
 
@@ -241,6 +256,7 @@ func abortActions(record wire.Map) ([]SeatAction, error) {
 	case wire.AbortFourWinds, wire.AbortFourRiichi, wire.AbortFourKans:
 		return nil, nil
 	}
+
 	return nil, fmt.Errorf("unknown abort reason %q", reason)
 }
 
@@ -251,8 +267,10 @@ func declarations(action play.Action, seats []wire.Value) ([]SeatAction, error) 
 		if !ok {
 			return nil, errors.New("a round end names a seat that is none")
 		}
+
 		actions = append(actions, SeatAction{Seat: s, Action: action})
 	}
+
 	return actions, nil
 }
 
@@ -261,6 +279,7 @@ func eventOf(record wire.Map) play.Option[wire.EventType] {
 	if !ok || code < 0 || code != int(wire.EventType(code)) {
 		return play.Option[wire.EventType]{}
 	}
+
 	return play.Some(wire.EventType(code))
 }
 
@@ -278,5 +297,6 @@ func seatOf(v wire.Value) (tile.Seat, bool) {
 	if !ok {
 		return tile.Seat{}, false
 	}
+
 	return tile.NewSeat(int(n))
 }

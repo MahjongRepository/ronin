@@ -43,6 +43,7 @@ func discardedTiles(events []play.Emitted) []seatDiscard {
 			discards = append(discards, seatDiscard{d.Seat, play.RiverTile{Tile: d.Tile, Tsumogiri: d.Tsumogiri, Riichi: d.Riichi}})
 		}
 	}
+
 	return discards
 }
 
@@ -98,7 +99,6 @@ func TestSeatView_ShouldShowOnlyTheSeatsOwnHandAndDecision(t *testing.T) {
 
 func TestSeatView_ShouldShowOnlyTheSeatsOwnFuriten(t *testing.T) {
 	g, _ := script(t, threePinWithTwoRonCallers(t), act(seat(t, 0), play.PassAction()))
-
 	assertEqual(t, "passed seat's furiten", g.SeatView(seat(t, 0)).Record.Furiten, true)
 	assertEqual(t, "other caller's furiten", g.SeatView(seat(t, 3)).Record.Furiten, false)
 	assertEqual(t, "other caller's decision", g.SeatView(seat(t, 3)).Decision.OK, true)
@@ -108,13 +108,11 @@ func TestSeatView_ShouldShowOnlyTheSeatsOwnFuriten(t *testing.T) {
 
 func TestSeatView_ShouldShowTheDrawnTileOnlyToTheSeatOnItsTurn(t *testing.T) {
 	g := begun(t, hakuRiichiWall(t), noStart())
-
 	assertEqual(t, "dealer's drawn tile", g.SeatView(seat(t, 0)).Record.Drawn, play.Some(tileOf(t, 0, "1z")))
 	assertEqual(t, "other seat's drawn tile", g.SeatView(seat(t, 1)).Record.Drawn, play.Option[tile.TileID]{})
 	assertEqual(t, "latest discard", g.SeatView(seat(t, 0)).Record.LatestDiscard, play.Option[tile.Seat]{})
 
 	g, _ = script(t, g, act(seat(t, 0), play.DiscardAction(tileOf(t, 0, "9s"))))
-
 	assertEqual(t, "dealer's drawn tile after its discard", g.SeatView(seat(t, 0)).Record.Drawn, play.Option[tile.TileID]{})
 	assertEqual(t, "next seat's drawn tile", g.SeatView(seat(t, 1)).Record.Drawn, play.Some(tileOf(t, 0, "2z")))
 }
@@ -129,9 +127,11 @@ func TestSeatView_ShouldKeepHowEachDiscardFellInTheRivers(t *testing.T) {
 	for i, player := range view.Record.Players {
 		rivers[i] = player.River
 	}
+
 	river := func(first int, mpsz string, tsumogiri, riichi bool) play.RiverTile {
 		return play.RiverTile{Tile: tileOf(t, first, mpsz), Tsumogiri: tsumogiri, Riichi: riichi}
 	}
+
 	assertEqual(t, "rivers", rivers, [tile.SeatCount][]play.RiverTile{
 		{river(0, "9s", false, false), river(2, "5z", true, true)},
 		{river(0, "2z", true, false)},
@@ -253,6 +253,7 @@ func sliceArrays(v reflect.Value, into map[uintptr]bool) {
 		if v.Len() > 0 {
 			into[v.Pointer()] = true
 		}
+
 		for i := range v.Len() {
 			sliceArrays(v.Index(i), into)
 		}
@@ -277,17 +278,22 @@ func TestSeatView_ShouldShareNoSliceWithTheGame(t *testing.T) {
 	for _, c := range []struct {
 		name string
 		g    game.Game
-	}{{"after a pon", ponned}, {"after a double ron", ronned}} {
-		state := map[uintptr]bool{}
-		sliceArrays(reflect.ValueOf(c.g), state)
-		for _, s := range tile.Seats() {
-			view := map[uintptr]bool{}
-			sliceArrays(reflect.ValueOf(c.g.SeatView(s)), view)
-			for data := range view {
-				if state[data] {
-					t.Errorf("%s, seat %d: the view shares a slice with the game", c.name, s.Index())
+	}{
+		{name: "after a pon", g: ponned},
+		{name: "after a double ron", g: ronned},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			state := map[uintptr]bool{}
+			sliceArrays(reflect.ValueOf(c.g), state)
+			for _, s := range tile.Seats() {
+				view := map[uintptr]bool{}
+				sliceArrays(reflect.ValueOf(c.g.SeatView(s)), view)
+				for data := range view {
+					if state[data] {
+						t.Errorf("seat %d: the view shares a slice with the game", s.Index())
+					}
 				}
 			}
-		}
+		})
 	}
 }

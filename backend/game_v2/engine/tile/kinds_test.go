@@ -13,9 +13,11 @@ func TestKinds_WhenKindsAreAdded_ShouldHoldEachOnceLowestFirst(t *testing.T) {
 	if !empty.IsEmpty() || kinds.IsEmpty() {
 		t.Errorf("IsEmpty = %v for the empty set, %v after With", empty.IsEmpty(), kinds.IsEmpty())
 	}
+
 	if got := slices.Collect(kinds.All()); !slices.Equal(got, []tile.Kind{3, 30}) || kinds.Len() != 2 {
 		t.Errorf("All = %v, Len = %d; want [3 30], 2", got, kinds.Len())
 	}
+
 	if !kinds.Contains(3) || kinds.Contains(4) {
 		t.Errorf("Contains(3) = %v, Contains(4) = %v", kinds.Contains(3), kinds.Contains(4))
 	}
@@ -28,6 +30,7 @@ func TestKindsContains_WhenKindIsPast63_ShouldBeFalse(t *testing.T) {
 			t.Errorf("Contains(%d) = true", kind)
 		}
 	}
+
 	if !full.Contains(63) {
 		t.Error("Contains(63) = false")
 	}

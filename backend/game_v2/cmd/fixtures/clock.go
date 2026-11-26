@@ -76,6 +76,7 @@ func (c *virtualClock) takeDue(until time.Duration) (func(), bool) {
 			next = t
 		}
 	}
+
 	if next == nil {
 		return nil, false
 	}

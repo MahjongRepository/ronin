@@ -12,6 +12,7 @@ func shapeOf(index int) suitCounts {
 		suit[i] = uint8(index % 5)
 		index /= 5
 	}
+
 	return suit
 }
 
@@ -20,6 +21,7 @@ func shapeIndex(suit suitCounts) int {
 	for i := len(suit) - 1; i >= 0; i-- {
 		index = index*5 + int(suit[i])
 	}
+
 	return index
 }
 
@@ -30,11 +32,13 @@ func suitMelds() []suitCounts {
 		triplet[position] = 3
 		melds = append(melds, triplet)
 	}
+
 	for start := range kindsPerSuit - 2 {
 		var sequence suitCounts
 		sequence[start], sequence[start+1], sequence[start+2] = 1, 1, 1
 		melds = append(melds, sequence)
 	}
+
 	return melds
 }
 
@@ -47,6 +51,7 @@ func markMeldCombinations(suit suitCounts, firstMeld int, melds []suitCounts, me
 			combined[i] += melds[index][i]
 			fits = fits && combined[i] <= 4
 		}
+
 		if fits {
 			markMeldCombinations(combined, index, melds, meldsOnly)
 		}
@@ -62,6 +67,7 @@ func shapesBuiltFromMelds() (meldsOnly, meldsAndPair []bool) {
 		if !valid {
 			continue
 		}
+
 		suit := shapeOf(index)
 		for position := range suit {
 			if suit[position] <= 2 {
@@ -71,6 +77,7 @@ func shapesBuiltFromMelds() (meldsOnly, meldsAndPair []bool) {
 			}
 		}
 	}
+
 	return meldsOnly, meldsAndPair
 }
 
@@ -82,6 +89,7 @@ func TestSuitChecks_WhenEveryShapeIsBuiltFromMelds_ShouldMatchTheReference(t *te
 			validShapes++
 		}
 	}
+
 	if validShapes != 35059 {
 		t.Fatalf("reference holds %d melds-only shapes, want 35059", validShapes)
 	}
@@ -91,6 +99,7 @@ func TestSuitChecks_WhenEveryShapeIsBuiltFromMelds_ShouldMatchTheReference(t *te
 		if got := isMelds(suit); got != meldsOnly[index] {
 			t.Fatalf("isMelds(%v) = %v, want %v", suit, got, meldsOnly[index])
 		}
+
 		if got := isMeldsAndPair(suit); got != meldsAndPair[index] {
 			t.Fatalf("isMeldsAndPair(%v) = %v, want %v", suit, got, meldsAndPair[index])
 		}

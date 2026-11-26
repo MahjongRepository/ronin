@@ -29,11 +29,13 @@ func openWatchedFile(dir string, now func() time.Time) (*watchedFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create log dir %s: %w", dir, err)
 	}
+
 	w := &watchedFile{path: filepath.Join(dir, logFileName), now: now, checkedAt: now()}
 	err = w.reopen()
 	if err != nil {
 		return nil, err
 	}
+
 	return w, nil
 }
 
@@ -42,15 +44,18 @@ func (w *watchedFile) reopen() error {
 	if err != nil {
 		return fmt.Errorf("open log file %s: %w", w.path, err)
 	}
+
 	old := w.file
 	w.file = file
 	if old == nil {
 		return nil
 	}
+
 	err = old.Close()
 	if err != nil {
 		return fmt.Errorf("close moved log file %s: %w", w.path, err)
 	}
+
 	return nil
 }
 
@@ -59,10 +64,12 @@ func (w *watchedFile) reopenIfMoved() error {
 	if now.Sub(w.checkedAt) < movedCheckInterval {
 		return nil
 	}
+
 	w.checkedAt = now
 	if !w.moved() {
 		return nil
 	}
+
 	return w.reopen()
 }
 
@@ -71,6 +78,7 @@ func (w *watchedFile) moved() bool {
 	if err != nil {
 		return true
 	}
+
 	open, err := w.file.Stat()
 	return err != nil || !os.SameFile(onDisk, open)
 }
@@ -85,6 +93,7 @@ func (w *watchedFile) Write(p []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	return w.file.Write(p)
 }
 

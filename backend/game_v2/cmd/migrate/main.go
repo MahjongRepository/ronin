@@ -34,10 +34,10 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	if err != nil {
 		return exitUsage
 	}
+
 	if *dir == "" || *database == "" || flags.NArg() > 0 {
-		_, _ = io.WriteString(stderr, "migrate needs a replay directory (GAME_REPLAY_DIR or -replay-dir) "+
-			"and a database (AUTH_DATABASE_PATH or -database), and takes no arguments\n")
-		return exitUsage
+		return report(stderr, "migrate needs a replay directory (GAME_REPLAY_DIR or -replay-dir) "+
+			"and a database (AUTH_DATABASE_PATH or -database), and takes no arguments\n", exitUsage)
 	}
 
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
@@ -47,8 +47,19 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		logger.Error("migration did not complete", "error", err)
 		return exitFailed
 	}
+
 	if !ok {
 		return exitFailed
 	}
+
 	return 0
+}
+
+func report(w io.Writer, text string, code int) int {
+	_, err := io.WriteString(w, text)
+	if err != nil {
+		return exitFailed
+	}
+
+	return code
 }

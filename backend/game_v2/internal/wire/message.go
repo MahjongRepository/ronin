@@ -22,6 +22,7 @@ func keySet(includes func(Key) bool) [keyCount]bool {
 	for k := range keyCount {
 		set[k] = includes(Key(k))
 	}
+
 	return set
 }
 
@@ -42,6 +43,7 @@ func Encode(m Map) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return appendValue(nil, m), nil
 }
 
@@ -50,6 +52,7 @@ func Decode(data []byte) (Map, error) {
 	if err != nil {
 		return nil, DecodeError{Err: err}
 	}
+
 	return m, nil
 }
 
@@ -63,6 +66,7 @@ func decodeMessage(data []byte) (Map, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if d.pos != len(data) {
 		return nil, errors.New("data past the message")
 	}
@@ -71,5 +75,6 @@ func decodeMessage(data []byte) (Map, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return m, nil
 }

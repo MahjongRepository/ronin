@@ -104,6 +104,7 @@ func FromShuffle(shuffled [tile.TileIDCount]tile.TileID, dice tile.Dice, dealer 
 		s := stack((start + totalStacks - 1 - i) % totalStacks)
 		live[2*i], live[2*i+1] = s.Top, s.Bottom
 	}
+
 	return fromParts(live, dead, dice)
 }
 
@@ -113,6 +114,7 @@ func FromTiles(tiles [tile.TileIDCount]tile.TileID) (Wall, error) {
 		if seen[id.Index()] {
 			return Wall{}, DuplicateTileError{Tile: id}
 		}
+
 		seen[id.Index()] = true
 	}
 
@@ -120,6 +122,7 @@ func FromTiles(tiles [tile.TileIDCount]tile.TileID) (Wall, error) {
 	for i := range dead {
 		dead[i] = Stack{Top: tiles[LiveWallSize+i], Bottom: tiles[LiveWallSize+deadWallStacks+i]}
 	}
+
 	live := [LiveWallSize]tile.TileID(tiles[:LiveWallSize])
 	return fromParts(live, dead, tile.Dice{First: 1, Second: 1}), nil
 }
@@ -152,6 +155,7 @@ func (w *Wall) Deal(dealer tile.Seat) [tile.SeatCount][StartingHandSize]tile.Til
 	for i := range hands {
 		slices.SortFunc(hands[i][:], tile.TileID.Compare)
 	}
+
 	w.drawn = dealtTiles
 	return hands
 }
@@ -161,6 +165,7 @@ func (w *Wall) Draw() (tile.TileID, bool) {
 	if w.LiveCount() == 0 {
 		return tile.TileID{}, false
 	}
+
 	w.drawn++
 	return w.live[w.drawn-1], true
 }
@@ -169,9 +174,11 @@ func (w *Wall) DrawRinshan() (tile.TileID, error) {
 	if w.reserved == rinshanTiles {
 		return tile.TileID{}, RinshanExhaustedError{}
 	}
+
 	if w.LiveCount() == 0 {
 		return tile.TileID{}, LiveWallEmptyError{}
 	}
+
 	w.reserved++
 	return w.rinshan[w.reserved-1], nil
 }
@@ -203,6 +210,7 @@ func (w Wall) Reserve() []tile.TileID {
 	for i := range w.reserved {
 		reserve = append(reserve, w.live[LiveWallSize-1-i])
 	}
+
 	return reserve
 }
 
@@ -229,5 +237,6 @@ func (w Wall) Tiles() []tile.TileID {
 	for _, s := range w.indicators {
 		owned = append(owned, s.Top, s.Bottom)
 	}
+
 	return append(owned, w.Reserve()...)
 }

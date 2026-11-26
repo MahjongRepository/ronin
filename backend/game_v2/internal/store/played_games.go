@@ -102,6 +102,7 @@ func (db *DB) RecordStart(ctx context.Context, start GameStart) error {
 	if !written {
 		return fmt.Errorf("record game %s: %w", start.GameID, ErrGameRecorded)
 	}
+
 	return nil
 }
 
@@ -113,6 +114,7 @@ func (db *DB) RecordCompleted(ctx context.Context, start GameStart, endedAt time
 		if p.Seat < 0 || p.Seat >= len(start.Seats) {
 			return fmt.Errorf("record game %s: seat %d: %w", start.GameID, p.Seat, ErrUnknownSeat)
 		}
+
 		player := start.Seats[p.Seat]
 		standings = append(standings, standingJSON{
 			Name:       player.Name,
@@ -123,19 +125,19 @@ func (db *DB) RecordCompleted(ctx context.Context, start GameStart, endedAt time
 		})
 	}
 
-	return db.recordFinish(ctx, start, finish{endedAt, endCompleted}, new(result.RoundsPlayed), standings)
+	return db.recordFinish(ctx, start, finish{endedAt: endedAt, reason: endCompleted}, new(result.RoundsPlayed), standings)
 }
 
 // RecordAbandoned finishes the row of a game nobody connected stayed in, its standings kept in seat
 // order without scores.
 func (db *DB) RecordAbandoned(ctx context.Context, start GameStart, endedAt time.Time) error {
-	return db.recordFinish(ctx, start, finish{endedAt, endAbandoned}, nil, seatOrderStandings(start))
+	return db.recordFinish(ctx, start, finish{endedAt: endedAt, reason: endAbandoned}, nil, seatOrderStandings(start))
 }
 
 // RecordFailed finishes the row of a game ended by a server fault, its standings kept in seat order
 // without scores.
 func (db *DB) RecordFailed(ctx context.Context, start GameStart, endedAt time.Time) error {
-	return db.recordFinish(ctx, start, finish{endedAt, endError}, nil, seatOrderStandings(start))
+	return db.recordFinish(ctx, start, finish{endedAt: endedAt, reason: endError}, nil, seatOrderStandings(start))
 }
 
 func (db *DB) CloseUnfinished(ctx context.Context, endedAt time.Time) (int, error) {
@@ -150,17 +152,21 @@ func (db *DB) CloseUnfinished(ctx context.Context, endedAt time.Time) (int, erro
 		if closeErr != nil {
 			return closed, closeErr
 		}
+
 		if written {
 			closed++
 		}
 	}
+
 	return closed, nil
 }
 
 func (db *DB) closeUnfinished(ctx context.Context, row storedRow, endedAt time.Time) (bool, error) {
-	end := finish{endedAt, endError}
+	end := finish{endedAt: endedAt, reason: endError}
 	data, err := finishedData(row.data, end)
+
 	var result sql.Result
+
 	switch {
 	case err != nil:
 		db.logger.Warn("unfinished game holds unreadable data, closing only its end columns",
@@ -171,6 +177,7 @@ func (db *DB) closeUnfinished(ctx context.Context, row storedRow, endedAt time.T
 		result, err = db.conn.ExecContext(ctx, closeUnfinishedSQL,
 			columnTime(end.endedAt), string(end.reason), data, row.id)
 	}
+
 	if err != nil {
 		return false, fmt.Errorf("close unfinished game %s: %w", row.id, err)
 	}
@@ -179,6 +186,7 @@ func (db *DB) closeUnfinished(ctx context.Context, row storedRow, endedAt time.T
 	if err != nil {
 		return false, fmt.Errorf("close unfinished game %s: %w", row.id, err)
 	}
+
 	return written > 0, nil
 }
 
@@ -187,6 +195,7 @@ func finishedData(data string, end finish) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	game.EndedAt, game.EndReason, game.FinalScoreUnit = new(jsonTime(end.endedAt)), &end.reason, FinalScoreUnit
 	return encodeGame(game)
 }
@@ -206,6 +215,7 @@ func (db *DB) recordFinish(
 	if !written {
 		db.logger.Warn("game already finished, keeping its first finish", "game_id", start.GameID)
 	}
+
 	return nil
 }
 
@@ -224,6 +234,7 @@ func (db *DB) write(ctx context.Context, query string, start GameStart, end *fin
 	if err != nil {
 		return false, fmt.Errorf("record game %s: %w", start.GameID, err)
 	}
+
 	return written > 0, nil
 }
 
@@ -232,6 +243,7 @@ func seatOrderStandings(start GameStart) []standingJSON {
 	for seat, player := range start.Seats {
 		standings = append(standings, standingJSON{Name: player.Name, Seat: seat, UserID: player.UserID})
 	}
+
 	return standings
 }
 
@@ -244,9 +256,11 @@ func playedGameData(start GameStart, end *finish, roundsPlayed *int, standings [
 		Standings:      standings,
 		FinalScoreUnit: FinalScoreUnit,
 	}
+
 	if end != nil {
 		game.EndedAt, game.EndReason = new(jsonTime(end.endedAt)), &end.reason
 	}
+
 	return encodeGame(game)
 }
 
@@ -254,10 +268,12 @@ func encodeGame(game playedGameJSON) (string, error) {
 	var data bytes.Buffer
 	encoder := json.NewEncoder(&data)
 	encoder.SetEscapeHTML(false)
+
 	err := encoder.Encode(game)
 	if err != nil {
 		return "", fmt.Errorf("encode game %s: %w", game.GameID, err)
 	}
+
 	return string(bytes.TrimSuffix(data.Bytes(), []byte("\n"))), nil
 }
 
@@ -275,5 +291,6 @@ func isoformat(t time.Time, utcSuffix string) string {
 	if utc.Nanosecond()/int(time.Microsecond) != 0 {
 		layout += ".000000"
 	}
+
 	return utc.Format(layout) + utcSuffix
 }

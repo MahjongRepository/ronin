@@ -80,10 +80,12 @@ func TestParseClientMessage_WhenAGameActionIsWellFormed_ShouldCarryItsEngineActi
 			Action: messaging.GameActionConfirmRound, WaitID: 4,
 		}},
 	} {
-		got, err := messaging.ParseClientMessage(c.message)
-		if err != nil || got != c.want {
-			t.Errorf("%s: ParseClientMessage = %+v, %v; want %+v", c.name, got, err, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got, err := messaging.ParseClientMessage(c.message)
+			if err != nil || got != c.want {
+				t.Errorf("%s: ParseClientMessage = %+v, %v; want %+v", c.name, got, err, c.want)
+			}
+		})
 	}
 }
 
@@ -114,27 +116,32 @@ func TestParseClientMessage_WhenAGameActionIsMalformed_ShouldRefuseIt(t *testing
 		{"chi with a boolean held tile", gameAction(messaging.GameActionChi, tileField(40), heldField(wire.Bool(true), wire.Int(42)))},
 		{"chi with a held tile out of range", gameAction(messaging.GameActionChi, tileField(0), heldField(wire.Int(4), wire.Int(200)))},
 	} {
-		got, err := messaging.ParseClientMessage(c.message)
-		if !isInvalidMessage(err) {
-			t.Errorf("%s: ParseClientMessage = %+v, %v; want an InvalidMessageError", c.name, got, err)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got, err := messaging.ParseClientMessage(c.message)
+			if !isInvalidMessage(err) {
+				t.Errorf("%s: ParseClientMessage = %+v, %v; want an InvalidMessageError", c.name, got, err)
+			}
+		})
 	}
 }
 
 func TestParseClientMessage_WhenASessionMessageIsWellFormed_ShouldCarryItsTicket(t *testing.T) {
 	longest := strings.Repeat("é", 2000)
 	for _, c := range []struct {
+		name    string
 		message wire.Map
 		want    messaging.ClientMessage
 	}{
-		{ticketMessage(messaging.ClientReconnect, "some-ticket"), messaging.ReconnectMessage{Ticket: "some-ticket"}},
-		{ticketMessage(messaging.ClientJoinGame, longest), messaging.JoinGameMessage{Ticket: longest}},
-		{wire.Map{{Key: wire.KeyEventType, Value: wire.Int(messaging.ClientResync)}}, messaging.ResyncMessage{}},
+		{"reconnect", ticketMessage(messaging.ClientReconnect, "some-ticket"), messaging.ReconnectMessage{Ticket: "some-ticket"}},
+		{"join game", ticketMessage(messaging.ClientJoinGame, longest), messaging.JoinGameMessage{Ticket: longest}},
+		{"resync", wire.Map{{Key: wire.KeyEventType, Value: wire.Int(messaging.ClientResync)}}, messaging.ResyncMessage{}},
 	} {
-		got, err := messaging.ParseClientMessage(c.message)
-		if err != nil || got != c.want {
-			t.Errorf("ParseClientMessage(%v) = %v, %v; want %v", c.message, got, err, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got, err := messaging.ParseClientMessage(c.message)
+			if err != nil || got != c.want {
+				t.Errorf("ParseClientMessage(%v) = %v, %v; want %v", c.message, got, err, c.want)
+			}
+		})
 	}
 }
 
@@ -150,10 +157,12 @@ func TestParseClientMessage_WhenASessionMessageIsMalformedOrUnknown_ShouldRefuse
 		{"join with an empty ticket", ticketMessage(messaging.ClientJoinGame, "")},
 		{"join with a ticket over 2000 characters", ticketMessage(messaging.ClientJoinGame, strings.Repeat("a", 2001))},
 	} {
-		got, err := messaging.ParseClientMessage(c.message)
-		if !isInvalidMessage(err) {
-			t.Errorf("%s: ParseClientMessage = %v, %v; want an InvalidMessageError", c.name, got, err)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got, err := messaging.ParseClientMessage(c.message)
+			if !isInvalidMessage(err) {
+				t.Errorf("%s: ParseClientMessage = %v, %v; want an InvalidMessageError", c.name, got, err)
+			}
+		})
 	}
 }
 
@@ -169,9 +178,11 @@ func TestRefusedWaitID_ShouldReadOnlyTheWaitIDOfAGameAction(t *testing.T) {
 		{"boolean wait id", with(gameAction(messaging.GameActionPass), wire.KeyWaitID, wire.Bool(true)), 0, false},
 		{"not a game action", with(gameAction(messaging.GameActionPass), wire.KeyEventType, wire.Int(messaging.ClientResync)), 0, false},
 	} {
-		got, ok := messaging.RefusedWaitID(c.message)
-		if ok != c.ok || (ok && got != c.want) {
-			t.Errorf("%s: RefusedWaitID = %d, %v; want %d, %v", c.name, got, ok, c.want, c.ok)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := messaging.RefusedWaitID(c.message)
+			if ok != c.ok || (ok && got != c.want) {
+				t.Errorf("%s: RefusedWaitID = %d, %v; want %d, %v", c.name, got, ok, c.want, c.ok)
+			}
+		})
 	}
 }

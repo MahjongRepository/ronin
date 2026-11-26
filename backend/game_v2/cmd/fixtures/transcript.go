@@ -38,6 +38,7 @@ func (e transcriptEvent) object() wire.StrMap {
 	if e.label != "" {
 		object = append(object, wire.StrField{Key: "label", Value: wire.Str(e.label)})
 	}
+
 	return object
 }
 
@@ -63,12 +64,14 @@ func (t transcript) text() (string, error) {
 		if i > 0 {
 			b.WriteString(",\n")
 		}
+
 		b.WriteString("    ")
 		err := writeJSON(&b, e.object())
 		if err != nil {
 			return "", err
 		}
 	}
+
 	b.WriteString("\n  ]\n}\n")
 	return b.String(), nil
 }
@@ -85,6 +88,7 @@ func writeJSON(b *strings.Builder, v wire.Value) error {
 		if math.IsNaN(float64(x)) || math.IsInf(float64(x), 0) {
 			return errNotJSON
 		}
+
 		b.WriteString(pyjson.Float(float64(x)))
 	case wire.Str:
 		b.WriteString(pyjson.Quote(string(x)))
@@ -97,6 +101,7 @@ func writeJSON(b *strings.Builder, v wire.Value) error {
 	case wire.StrMap:
 		return writeStrMap(b, x)
 	}
+
 	return nil
 }
 
@@ -106,11 +111,13 @@ func writeArray(b *strings.Builder, items wire.Array) error {
 		if i > 0 {
 			b.WriteString(", ")
 		}
+
 		err := writeJSON(b, item)
 		if err != nil {
 			return err
 		}
 	}
+
 	b.WriteByte(']')
 	return nil
 }
@@ -121,6 +128,7 @@ func writeMap(b *strings.Builder, m wire.Map) error {
 	for _, f := range fields {
 		object = append(object, wire.StrField{Key: strconv.Itoa(int(f.Key)), Value: f.Value})
 	}
+
 	return writeObject(b, object)
 }
 
@@ -136,12 +144,14 @@ func writeObject(b *strings.Builder, sorted wire.StrMap) error {
 		if i > 0 {
 			b.WriteString(", ")
 		}
+
 		b.WriteString(pyjson.Quote(f.Key) + ": ")
 		err := writeJSON(b, f.Value)
 		if err != nil {
 			return err
 		}
 	}
+
 	b.WriteByte('}')
 	return nil
 }

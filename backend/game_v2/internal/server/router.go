@@ -73,6 +73,7 @@ func (r *Router) connLog(conn session.Connection) *slog.Logger {
 	if c, ok := conn.(*connection); ok {
 		return c.log
 	}
+
 	return r.log.With("game_id", conn.GameID(), "connection_id", conn.ID())
 }
 
@@ -80,6 +81,7 @@ func invalidMessageType(err error) string {
 	if invalid, ok := errors.AsType[messaging.InvalidMessageError](err); ok {
 		return invalid.Reason
 	}
+
 	return "unknown"
 }
 
@@ -95,6 +97,7 @@ func (r *Router) verifiedTicket(conn session.Connection, token string) bool {
 		r.sendTicketError(conn, "Ticket game_id mismatch")
 		return false
 	}
+
 	return true
 }
 
@@ -108,5 +111,6 @@ func sendMessage(log *slog.Logger, conn session.Connection, m wire.Map) {
 		log.Error(logEncodeFailed, "error", err)
 		return
 	}
+
 	conn.Send(data)
 }

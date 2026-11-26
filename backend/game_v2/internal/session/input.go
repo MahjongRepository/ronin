@@ -14,13 +14,16 @@ func (g *game) gameAction(conn Connection, message messaging.GameActionMessage) 
 	if p == nil {
 		return nil
 	}
+
 	if g.lifecycle == lifecyclePending {
 		sendSessionError(g.log, conn, messaging.SessionGameNotStarted, "Game has not started yet")
 		return nil
 	}
+
 	if message.Action == messaging.GameActionConfirmRound {
 		return g.confirmRound(p, message.WaitID)
 	}
+
 	if !message.Play.OK {
 		return errNoEngineAction
 	}
@@ -30,9 +33,11 @@ func (g *game) gameAction(conn Connection, message messaging.GameActionMessage) 
 		p.log.Debug(logSupersededCall, "action", actionName(action), "wait_id", message.WaitID)
 		return nil
 	}
+
 	if g.hold.held() || !g.wait.awaits(p.seat) || message.WaitID != p.decisionID {
 		return g.staleAction(p, actionName(action), message.WaitID)
 	}
+
 	if message.Called.OK && g.mismatchesOpenCall(p.seat, message.Called.Value) {
 		p.log.Warn(logCalledTileMismatch, "action", actionName(action))
 		return send(conn, messaging.CalledTileMismatch(action, message.WaitID).Payload())
@@ -41,18 +46,22 @@ func (g *game) gameAction(conn Connection, message messaging.GameActionMessage) 
 	if pick := g.m.cfg.Pick; pick != nil {
 		action = g.engine.Disguised(p.seat, action, pick)
 	}
+
 	next, events, refusal := g.engine.Act(p.seat, action)
 	if !refusal.OK {
 		g.engine = next
 		if action.AnswersCall() {
 			g.hold.until = g.hold.floor
 		}
+
 		return g.followEngine(events, play.Some(p.seat))
 	}
+
 	refused, answerable := messaging.RefusalError(action, refusal.Value, message.WaitID)
 	if !answerable {
 		return g.kick(p, conn, action, refusal.Value)
 	}
+
 	return send(conn, refused.Payload())
 }
 
@@ -67,6 +76,7 @@ func (g *game) mismatchesOpenCall(seat tile.Seat, called tile.TileID) bool {
 	if !ok {
 		return false
 	}
+
 	call, isCall := decision.Context.(play.Call)
 	return isCall && call.Tile != called
 }
@@ -75,6 +85,7 @@ func (g *game) confirmRound(p *participant, waitID int) error {
 	if g.pause == nil || !g.pause.owes(p.seat) || waitID != p.decisionID {
 		return g.staleAction(p, "confirm_round", waitID)
 	}
+
 	return g.confirmPause(p.seat)
 }
 
@@ -90,6 +101,7 @@ func (g *game) kick(p *participant, conn Connection, action play.Action, refusal
 	if err != nil {
 		return err
 	}
+
 	conn.Close(CloseInvalidAction, "invalid_game_action")
 	return nil
 }
@@ -116,8 +128,10 @@ func actionName(action play.Action) string {
 	case play.ActionKan:
 		name = "kan"
 	}
+
 	if id, ok := action.Tile(); ok {
 		return name + " " + strconv.Itoa(id.Index())
 	}
+
 	return name
 }

@@ -19,6 +19,7 @@ func (r *Round) uraIndicators(seat tile.Seat) []tile.TileID {
 	if !r.InRiichi(seat) {
 		return nil
 	}
+
 	return r.wall.UraIndicators()
 }
 
@@ -46,6 +47,7 @@ func (r *Round) tsumoWin(seat tile.Seat) (tile.TileID, score.HandValue, bool) {
 	case r.LiveTiles() == 0:
 		win = score.WinHaitei
 	}
+
 	value, ok := offer.OfferedValue(held[:last], held[last], r.scoring(seat, win))
 	return held[last], value, ok
 }
@@ -58,10 +60,12 @@ func (r *Round) winResult(
 	if !loser.OK {
 		concealed = concealed[:len(concealed)-1]
 	}
+
 	yaku := make([]play.YakuID, len(value.Yaku))
 	for i, scored := range value.Yaku {
 		yaku[i] = scored.ID
 	}
+
 	return play.WinResult{
 		Winner:        winner,
 		Loser:         loser,
@@ -98,6 +102,7 @@ func (r *Round) rons(winners []tile.Seat, prompt CallPrompt, honba, riichiSticks
 		changes := offer.RonScoreChanges(winner, prompt.from, value.Payment, tableHonba, tableSticks, pao)
 		wins = append(wins, r.winResult(winner, play.Some(prompt.from), prompt.tile, value, changes))
 	}
+
 	return wins
 }
 
@@ -111,6 +116,7 @@ func (r *Round) exhaustiveDraw() play.RoundResult {
 	if rules.NagashiMangan {
 		nagashi = offer.NagashiSeats(r.rivers, r.meldsBySeat())
 	}
+
 	scoreChanges := notenPayments(tenpaiSeats)
 	if len(nagashi) > 0 {
 		scoreChanges = r.nagashiPayments(nagashi)
@@ -122,9 +128,11 @@ func (r *Round) exhaustiveDraw() play.RoundResult {
 			result.Tenpai = append(result.Tenpai, r.shownHand(seat))
 		}
 	}
+
 	for _, seat := range nagashi {
 		result.Nagashi = append(result.Nagashi, play.NagashiRiver{Seat: seat, River: r.River(seat)})
 	}
+
 	return result
 }
 
@@ -141,6 +149,7 @@ func (r *Round) nagashiPayments(nagashi []tile.Seat) [tile.SeatCount]int {
 			total[i] += change
 		}
 	}
+
 	return total
 }
 
@@ -155,6 +164,7 @@ func notenPayments(tenpai [tile.SeatCount]bool) [tile.SeatCount]int {
 			tenpaiCount++
 		}
 	}
+
 	notenCount := tile.SeatCount - tenpaiCount
 	if tenpaiCount == 0 || notenCount == 0 {
 		return [tile.SeatCount]int{}
@@ -168,5 +178,6 @@ func notenPayments(tenpai [tile.SeatCount]bool) [tile.SeatCount]int {
 			payments[i] = gain
 		}
 	}
+
 	return payments
 }

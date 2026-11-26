@@ -24,6 +24,7 @@ func NewTile(kind Kind) (Tile, bool) {
 	if kind >= KindCount {
 		return Tile{}, false
 	}
+
 	return Tile{code: uint8(kind)}, true
 }
 
@@ -32,6 +33,7 @@ func RedFive(kind Kind) (Tile, bool) {
 	if kind.IsHonor() || kind%9 != 4 {
 		return Tile{}, false
 	}
+
 	return redFiveOfSuit(int(kind / 9)), true
 }
 
@@ -44,6 +46,7 @@ func (t Tile) Kind() Kind {
 	if t.IsRed() {
 		return Kind(t.code-redFiveCodeStart)*9 + 4
 	}
+
 	return Kind(t.code)
 }
 
@@ -97,6 +100,7 @@ func (t Tile) Compare(u Tile) int {
 	case t.IsRed():
 		return -1
 	}
+
 	return 1
 }
 
@@ -112,5 +116,6 @@ func (t Tile) rankAndSuit() (rank, suit byte) {
 	if t.IsRed() {
 		return '0', suit
 	}
+
 	return '1' + byte(kind.Simplify()), suit
 }
