@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { returnToGame } from "@/lobby/handlers";
-import { type LobbyState, createLobbyState } from "@/lobby/state";
+import { type LiveGameReturn, createLiveGameReturn, returnToGame } from "@/session";
 
 const LIVE_GAME = {
     game_client_url: "/play",
@@ -10,7 +9,7 @@ const LIVE_GAME = {
     ws_url: "ws://game/ws",
 };
 
-const context = { isDisposed: () => false, navigate: () => {}, render: () => {} };
+const context = { isDisposed: () => false, render: () => {} };
 
 function answerGameSession(status: number, body: unknown): void {
     vi.stubGlobal(
@@ -19,10 +18,8 @@ function answerGameSession(status: number, body: unknown): void {
     );
 }
 
-function playingState(): LobbyState {
-    const state = createLobbyState(null);
-    state.playing = true;
-    return state;
+function playing(): LiveGameReturn {
+    return { ...createLiveGameReturn(), playing: true };
 }
 
 afterEach(() => {
@@ -36,7 +33,7 @@ describe("returnToGame", () => {
         const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
         answerGameSession(200, LIVE_GAME);
 
-        await returnToGame(playingState(), context);
+        await returnToGame(playing(), context);
 
         expect(JSON.parse(sessionStorage.getItem("game_session:game-1") ?? "null")).toEqual({
             gameTicket: "ticket-1",
@@ -48,28 +45,24 @@ describe("returnToGame", () => {
     it.each([
         {
             body: { error: "not_playing" },
-            expected: { playing: false, returnFailed: false },
+            expected: { playing: false, returnFailed: false, returning: false },
             status: 404,
             when: "the game ended meanwhile",
         },
         {
             body: { error: "game_lookup_failed" },
-            expected: { playing: true, returnFailed: true },
+            expected: { playing: true, returnFailed: true, returning: false },
             status: 503,
             when: "the game server could not be asked",
         },
-    ])("stays in the lobby when $when", async ({ body, expected, status }) => {
+    ])("stays on the page when $when", async ({ body, expected, status }) => {
         const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
         answerGameSession(status, body);
-        const state = playingState();
+        const live = playing();
 
-        await returnToGame(state, context);
+        await returnToGame(live, context);
 
         expect(replace).not.toHaveBeenCalled();
-        expect({ ...expected, returning: false }).toEqual({
-            playing: state.playing,
-            returnFailed: state.returnFailed,
-            returning: state.returning,
-        });
+        expect(live).toEqual(expected);
     });
 });

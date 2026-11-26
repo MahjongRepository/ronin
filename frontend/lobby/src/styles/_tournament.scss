@@ -10,6 +10,26 @@
     animation: appear-late 0.2s ease-out 0.2s both;
 }
 
+.tournament-return {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-block: 1rem 0;
+}
+
+.tournament-return-btn {
+    margin: 0;
+    padding: 0.5rem 1.25rem;
+    font-weight: 600;
+}
+
+.tournament-return-error {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--ronin-danger-text);
+}
+
 .tournament-name-loading {
     display: inline-block;
     width: 12rem;

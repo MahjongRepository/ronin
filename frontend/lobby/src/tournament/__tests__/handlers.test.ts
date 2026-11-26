@@ -7,6 +7,7 @@ import {
     buildStatusHandler,
     describeTournamentError,
     handleMessage,
+    rejoinOnPageShow,
 } from "@/tournament/handlers";
 import { type PlayedGame } from "@/tournament/played-games";
 import {
@@ -36,6 +37,7 @@ function mountPage(state: ReturnType<typeof createTournamentState>) {
                     deleteTournament: () => {},
                     finishTournament: () => {},
                     renameTournament: () => {},
+                    returnToGame: () => {},
                     selectTab: () => {},
                     sendChat: () => false,
                     setChatOpen: () => {},
@@ -283,6 +285,20 @@ describe("buildStatusHandler", () => {
     });
 });
 
+describe("rejoinOnPageShow", () => {
+    test("keeps the way back into a live game while the restored page rejoins", () => {
+        const { state } = buildTournament();
+        state.liveGame.playing = true;
+        const rejoin = vi.fn();
+
+        rejoinOnPageShow(state, rejoin);
+
+        expect(rejoin).toHaveBeenCalledOnce();
+        expect(state.joined).toBe(false);
+        expect(state.liveGame.playing).toBe(true);
+    });
+});
+
 describe("describeTournamentError", () => {
     afterEach(() => {
         document.documentElement.lang = "";
@@ -331,6 +347,7 @@ describe("renderTournament", () => {
                 deleteTournament: () => {},
                 finishTournament: () => {},
                 renameTournament: () => {},
+                returnToGame: () => {},
                 selectTab: () => {},
                 sendChat: () => false,
                 setChatOpen: () => {},
@@ -364,6 +381,19 @@ describe("renderTournament", () => {
                 ".tournament-chat",
             ].map((selector) => player.querySelector(selector) !== null),
         ).toEqual([false, false, false, true]);
+    });
+
+    test("offers a player of a live game the way back into it, on a finished tournament too", () => {
+        const finished = renderWith(false, "tournament", (state) => {
+            state.finishedAt = new Date(1_800_000_000 * 1000);
+            state.liveGame.playing = true;
+        });
+        const notPlaying = renderWith(false, "tournament");
+
+        expect(finished.querySelector(".tournament-return-btn")?.textContent?.trim()).toBe(
+            "Return to your game",
+        );
+        expect(notPlaying.querySelector(".tournament-return-btn")).toBeNull();
     });
 
     test("holds a loading placeholder in both game sections until the join answers", () => {

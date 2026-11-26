@@ -1,5 +1,6 @@
 import { type CurrentGame } from "@/current-games";
 import { type MessageKey } from "@/i18n";
+import { type LiveGameReturn, createLiveGameReturn } from "@/session";
 
 export interface LobbyPlayer {
     readonly isBot: boolean;
@@ -25,9 +26,7 @@ export interface LobbyState {
     games: CurrentGame[] | null;
     loadFailed: boolean;
     readonly notice: MessageKey | null;
-    playing: boolean;
-    returnFailed: boolean;
-    returning: boolean;
+    readonly liveGame: LiveGameReturn;
     rooms: LobbyRooms | null;
 }
 
@@ -40,11 +39,9 @@ export function createLobbyState(notice: MessageKey | null): LobbyState {
         createFailed: false,
         creating: false,
         games: null,
+        liveGame: createLiveGameReturn(),
         loadFailed: false,
         notice,
-        playing: false,
-        returnFailed: false,
-        returning: false,
         rooms: null,
     };
 }

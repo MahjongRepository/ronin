@@ -27,6 +27,7 @@ interface TournamentActions {
     readonly deleteTournament: () => void;
     readonly finishTournament: () => void;
     readonly renameTournament: (name: string) => void;
+    readonly returnToGame: () => void;
     readonly selectTab: (tab: TournamentTab) => void;
     readonly sendChat: (text: string) => boolean;
     readonly setChatOpen: (open: boolean) => void;
@@ -251,6 +252,29 @@ function nameTemplate(state: TournamentState): TemplateResult | string {
     return t("tournament.fallback_name");
 }
 
+function returnToGameTemplate(page: TournamentPage): TemplateResult | typeof nothing {
+    const { liveGame } = page.state;
+    if (!liveGame.playing) {
+        return nothing;
+    }
+    return html`<div class="tournament-return">
+        <button
+            type="button"
+            class="tournament-return-btn"
+            ?disabled=${liveGame.returning}
+            aria-busy=${liveGame.returning ? "true" : "false"}
+            @click=${page.actions.returnToGame}
+        >
+            ${t("tournament.return_to_game")}
+        </button>
+        ${
+            liveGame.returnFailed
+                ? html`<p class="tournament-return-error" role="alert">${t("common.return_failed")}</p>`
+                : nothing
+        }
+    </div>`;
+}
+
 function headerTemplate(page: TournamentPage): TemplateResult {
     const { state } = page;
     return html`
@@ -360,6 +384,7 @@ function renderTournament(page: TournamentPage): void {
     render(
         html`<div class="tournament-page ${isEntering(state) ? "tournament-page--entering" : ""}">
             ${headerTemplate(page)}
+            ${returnToGameTemplate(page)}
             ${bodyTemplate(page)}
         </div>`,
         container,

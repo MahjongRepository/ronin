@@ -3,6 +3,7 @@ import { type ChatEntry } from "@/chat";
 import { type CurrentGame } from "@/current-games";
 import { type MessageKey } from "@/i18n";
 import { type LobbySocket, type SocketStatus } from "@/lobby-socket";
+import { type LiveGameReturn, createLiveGameReturn } from "@/session";
 import { type PlayedGame, readPlayedGames } from "@/tournament/played-games";
 
 type ConnectionStatus = SocketStatus | "connecting";
@@ -48,6 +49,7 @@ interface TournamentState {
     finishedAt: Date | null;
     games: CurrentGame[];
     joined: boolean;
+    readonly liveGame: LiveGameReturn;
     pageError: string | null;
     played: readonly PlayedGame[];
     playedExpanded: boolean;
@@ -68,6 +70,7 @@ function createTournamentState(): TournamentState {
         finishedAt: null,
         games: [],
         joined: false,
+        liveGame: createLiveGameReturn(),
         name: null,
         ownerBusy: false,
         ownerError: null,

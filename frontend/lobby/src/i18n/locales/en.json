@@ -46,6 +46,7 @@
     "common.loading": "Loading…",
     "common.page_failed": "This page failed to load.",
     "common.reload": "Reload",
+    "common.return_failed": "Couldn't reach your game. Try again.",
     "common.unsupported_browser": "Your browser is too old to show the game correctly. Update to Chrome or Edge 108, Firefox 128, Safari 16.4 or newer.",
     "current_games.count": {
         "one": "{count} playing",
@@ -106,7 +107,6 @@
     "lobby.action.return_to_game_hint": "Continue playing in this tab",
     "lobby.back_to_table": "Back to your table",
     "lobby.error.create_failed": "Couldn't open a table. Try again.",
-    "lobby.error.return_failed": "Couldn't reach your game. Try again.",
     "lobby.notice.table_gone": "That table is no longer open: its game started or everyone left.",
     "lobby.room.full": "Full",
     "lobby.room.join": "Join",
@@ -348,6 +348,7 @@
         "other": "Show all {count}"
     },
     "tournament.played.title": "Game history",
+    "tournament.return_to_game": "Return to your game",
     "tournament.section_count": "({total})",
     "tournament.tab.settings": "Settings",
     "tournament.tab.tournament": "Tournament",

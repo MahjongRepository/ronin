@@ -176,16 +176,20 @@ function lobbyTemplate(state: LobbyState, actions: LobbyActions): TemplateResult
     if (state.loadFailed) {
         return pageFailedView();
     }
-    const seated = state.rooms && !state.playing ? seatedTable(state.rooms) : null;
+    const seated = state.rooms && !state.liveGame.playing ? seatedTable(state.rooms) : null;
     return html`${state.notice ? alertTemplate("warning", state.notice) : nothing}
         ${state.createFailed ? alertTemplate("error", "lobby.error.create_failed") : nothing}
-        ${state.returnFailed ? alertTemplate("error", "lobby.error.return_failed") : nothing}
+        ${state.liveGame.returnFailed ? alertTemplate("error", "common.return_failed") : nothing}
         ${seated ? seatedHint(seated) : nothing}
         ${actionsTemplate(
-            { playing: state.playing, returning: state.returning, seated: seated !== null },
+            {
+                playing: state.liveGame.playing,
+                returning: state.liveGame.returning,
+                seated: seated !== null,
+            },
             actions,
         )}
-        ${tablesTemplate(state.rooms, state.playing, actions)}
+        ${tablesTemplate(state.rooms, state.liveGame.playing, actions)}
         ${currentGamesTemplate(state.games, "lobby-games-title")}`;
 }
 

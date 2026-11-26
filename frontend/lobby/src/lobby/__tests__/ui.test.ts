@@ -31,7 +31,7 @@ function renderSeatedAt(myRoomId: string): HTMLElement {
 
 function renderPlaying(returnToGame: () => void): HTMLElement {
     const state = createLobbyState(null);
-    state.playing = true;
+    state.liveGame.playing = true;
     state.rooms = { myRoomId: "r1", rooms: LISTED_ROOMS };
     const host = document.createElement("main");
     document.body.append(host);

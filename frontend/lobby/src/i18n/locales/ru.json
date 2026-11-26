@@ -48,6 +48,7 @@
     "common.loading": "Загрузка…",
     "common.page_failed": "Не удалось загрузить страницу.",
     "common.reload": "Обновить",
+    "common.return_failed": "Не удалось подключиться к игре. Попробуйте ещё раз.",
     "common.unsupported_browser": "Ваш браузер устарел, и игра в нём отображается неправильно. Обновите его до Chrome или Edge 108, Firefox 128, Safari 16.4 или новее.",
     "current_games.count": {
         "few": "идёт: {count}",
@@ -114,7 +115,6 @@
     "lobby.action.return_to_game_hint": "Продолжить в этой вкладке",
     "lobby.back_to_table": "К своему столу",
     "lobby.error.create_failed": "Не удалось создать стол. Попробуйте ещё раз.",
-    "lobby.error.return_failed": "Не удалось подключиться к игре. Попробуйте ещё раз.",
     "lobby.notice.table_gone": "Этот стол уже закрыт: игра началась или все игроки ушли.",
     "lobby.room.full": "Мест нет",
     "lobby.room.join": "Сесть",
@@ -374,6 +374,7 @@
         "other": "Показать все ({count})"
     },
     "tournament.played.title": "История игр",
+    "tournament.return_to_game": "Вернуться в свою игру",
     "tournament.section_count": "({total})",
     "tournament.tab.settings": "Настройки",
     "tournament.tab.tournament": "Турнир",

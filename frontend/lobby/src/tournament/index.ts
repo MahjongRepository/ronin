@@ -3,6 +3,7 @@ import { type MountedView } from "@ronin/shared/router";
 import { redrawElapsedTimes } from "@/current-games";
 import { LobbySocket } from "@/lobby-socket";
 import { bindToPageLifetime, bindToResume } from "@/page-lifetime";
+import { checkLiveGame, returnToGame } from "@/session";
 import {
     type Navigate,
     type OwnerContext,
@@ -52,6 +53,7 @@ const NO_ACTIONS: TournamentActions = {
     deleteTournament: () => {},
     finishTournament: () => {},
     renameTournament: () => {},
+    returnToGame: () => {},
     selectTab: () => {},
     sendChat: () => false,
     setChatOpen: () => {},
@@ -79,6 +81,7 @@ function buildActions(state: TournamentState, owner: OwnerContext): TournamentAc
         deleteTournament: () => void deleteTournament(state, owner),
         finishTournament: () => void finishTournament(state, owner),
         renameTournament: (name) => void renameTournament(state, owner, name),
+        returnToGame: () => void returnToGame(state.liveGame, owner),
         selectTab: (tab) => {
             state.tab = tab;
             owner.render();
@@ -156,6 +159,7 @@ function openTournament(mount: TournamentMount, config: TournamentConfig): Mount
         joinTournament(state, draw, config.wsUrl);
     }
     const stops = startTournament(state, config.finish, { draw, rejoin, reload });
+    void checkLiveGame(state.liveGame, { isDisposed: () => disposed, render: draw });
     return {
         rerender: draw,
         unmount: () => {

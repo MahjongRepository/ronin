@@ -45,6 +45,7 @@
     "common.loading": "読み込み中…",
     "common.page_failed": "このページを読み込めませんでした。",
     "common.reload": "再読み込み",
+    "common.return_failed": "対局に接続できませんでした。もう一度お試しください。",
     "common.unsupported_browser": "お使いのブラウザは古いため、ゲームを正しく表示できません。Chrome / Edge 108、Firefox 128、Safari 16.4 以降に更新してください。",
     "current_games.count": {
         "other": "対局中 {count}"
@@ -102,7 +103,6 @@
     "lobby.action.return_to_game_hint": "このタブで対局を続ける",
     "lobby.back_to_table": "自分の卓へ戻る",
     "lobby.error.create_failed": "卓を作成できませんでした。もう一度お試しください。",
-    "lobby.error.return_failed": "対局に接続できませんでした。もう一度お試しください。",
     "lobby.notice.table_gone": "その卓はもう開いていません。ゲームが始まったか、全員が退席しました。",
     "lobby.room.full": "満席",
     "lobby.room.join": "参加する",
@@ -335,6 +335,7 @@
         "other": "すべて表示（{count}）"
     },
     "tournament.played.title": "対局履歴",
+    "tournament.return_to_game": "自分の対局に戻る",
     "tournament.section_count": "（{total}）",
     "tournament.tab.settings": "設定",
     "tournament.tab.tournament": "大会",
