@@ -199,8 +199,8 @@ re-signed or rotated:
   id, and adds the `ws_url` and `game_client_url` a start would send (a start's own `game_starting`
   carries `seat_version` 0). A lookup failure is an error,
   not "not playing": unlike the occupancy lookup it never fails open.
-* Two entry points: a room or matchmaking join refused as `already_in_game` is answered with
-  `game_starting` (both lobby pages already follow it; the room page of a room removed by its
+* Two entry points: a room, matchmaking or bot standby join refused as `already_in_game` is answered
+  with `game_starting` (both lobby pages and the standby bot already follow it; the room page of a room removed by its
   game's start redirects a playing user to that game's page), and the game page, finding no
   handoff in its tab, fetches `GET /api/game-session` (a same-origin JSON route under the login), stores the
   answer like the lobby does and plays on; a different live game sends it to that game's page.
@@ -313,11 +313,14 @@ are discarded.
 * A room's start claims idle bots at random for its open seats. A claimed bot leaves idle for good and
   stays in flight until that start settles, refused everywhere as `match_starting` meanwhile, so a
   second socket of the same account cannot re-enter idle during the game server call.
-* A refused join, like a non-bot account, gets an `error` frame and a 4000 close. Once admitted
-  (`standby_joined`), a standby socket is sent nothing but `game_starting` and its close, or
-  `replaced_by_new_connection` and a 4000 close when a newer connection of the account takes its entry
-  over. Room errors never reach it: the bot ends its wait on any `error`. uvicorn's pings keep an idle
-  socket alive.
+* A join refused as `already_in_game` whose live game the lobby finds is handed that game
+  (Recovering a lost handoff): `game_starting` and a 1000 close, never `standby_joined`. Any other
+  refused join, like a non-bot account, gets an `error` frame and a 4000 close.
+* Once admitted (`standby_joined`), a standby socket is sent nothing but `game_starting` and its close,
+  or `replaced_by_new_connection` and a 4000 close when a newer connection of the account takes its
+  entry over. A bot claimed for a start that fails gets only the 1000 close, which the bot treats as a
+  retryable lobby close. Room errors never reach it: the bot ends its wait on any `error`. uvicorn's
+  pings keep an idle socket alive.
 
 ## Tournaments
 
