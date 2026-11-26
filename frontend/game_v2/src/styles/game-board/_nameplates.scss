@@ -38,22 +38,16 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-.nameplate:is(.nameplate--left, .nameplate--right) {
-    font-size: var(--geo-plate-side-text);
-
-    .nameplate__pill {
-        bottom: var(--geo-plate-side-pill-lift);
+@each $seat, $turn in (right: -90deg, top: 180deg, left: 90deg) {
+    .nameplate--#{$seat} {
+        transform-origin: 0 0;
+        transform: rotate($turn)
+            translate(var(--geo-plate-#{$seat}-along), calc(-1 * var(--geo-plate-#{$seat}-rise)));
     }
 }
 
-.nameplate--top {
-    align-items: flex-start;
-    padding-top: var(--geo-plate-top-pill-inset);
-    font-size: var(--geo-plate-top-text);
-
-    .board-layout:has(.board-strip--top-hand.board-strip--revealed) & {
-        top: var(--geo-plate-top-revealed-y);
-    }
+.nameplate--top .nameplate__pill {
+    transform: rotate(180deg);
 }
 
 .nameplate__pill {
@@ -73,12 +67,6 @@ $plate-seats: bottom, right, top, left;
 
     @include small-chrome {
         padding-inline: 4px;
-    }
-
-    .nameplate--top & {
-        @include desktop-board {
-            padding-inline: 4px;
-        }
     }
 
     @include phone-board {
@@ -105,25 +93,6 @@ $plate-seats: bottom, right, top, left;
 
     .nameplate--away & {
         color: var(--ronin-plate-away);
-    }
-}
-
-.nameplate__stick {
-    position: absolute;
-    top: calc(100% + var(--geo-plate-stick-drop));
-    left: 50%;
-    display: none;
-    width: min(100%, var(--geo-plate-stick-w));
-    transform: translateX(-50%);
-
-    .board-stick-icon {
-        display: block;
-        width: 100%;
-        height: auto;
-    }
-
-    .nameplate--riichi & {
-        display: block;
     }
 }
 

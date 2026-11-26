@@ -8,7 +8,6 @@ import {
 import { t } from "@/shared/i18n";
 
 import { PlayerName } from "./player-name";
-import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** Views the table from a seat, where pressing its plate does (a replay's); a live game's plates take no press. */
 type SeatView = (seat: SeatPosition) => void;
@@ -44,8 +43,7 @@ function viewWords(position: SeatPosition): string {
 
 /**
  * A seat's badge: its player's name alone, its states each on its own channel so any of them combine: the
- * name's ink red while its player is away (the reason in its title and label), a rim in the riichi stick's ivory after
- * a riichi, a bar along its bottom edge whose turn it is. Its score is the centre's, on the seat's side, which shows
+ * name's ink red while its player is away (the reason in its title and label), a bar along its bottom edge whose turn it is. Its score is the centre's, on the seat's side, which shows
  * the other seats' scores as differences from its own while a pointer hovers the badge. Where pressing it views the
  * table from its seat (a replay's), it is a button; a live game's badge takes no press.
  */
@@ -55,7 +53,6 @@ function Nameplate(props: NameplateProps): TemplateResult {
         "nameplate",
         `nameplate--${position}`,
         plate.isCurrent ? "nameplate--current" : "",
-        plate.isRiichi ? "nameplate--riichi" : "",
         plate.away === null ? "" : "nameplate--away",
     ]
         .filter(Boolean)
@@ -65,9 +62,7 @@ function Nameplate(props: NameplateProps): TemplateResult {
             ? plate.name
             : t("game.nameplate.away_title", { name: plate.name, reason: plate.away });
     const pill = html`<span class="nameplate__pill"
-        >${PlayerName(plate.name, "nameplate__name")}<span class="nameplate__stick"
-            >${RiichiStickIcon("across")}</span
-        ></span
+        >${PlayerName(plate.name, "nameplate__name")}</span
     >`;
     if (onView === null) {
         return html`<div class=${classes} role="group" title=${title} aria-label=${nameplateLabel(props)}>

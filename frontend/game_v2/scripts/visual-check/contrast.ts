@@ -87,12 +87,6 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         selector: ".nameplate--current .nameplate__pill",
     },
     {
-        hide: [["", HIDDEN]],
-        name: "badge's riichi stick",
-        reach: 1,
-        selector: ".nameplate--riichi .nameplate__stick",
-    },
-    {
         hide: [[" .board-stick-icon__body", HIDDEN]],
         name: "stick icon's body",
         reach: 1,

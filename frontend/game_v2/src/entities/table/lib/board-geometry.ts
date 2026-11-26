@@ -54,6 +54,7 @@ import {
     TOP_CORE_CLEAR,
     TOP_HAND_AIR,
     TOP_HAND_BACK_EDGE_SHARE,
+    TOP_HAND_EDGE_SHARE,
     TOP_HAND_GAP,
     type TierChrome,
     UPRIGHT_DEPTH,
@@ -2930,75 +2931,18 @@ function stripFacts(rw: number): [string, number][] {
 
 const PHONE_PLATE_TEXT = 10;
 const PLATE_EMS = 8;
-const PHONE_RAIL_MIN_EMS = 7.6;
-const PLATE_TEXT_FLOOR = 14;
-const PLATE_TEXT_SHARE = 0.75;
-const PLATE_STICK_DROP = 3;
-const PLATE_STICK_ASPECT = 6 / 48;
+const HAND_PLATE_AIR = 0.2;
 
-function minimumPlateText(text: number): number {
-    return Math.max(PLATE_TEXT_FLOOR, PLATE_TEXT_SHARE * text);
-}
-
-/** Fit the band and its centred stick beside the right lane, allowing either to extend above the tiles it clears. */
-function fitTopPlateWidth(
-    width: number,
-    room: Readonly<{ across: number; above: number; stickGap: number }>,
-    stick: number,
-): number {
-    const pillWidth = room.above >= PLATE_GAP ? width : Math.min(width, room.across - PLATE_GAP);
-    const widthAbove = (room.above - PLATE_STICK_DROP - room.stickGap) / PLATE_STICK_ASPECT;
-    if (Math.min(pillWidth, stick) <= widthAbove) {
-        return pillWidth;
-    }
-
-    const stickRoom = room.across - room.stickGap;
-    const widthBeside = stickRoom + Math.max(0, stickRoom - stick);
-    return Math.min(pillWidth, Math.max(widthAbove, widthBeside));
-}
-
-function fitSideNameRail(
-    rail: BoardRect | null,
-    {
-        foot,
-        phone,
-        preferredY,
-        text,
-    }: {
-        readonly foot: number;
-        readonly phone: boolean;
-        readonly preferredY: number;
-        readonly text: number;
-    },
-): {
-    readonly width: number;
-    readonly left: number;
-    readonly top: number;
-    readonly text: number;
-} | null {
-    if (rail === null) {
-        return null;
-    }
-    const railWidth = rail.right - rail.left;
-    const width = Math.min(PLATE_EMS * text, phone ? railWidth : railWidth - PLATE_GAP);
-    const minimumWidth = phone ? PHONE_RAIL_MIN_EMS * text : PLATE_EMS * minimumPlateText(text);
-    const first = rail.top + (phone ? 0 : PLATE_GAP);
-    const last = rail.bottom - foot;
-    if (width < minimumWidth || first > last) {
-        return null;
-    }
-
-    return {
-        left: rail.left + (railWidth - width) / 2,
-        text: phone ? text : width / PLATE_EMS,
-        top: Math.max(first, Math.min(last, preferredY)),
-        width,
-    };
-}
-
+/**
+ * Every seat's plate stands over its own hand: a side seat's a plate's gap along from the hand's start and a gap short
+ * of its inner edge, the own one centred on the hand's first tile, moved off it only as far as clears the left strip's
+ * reach, the top one ending where the hand starts; both with more air under them. An opponent's plate is the own one turned with its
+ * seat, from the inner corner where its hand starts (`plate-<seat>-x/y`); `plate-<seat>-along` and `plate-<seat>-rise` place
+ * it in that turned frame, the left one further along where the top strip's corner would cover it, the right one where the own row would; the top one no wider than its room beside the top river.
+ */
 function handPlateLengths(
     { at, frame, tier }: ShellRoom,
-    { areas, sideNameRail }: BoardShell,
+    { areas, lengths }: BoardShell,
 ): [string, number][] {
     const { hand, "strip-left": left, "strip-right": right, "strip-top": top } = areas;
     const phone = frame.family === "phone";
@@ -3007,59 +2951,31 @@ function handPlateLengths(
     const height = plateBoxHeight(tier);
     const reservedPillHeight = phone ? tier.pillH * 0.7 : tier.pillH;
     const pillHeight = phone ? reservedPillHeight * 0.7 : reservedPillHeight;
-    const stick = Math.max(2.2 * text, 0.45 * at("c"));
-    const stickOverhang = PLATE_STICK_DROP + stick * PLATE_STICK_ASPECT;
-    const stickFoot = (height + reservedPillHeight) / 2 + stickOverhang;
-    const stickGap = phone ? PLATE_GAP : 10;
-    const clearance = stickFoot + stickGap;
+    const pillFoot = (height + pillHeight) / 2;
+    const clearance = Math.ceil(pillFoot + PLATE_GAP);
 
-    const ownX = left.right + PLATE_GAP;
-    const alongSide = right.top + (right.bottom - right.top) / 5 - height / 2;
-    const aboveSwitches =
-        areas.switches.left >= left.right ? areas.switches.top - clearance : Infinity;
-    const sideY = Math.max(0, Math.min(alongSide, at("cy") - at("h") - clearance, aboveSwitches));
-
-    const rail = fitSideNameRail(sideNameRail, {
-        foot: Math.max(height, stickFoot + (phone ? RAIL_GAP : PLATE_GAP)),
-        phone,
-        preferredY: sideY,
-        text,
-    });
-    const sideWidth = rail?.width ?? Math.min(wanted, at("reach-top-left") - PLATE_GAP - ownX);
-    const leftX = rail?.left ?? ownX;
-    const rightX = (rail ? frame.box.width - leftX : right.left - PLATE_GAP) - sideWidth;
-
-    const topX = top.right + stickGap;
-    const backBottom = top.top + at("rh") + at("rw") * TOP_HAND_BACK_EDGE_SHARE;
-    const faceBottom = top.top + at("rh") * LYING_Y_SHARE + at("rw") * LYING_BODY.edge;
-    const cogLeft = (areas.corner.left + areas.corner.right - at("menu-size")) / 2;
-    const besideWidth = fitTopPlateWidth(
-        Math.min(wanted, Math.min(cogLeft, right.right) - PLATE_GAP - topX),
-        {
-            above: right.top - Math.max(backBottom, faceBottom),
-            across: right.left + SIDE_LANE_GAP - topX,
-            stickGap,
-        },
-        stick,
-    );
-    const below = besideWidth < (phone ? wanted : PLATE_TAP_FLOOR);
-    const farWidth = below ? wanted : besideWidth;
-    const farText = Math.min(text, Math.max(minimumPlateText(text), farWidth / PLATE_EMS));
-    const farX = below ? Math.max(at("cx") + at("hx") + PLATE_GAP, top.right - wanted) : topX;
-    const topPillInset = below
-        ? (height - pillHeight) / 2
-        : Math.min(height - pillHeight, Math.min(backBottom, faceBottom) - pillHeight);
-    const farY = (below ? top.bottom + PLATE_GAP : backBottom - pillHeight) - topPillInset;
-    const stacked = below && farX + wanted + PLATE_GAP > rightX;
-    const row = stacked ? Math.max(sideY, farY + height) : (rail?.top ?? sideY);
-    const sidePillLift = phone && stacked ? Math.min(row - sideY, (height - pillHeight) / 2) : 0;
-    const ownY = Math.floor(hand.top - at("own-meld-rise")) - Math.ceil(clearance);
+    const air = Math.max(PLATE_GAP, Math.round(HAND_PLATE_AIR * at("rw")));
+    const ownRowTop = Math.floor(hand.top - at("own-meld-rise"));
+    const ownStart = lengths.find(([name]) => name === "own-start")?.[1] ?? hand.left;
+    const ownX = Math.max(ownStart + (at("ow") - wanted) / 2, left.right + PLATE_GAP);
+    const ownY = ownRowTop - clearance - air;
+    const sideDepth = at("rh");
+    const topFoot = (TILE_ASPECT + TOP_HAND_EDGE_SHARE) * at("rw");
+    const topWidth = Math.min(wanted, top.right - at("cx") - at("hx") - PLATE_GAP);
+    const leftReach = left.left + sideDepth + clearance;
+    const leftAlong =
+        leftReach > top.left ? Math.max(PLATE_GAP, top.bottom + PLATE_GAP - left.top) : PLATE_GAP;
+    const rightReach = right.right - sideDepth - clearance;
+    const rightAlong =
+        rightReach < hand.right
+            ? Math.max(PLATE_GAP, right.bottom + PLATE_GAP - ownRowTop)
+            : PLATE_GAP;
 
     const positions = {
         bottom: [ownX, ownY, wanted],
-        left: [leftX, row, sideWidth],
-        right: [rightX, row, sideWidth],
-        top: [farX, farY, farWidth],
+        left: [left.left + sideDepth, left.top, wanted],
+        right: [right.right - sideDepth, right.bottom, wanted],
+        top: [top.right, top.top + topFoot, topWidth],
     } as const;
     const places: [string, number][] = Object.entries(positions).flatMap(
         ([seat, [leftEdge, topEdge, width]]) => [
@@ -3070,15 +2986,14 @@ function handPlateLengths(
     );
     return [
         ...places,
+        ["plate-left-along", leftAlong],
+        ["plate-right-along", rightAlong],
+        ["plate-top-along", 0],
+        ["plate-left-rise", clearance],
+        ["plate-right-rise", clearance],
+        ["plate-top-rise", clearance + air],
         ["plate-text", text],
-        ["plate-top-text", farText],
-        ["plate-side-text", rail?.text ?? text],
-        ["plate-side-pill-lift", sidePillLift],
         ["plate-pill-h", pillHeight],
-        ["plate-top-pill-inset", topPillInset],
-        ["plate-top-revealed-y", below ? farY : faceBottom - pillHeight - topPillInset],
-        ["plate-stick-w", stick],
-        ["plate-stick-drop", PLATE_STICK_DROP],
     ];
 }
 

@@ -51,7 +51,7 @@ function plate(host: HTMLElement, position: SeatPosition): HTMLElement {
 }
 
 describe("Nameplates", () => {
-    it("draws a live game's plates as no buttons, marking an away riichi seat by class and reading why, never a seated AI player", () => {
+    it("draws a live game's plates as no buttons, marking an away seat by class and reading its riichi and why, never a seated AI player", () => {
         const host = renderPlates();
         expect(host.querySelector("button")).toBeNull();
         expect(plate(host, "bottom").getAttribute("aria-label")).toBe(
@@ -60,9 +60,7 @@ describe("Nameplates", () => {
         expect(plate(host, "left").getAttribute("aria-label")).toBe(
             "Dan, North, 26,000 points, riichi, Disconnected: an AI player plays this seat",
         );
-        expect(plate(host, "left").className).toBe(
-            "nameplate nameplate--left nameplate--riichi nameplate--away",
-        );
+        expect(plate(host, "left").className).toBe("nameplate nameplate--left nameplate--away");
         expect(plate(host, "left").title).toBe("Dan — Disconnected: an AI player plays this seat");
         expect(plate(host, "right").className).toBe("nameplate nameplate--right");
         expect(plate(host, "right").getAttribute("aria-label")).toBe("Bot, South, 25,000 points");

@@ -18,6 +18,7 @@ import {
     SMALL_CHROME_WIDTH,
     TILE_EDGE_SHARE,
     TOP_HAND_BACK_EDGE_SHARE,
+    TOP_HAND_EDGE_SHARE,
     UPRIGHT_DEPTH,
 } from "@/entities/table/lib/board-constants";
 import {
@@ -1388,114 +1389,89 @@ describe("boardGeometry's decisions", () => {
     });
 });
 
-function plateBox({ lengths }: BoardGeometry, seat: string): BoardRect {
-    const left = lengths[`plate-${seat}-x`] ?? Number.NaN;
-    const top = lengths[`plate-${seat}-y`] ?? Number.NaN;
+type PlateSeat = "bottom" | "right" | "top" | "left";
+
+function lengthOf({ lengths }: BoardGeometry, name: string): number {
+    return lengths[name] ?? Number.NaN;
+}
+
+/** A seat's plate as the screen shows it: its box turned with its seat from the anchor where its hand starts. */
+function shownPlate(board: BoardGeometry, seat: PlateSeat): BoardRect {
+    const left = lengthOf(board, `plate-${seat}-x`);
+    const top = lengthOf(board, `plate-${seat}-y`);
+    const width = lengthOf(board, `plate-${seat}-w`);
+    const height = lengthOf(board, "badge-h");
+    if (seat === "bottom") {
+        return { bottom: top + height, left, right: left + width, top };
+    }
+    const along = lengthOf(board, `plate-${seat}-along`);
+    const rise = lengthOf(board, `plate-${seat}-rise`);
     return {
-        bottom: top + (lengths["badge-h"] ?? Number.NaN),
-        left,
-        right: left + (lengths[`plate-${seat}-w`] ?? Number.NaN),
-        top,
+        left: {
+            bottom: top + along + width,
+            left: left + rise - height,
+            right: left + rise,
+            top: top + along,
+        },
+        right: {
+            bottom: top - along,
+            left: left - rise,
+            right: left - rise + height,
+            top: top - along - width,
+        },
+        top: {
+            bottom: top + rise,
+            left: left - along - width,
+            right: left - along,
+            top: top + rise - height,
+        },
+    }[seat];
+}
+
+/** How far a plate's pill keeps short of its hand's inner edge, the pill centred across the plate's box. */
+function pillGap(board: BoardGeometry, seat: PlateSeat, handEdge: number): number {
+    const plate = shownPlate(board, seat);
+    const inset = (lengthOf(board, "badge-h") - lengthOf(board, "plate-pill-h")) / 2;
+    return {
+        bottom: handEdge - (plate.bottom - inset),
+        left: plate.left + inset - handEdge,
+        right: handEdge - (plate.right - inset),
+        top: plate.top + inset - handEdge,
+    }[seat];
+}
+
+/** Where a board's plates stand against their own hands and the other seats' tiles. */
+function platePlaces(board: BoardGeometry): Readonly<Record<string, boolean>> {
+    const { hand, "strip-left": left, "strip-right": right, "strip-top": top } = board.areas;
+    assert(hand && left && right && top);
+    const ownRowTop = Math.floor(hand.top - lengthOf(board, "own-meld-rise"));
+    const sideDepth = lengthOf(board, "rh");
+    const own = shownPlate(board, "bottom");
+    const far = shownPlate(board, "top");
+    const centred =
+        lengthOf(board, "own-start") + (lengthOf(board, "ow") - (own.right - own.left)) / 2;
+    return {
+        ownAiry: pillGap(board, "bottom", ownRowTop) >= 12,
+        ownOnFirstTile: Math.abs(own.left - Math.max(centred, left.right + 6)) < 0.01,
+        sidesOffHands:
+            pillGap(board, "left", left.left + sideDepth) >= 6 &&
+            pillGap(board, "right", right.right - sideDepth) >= 6,
+        sidesUncovered:
+            !overlaps(shownPlate(board, "left"), top) &&
+            !overlaps(shownPlate(board, "right"), { ...hand, top: ownRowTop }),
+        topAiry:
+            pillGap(
+                board,
+                "top",
+                top.top + (UPRIGHT_DEPTH + TOP_HAND_EDGE_SHARE) * lengthOf(board, "rw"),
+            ) >= 12,
+        topAtHandEnd:
+            Math.abs(far.right - top.right) < 0.01 &&
+            far.left >= lengthOf(board, "cx") + lengthOf(board, "hx"),
     };
 }
 
-function expectTopPlate(board: BoardGeometry, top: BoardRect): void {
-    const far = plateBox(board, "top");
-    const inset = board.lengths["plate-top-pill-inset"] ?? Number.NaN;
-    const visibleTop = far.top + inset;
-    expectTopPlateClear(board, far, visibleTop + (board.lengths["plate-pill-h"] ?? Number.NaN));
-    if (far.left < top.right) {
-        expect(visibleTop - top.bottom).toBeCloseTo(6);
-        expect(far.right - far.left).toBeCloseTo(8 * (board.lengths["plate-text"] ?? Number.NaN));
-        return;
-    }
-
-    expect(far.left - top.right).toBeCloseTo(board.family === "phone" ? 6 : 10);
-    expectAcrossTileBottoms(board, top.top, inset);
-}
-
-function expectTopPlateClear(board: BoardGeometry, far: BoardRect, pillBottom: number): void {
-    expect(far.right - far.left).toBeGreaterThanOrEqual(40);
-    const right = board.areas["strip-right"];
-    const stripLeft = (right?.left ?? Number.NaN) + SIDE_LANE_GAP;
-    const stripTop = right?.top ?? Number.NaN;
-    expect(Math.max(stripLeft - far.right, stripTop - pillBottom)).toBeGreaterThanOrEqual(4);
-    const stickWidth = Math.min(far.right - far.left, board.lengths["plate-stick-w"] ?? Number.NaN);
-    const stickRight = (far.left + far.right + stickWidth) / 2;
-    const stickBottom =
-        pillBottom + (board.lengths["plate-stick-drop"] ?? Number.NaN) + stickWidth / 8;
-    const stickGap = board.family === "phone" ? 6 : 10;
-    expect(Math.max(stripLeft - stickRight, stripTop - stickBottom)).toBeGreaterThanOrEqual(
-        stickGap - 0.01,
-    );
-}
-
-function expectAcrossTileBottoms(board: BoardGeometry, tileTop: number, inset: number): void {
-    const rw = board.lengths["rw"] ?? Number.NaN;
-    const pillHeight = board.lengths["plate-pill-h"] ?? Number.NaN;
-    expect(plateBox(board, "top").top + inset + pillHeight).toBeCloseTo(
-        tileTop + rw * (UPRIGHT_DEPTH + TOP_HAND_BACK_EDGE_SHARE),
-    );
-    const revealedY = board.lengths["plate-top-revealed-y"] ?? Number.NaN;
-    expect(revealedY + inset + pillHeight).toBeCloseTo(
-        tileTop + rw * (UPRIGHT_DEPTH * LYING_Y_SHARE + LYING_BODY.edge),
-    );
-}
-
-function expectHandEndPlates(board: BoardGeometry): void {
-    const { hand, "strip-top": top } = board.areas;
-    if (!hand || !top) {
-        throw new Error("missing hand areas");
-    }
-    expectTopPlate(board, top);
-    const own = plateBox(board, "bottom");
-    expect(own.left).toBeCloseTo((board.areas["strip-left"]?.right ?? Number.NaN) + 6);
-    expect(own.right).toBeLessThan((hand.left + hand.right) / 2);
-    expect(own.bottom).toBeLessThan(hand.top);
-}
-
-function expectSidePlates(board: BoardGeometry): void {
-    expect(plateBox(board, "left").top).toBe(plateBox(board, "right").top);
-    for (const seat of ["left", "right"] as const) {
-        const strip = board.areas[`strip-${seat}`];
-        if (!strip) {
-            throw new Error(`missing ${seat} strip`);
-        }
-        const plate = plateBox(board, seat);
-        const gap = Math.max(plate.left - strip.right, strip.left - plate.right);
-        expect(gap).toBeGreaterThanOrEqual(6 - 0.01);
-        expect(plate.bottom).toBeGreaterThan(strip.top);
-        expect(plate.top).toBeLessThan((strip.top + strip.bottom) / 2);
-    }
-}
-
 describe("boardGeometry's plates", () => {
-    it.each([
-        [1730, 1000, true],
-        [1440, 900, true],
-        [1920, 1080, true],
-        [1280, 800, false],
-        [1024, 768, false],
-        [808, 275, true],
-        [896, 414, true],
-        [891, 331, true],
-        [667, 375, false],
-    ] as const)(
-        "uses the side rails at %ix%i when both names fit (%s)",
-        (width, height, outside) => {
-            const gutter = height > 520 ? PAGE_GUTTER : 0;
-            const live = windowGeometry({ height, width }, gutter);
-            for (const view of [live, replayOf(live, gutter)]) {
-                expect(
-                    plateBox(view, "left").right <= (view.lengths["felt-left"] ?? Number.NaN),
-                ).toBe(outside);
-                expect(
-                    plateBox(view, "right").left >= (view.lengths["felt-right"] ?? Number.NaN),
-                ).toBe(outside);
-            }
-        },
-    );
-
     it.each([
         [1280, 720],
         [1366, 768],
@@ -1517,11 +1493,19 @@ describe("boardGeometry's plates", () => {
         [891, 331],
         [808, 275],
         [844, 251],
-    ])("anchors a %ix%i board's names beside the corresponding hands", (width, height) => {
-        const board = windowGeometry({ height, width });
-        expectHandEndPlates(board);
-        expectSidePlates(board);
-    });
+    ])(
+        "stands a %ix%i board's every name over its own hand, the own and top ones with more air, none under another seat's tiles",
+        (width, height) => {
+            expect(platePlaces(windowGeometry({ height, width }))).toEqual({
+                ownAiry: true,
+                ownOnFirstTile: true,
+                sidesOffHands: true,
+                sidesUncovered: true,
+                topAiry: true,
+                topAtHandEnd: true,
+            });
+        },
+    );
 
     it.each([
         [1280, 720],

@@ -287,7 +287,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   names whose they are: that seat keeps its score, underlined, and the others' show as signed differences. One primary cue on the centre for the seat in turn: a green bar along that seat's whole
   edge of the panel, its corners included, a shape the riichi stick never takes. Convention: a seat's
   accepted riichi stick lies on its side of the centre, as on a real table; this is where an
-  established riichi is read, and the seat's badge repeats it by a stick under its band, as long as the centre's. Decision: the stick, a
+  established riichi is read; the seat's badge carries no stick. Decision: the stick, a
   short pill with its dot, lies inside the panel between that side's score and the middle, so the
   gap between the centre and the rivers stays free and the turn bar on the edge and the stick read
   apart. The stick appears only once the declaration discard has passed without a ron, never when a
@@ -409,17 +409,17 @@ as a number, not seen, so the count turns red from ten tiles left.
   replay's badge then pressable only where it shows. The bands shorten long names in the middle so their ends, which tell AI players apart, stay visible. Its states each take a channel of their own and never change the band's outline or ink: away (an AI stands
   in for a human who left or never came, the human identity kept, cleared when they return) turns the name's ink
   red, its reason in the badge's tooltip and screen-reader label, red being reserved for it among the badge's
-  states; riichi, a riichi stick up to the band's width, otherwise as long as the centre's, centred under the band, drawn over the felt so it moves nothing;
-  the seat in turn, the green bar along the band's whole bottom edge (Turn cue). A seated AI player is unmarked on the board (its
+  states; the seat in turn, the green bar along the band's whole bottom edge (Turn cue). A seated AI player is unmarked on the board (its
   name, the seating and the game end tell it). The band is one height per tier, its box at least the control floor
-  tall around it. Phone bands are a single line of 10px text, up to 80px wide. The replay tap target is at least 40px in both dimensions. The top name sits beside the right end of the top hand. The band's bottom edge lines up with the bottom of the tile bodies for both concealed and revealed hands. Where the gap cannot hold the phone's full band or a 40px band on a larger board with its riichi stick clear of the right melds, the band sits just below the hand's right end.
-  The local name sits just above the own hand, with room for its riichi stick. Both side names share a row
-  about a fifth of the way down the side strips. Centre each side name in its rail when both rails have room for the
-  name and riichi stick clear of the controls. Use the nearest clear row. Phones keep their 10px text; on
-  larger boards the top name and the rail names can shrink to three quarters of the board text, with a 14px minimum where the board text reaches it. Where the rails are too tight,
-  place both names just inside the hands, with the left name aligned to the local name's left edge.
-  The left name clears the left river and any play
-  switches in that pocket. Anchors stay fixed as hands shorten or offers open. A crowded prompt or notice may briefly
+  tall around it. Phone bands are a single line of 10px text, up to 80px wide; larger boards' at the board text,
+  eight of it wide. The replay tap target is at least 40px in both dimensions. Every name stands over its own hand,
+  on the hand's inner side toward the centre, the badge turned with its seat as the seat's tiles are: the side names
+  read along their strips, the top name stays upright. The local name is centred on the own hand's first tile, moved
+  right only as far as clears the left strip's reach; the top name ends where the top hand starts (the hand's right
+  end on screen), no wider than the room beside the top river; a side name starts a 6px gap along from where its hand
+  starts, further along where the top strip (the left name) or the own row (the right name) would cover it. A side
+  band keeps 6px off its hand; the local and top bands keep more air, a fifth of a river tile and at least 6px more.
+  Anchors stay fixed as hands shorten or offers open. A crowded prompt or notice may briefly
   cover a name. Decision: the badge carries no wind or score; the
   centre holds every seat's score, and hovering a badge shows the other seats' scores in the centre as differences
   from it (kept from the current board); hovering the centre does the same for the bottom seat's badge.
@@ -1120,8 +1120,7 @@ from the centre, with neighbouring rivers no closer than that gap (a sparse rive
 from its neighbour); the opponent's hand at the river tile holds everywhere, and the other derived
 values are review's, not the check's. Every size is measured as drawn, since the table is shown as laid: a face
 keeps its floor as foreshortened (a quarter pixel of rounding), the rivers keep their 3px least to each other and to
-the centre with each tile's edge drawn under it, and a badge's pill keeps 4px off every tile on the table and its
-riichi stick 10px (6 on a phone). Clarity,
+the centre with each tile's edge drawn under it, and a badge's pill keeps 4px off every tile on the table. Clarity,
 hierarchy and coherence are judged by the checklist
 above. A visual failure that can be measured may earn a check; a judgement must not be turned into
 an arbitrary pixel rule.

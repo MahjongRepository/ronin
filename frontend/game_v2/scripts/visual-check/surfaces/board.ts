@@ -71,10 +71,6 @@ const MIN_RIVER_GAP = 3;
 /** A badge's pill keeps at least this far off any tile on the table (px). */
 const PLATE_TILE_GAP = 4;
 
-/** A badge's riichi stick keeps at least this far off any tile on a desktop's table, and a phone's (px). */
-const STICK_TILE_GAP = 10;
-const PHONE_STICK_TILE_GAP = 6;
-
 /** How far under its floor a face the camera shows may measure: sub-pixel rounding of its box, never the camera's. */
 const SHOWN_FACE_SLACK = 0.25;
 /**
@@ -726,7 +722,6 @@ function withDrawnEdge(quad: readonly Point[], share: number): readonly Point[] 
 }
 
 function checkPlatesClear(board: BoardMeasure, report: PageReport): void {
-    const stickGap = board.family === "phone" ? PHONE_STICK_TILE_GAP : STICK_TILE_GAP;
     function touching(parts: readonly GroupedBox[], gap: number, part: string): string[] {
         return parts.flatMap(({ box: shown, group }) =>
             board.tiles
@@ -735,14 +730,9 @@ function checkPlatesClear(board: BoardMeasure, report: PageReport): void {
         );
     }
     const pills = touching(board.platePills, PLATE_TILE_GAP, "plate");
-    const sticks = touching(board.plateSticks, stickGap, "riichi stick");
     report.expect(
         pills.length === 0,
         `plates within ${PLATE_TILE_GAP}px of a tile: ${[...new Set(pills)].join(", ")}`,
-    );
-    report.expect(
-        sticks.length === 0,
-        `riichi sticks within ${stickGap}px of a tile: ${[...new Set(sticks)].join(", ")}`,
     );
 }
 
