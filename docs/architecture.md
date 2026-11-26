@@ -140,12 +140,13 @@ flowchart TD
 
 ## Occupancy: one place per user
 
-A user is in at most one of: a room seat, the matchmaking queue (queued or matched), or a live game.
-Rooms and matchmaking never import each other; both receive the rule as an injected callable.
+A user is in at most one of: a room seat, the matchmaking queue (queued or matched), the bot standby
+pool (idle or claimed, bot accounts only), or a live game. Rooms, matchmaking and the standby socket never
+import each other; each receives the rule as an injected callable.
 
 ```mermaid
 sequenceDiagram
-    participant H as Room/queue WebSocket handler
+    participant H as Room/queue/standby WebSocket handler
     participant O as Occupancy
     participant G as Game server
 
@@ -154,21 +155,22 @@ sequenceDiagram
     O->>G: GET /players/{user_id} (2s timeout, fails open)
     G-->>O: 200 playing / 404 not playing
     Note over H,O: one synchronous step
-    H->>O: find_room_conflict(user_id, room_id) / find_queue_conflict(user_id)
+    H->>O: find_room_conflict / find_queue_conflict / find_standby_conflict
     O-->>H: conflict reason or None
-    H->>H: seat or queue the user, or take over their own seat or entry
+    H->>H: seat, queue or stand by the user, or take over their own place
     H->>O: admitting closes
 ```
 
 The lookup can go stale: a game start may hand the user to a game while the request is in flight.
-`start_game` therefore marks every open admission of its players, and both conflict checks reject
-a marked one as `already_in_game` in the same synchronous step that would seat or queue.
+`start_game` therefore marks every open admission of its players, and every conflict check rejects
+a marked one as `already_in_game` in the same synchronous step that would seat, queue or stand by.
 
-A join to the place the user already holds (their seat in that room, or their unmatched queue
-entry) is admitted and takes the place over: the new connection keeps the seat, readiness and
+A join to the place the user already holds (their seat in that room, their unmatched queue
+entry, or their idle standby entry) is admitted and takes the place over: the new connection keeps the seat, readiness and
 arrival order or the queue position, and the old connection gets `replaced_by_new_connection` and
 a close. Once the place's game is being created nothing is taken over: a transitioning room refuses
-the join as `room_transitioning` and a matched user gets `match_starting`; a later join finds the
+the join as `room_transitioning` and a matched user or a claimed bot gets `match_starting`, from every
+socket; a standing-by bot's room or queue join is refused as `already_in_standby`. A later join finds the
 game and is handed it (below). The room page retries such a join on its own after a short delay;
 the matchmaking page offers a retry. The occupancy check runs first in the seating step, so a join
 whose lookup overlapped its own room's start is answered `already_in_game` with the game, never
@@ -295,6 +297,19 @@ sequenceDiagram
   anyway (until withdrawn, below).
 * A matched player who disconnects before the game starts keeps the seat; the game server gives a
   no-show seat to AI.
+
+## Bot standby
+
+`/ws/bots/standby` is a bot-only lobby socket: an account that is not a bot (a human's API token
+passes the key check) gets `error {message: bot_account_required}` and a 4000 close. An admitted bot
+is answered `standby_joined` and waits idle in `BotPool`, in memory only, sending nothing; its frames
+are discarded.
+
+* A room's start claims idle bots at random for its open seats. A claimed bot leaves idle for good and
+  stays in flight until that start settles, refused everywhere as `match_starting` meanwhile, so a
+  second socket of the same account cannot re-enter idle during the game server call.
+* A standby socket is sent nothing but `standby_joined`, `game_starting` and its close. Room errors
+  never reach it: the bot ends its wait on any `error`. uvicorn's pings keep an idle socket alive.
 
 ## Tournaments
 

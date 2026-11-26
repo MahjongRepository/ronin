@@ -21,7 +21,7 @@ http:
       priority: 20
 
     lobby-ws:
-      rule: "Host(`%%DOMAIN%%`) && (PathPrefix(`/ws/rooms/`) || Path(`/ws/matchmaking`) || Path(`/ws/games`) || PathPrefix(`/ws/tournaments/`))"
+      rule: "Host(`%%DOMAIN%%`) && (PathPrefix(`/ws/rooms/`) || Path(`/ws/matchmaking`) || Path(`/ws/bots/standby`) || Path(`/ws/games`) || PathPrefix(`/ws/tournaments/`))"
       entryPoints: ["websecure"]
       service: lobby
       tls:

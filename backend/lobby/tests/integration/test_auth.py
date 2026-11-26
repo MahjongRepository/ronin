@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
+from starlette.websockets import WebSocketDisconnect
 
 from app.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from app.dal.models import AccountType, Player
@@ -296,6 +297,10 @@ def _matchmaking_socket_path(_client: TestClient, _raw_key: str) -> str:
     return "/ws/matchmaking"
 
 
+def _standby_socket_path(_client: TestClient, _raw_key: str) -> str:
+    return "/ws/bots/standby"
+
+
 class TestBotLobbySocket:
     @pytest.mark.parametrize(
         ("socket_path", "expected_first_message"),
@@ -310,6 +315,7 @@ class TestBotLobbySocket:
                 {"type": "queue_joined", "queue_size": 1, "position": 1},
                 id="matchmaking",
             ),
+            pytest.param(_standby_socket_path, {"type": "standby_joined"}, id="standby"),
         ],
     )
     def test_bot_lobby_socket__when_api_key_header_sent__should_admit_the_bot(
@@ -322,6 +328,17 @@ class TestBotLobbySocket:
         with client.websocket_connect(path, headers={"x-api-key": raw_key}) as ws:
             message = ws.receive_json()
         assert {key: message[key] for key in expected_first_message} == expected_first_message
+
+    def test_bot_standby_socket__when_human_api_token_sent__should_refuse_with_bot_account_required(self, client):
+        register_with_csrf(client, "humanbot")
+        raw_token = issue_api_token(client)
+        client.cookies.delete("session_id")
+
+        with client.websocket_connect("/ws/bots/standby", headers={"x-api-key": raw_token}) as ws:
+            assert ws.receive_json() == {"type": "error", "message": "bot_account_required"}
+            with pytest.raises(WebSocketDisconnect) as rejection:
+                ws.receive_json()
+        assert rejection.value.code == 4000
 
 
 def _no_credential(_client: TestClient) -> dict[str, str]:

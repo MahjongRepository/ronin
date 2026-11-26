@@ -97,6 +97,9 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   codes, room errors), never English prose; bot JSON, plain-text and protocol answers stay English. The server
   never writes the `lang` cookie: only the clients' language switches do, on an explicit choice.
 * `rooms/` and `matchmaking/` — managers and WebSocket handlers.
+* `bot_pool.py` — `BotPool`, the bot accounts standing by for a room's open seats (idle, or claimed and in flight);
+  it sits in the game-start layer because `rooms/` claims from it. `standby/` — its WebSocket handler,
+  `/ws/bots/standby`.
 * `game_transition.py` — the one game start for rooms, matchmaking and tournaments, the game server client calls,
   the "is this user playing" lookup and the recovery of a lost handoff. `websocket_utils.py` — the socket prologue every lobby socket shares (auth, `Origin` check, accept, the writer's lifetime);
   each handler decides what an unexpected error does.
@@ -129,10 +132,11 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 
 ## Occupancy
 
-* A user is in at most one place: one room seat, the matchmaking queue (queued or matched), or one
-  game they are playing. A rejected join is told the reason and closed.
-* A join to the place the user already holds (their seat in the same room, full or not, or their
-  unmatched queue entry) takes it over instead: the new connection keeps the seat, readiness and
+* A user is in at most one place: one room seat, the matchmaking queue (queued or matched), the bot standby
+  pool (idle or claimed), or one game they are playing. A rejected join is told the reason and closed. A
+  standing-by bot's room or queue join is refused as `already_in_standby`.
+* A join to the place the user already holds (their seat in the same room, full or not, their
+  unmatched queue entry, or their idle standby entry) takes it over instead: the new connection keeps the seat, readiness and
   arrival (so host succession) or the queue position, and the old one is told
   `replaced_by_new_connection` and closed. This is how a reload, a second tab or the room page's
   reconnect gets past a dead socket the server has not noticed yet, or takes back a seat held for
@@ -140,8 +144,8 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   one user join at once, the last one admitted wins, which is the one whose playing lookup finished
   last, not necessarily the newest. A place is never traded for another, except a room seat held for a
   lost connection, which a successful join elsewhere releases (`rooms/AGENTS.md`), and never taken over once
-  its game is being created: a transitioning room refuses every join, and a matched user is
-  refused as `match_starting` (by a room join too), retryable answers that the handoff recovery
+  its game is being created: a transitioning room refuses every join, and a matched user or a claimed
+  bot is refused as `match_starting` (by every lobby join), retryable answers that the handoff recovery
   turns into the game once it exists.
 * Everything keyed by connection (ready, start, leave, chat, cleanup) misses for a taken-over
   connection, so its buffered input and late cleanup change nothing.
@@ -183,7 +187,9 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * Bots register through `scripts/register_bot.py` under an `ai-` name, a prefix no human can register, and get an API key, printed once and never stored;
   run for an existing bot, the script rotates its key, which invalidates the old one. Bots send the
   key as `X-API-Key` on the bot API and the WebSocket handshakes, which skip the `Origin` check
-  (Security requirements); from the handshake on, a bot runs the human code path.
+  (Security requirements); from the handshake on, a bot runs the human code path. The standby socket
+  (`/ws/bots/standby`) is the one lobby socket for bot accounts only: it refuses any other account
+  inside the handler, since a human's API token passes the same key check.
 * An account becomes an admin through `scripts/grant_admin.py` (`--revoke` takes the flag back); the
   flag lives on the player record and is the only admin concept.
 * A registered human gets an API token on the settings page: one per account, shown once, stored

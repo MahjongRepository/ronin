@@ -118,13 +118,13 @@ source_modules = ["app"]
 forbidden_modules = ["scripts"]
 
 [[tool.importlinter.contracts]]
-name = "app: server -> views -> features -> game start -> occupancy and players -> auth, i18n, db and replays -> settings, dal and socket primitives -> tasks"
+name = "app: server -> views -> features -> game start and bot pool -> occupancy and players -> auth, i18n, db and replays -> settings, dal and socket primitives -> tasks"
 type = "layers"
 layers = [
     "app.server",
     "app.views",
-    "app.rooms | app.matchmaking | app.monitoring | app.tournaments | app.live_games",
-    "app.game_transition | app.websocket_utils | app.chat_messages",
+    "app.rooms | app.matchmaking | app.monitoring | app.tournaments | app.live_games | app.standby",
+    "app.game_transition | app.websocket_utils | app.chat_messages | app.bot_pool",
     "app.occupancy | app.players",
     "app.auth | app.i18n | app.db | app.replay_storage",
     "app.settings | app.dal | app.queued_websocket | app.rate_limit",

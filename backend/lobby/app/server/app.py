@@ -31,6 +31,7 @@ from app.auth.policy import (
 from app.auth.service import AuthService
 from app.auth.settings import AuthSettings
 from app.auth.socket_registry import CredentialSockets
+from app.bot_pool import BotPool
 from app.db import (
     Database,
     SqliteGameRepository,
@@ -57,6 +58,7 @@ from app.server.middleware import (
     with_security_headers,
 )
 from app.settings import LobbyServerSettings
+from app.standby.websocket import standby_websocket
 from app.tournaments.game_end_poller import TournamentGameEndPoller
 from app.tournaments.hub import TournamentHub
 from app.tournaments.websocket import tournament_events_websocket, tournament_websocket
@@ -119,9 +121,9 @@ async def health(_request: Request) -> JSONResponse:
 def _create_seating(
     *,
     is_playing: Callable[[str], Awaitable[bool]],
-) -> tuple[LobbyRoomManager, MatchmakingManager, Occupancy]:
+) -> tuple[LobbyRoomManager, MatchmakingManager, BotPool, Occupancy]:
     """
-    Build the room and matchmaking managers and the occupancy rule they both enforce.
+    Build the room and matchmaking managers, the bot standby pool and the occupancy rule they all enforce.
     """
 
     def find_room_conflict(user_id: str, room_id: str) -> str | None:
@@ -136,19 +138,28 @@ def _create_seating(
         """
         return occupancy.find_queue_conflict(user_id)
 
+    def find_standby_conflict(user_id: str) -> str | None:
+        """
+        Apply the occupancy rule built below from the managers and the standby pool this function is injected into.
+        """
+        return occupancy.find_standby_conflict(user_id)
+
     room_manager = LobbyRoomManager(
         find_conflict=find_room_conflict, announce_departure=announce_departure, announce_expiry=announce_expiry
     )
     matchmaking_manager = MatchmakingManager(find_conflict=find_queue_conflict)
+    bot_pool = BotPool(find_conflict=find_standby_conflict)
     occupancy = Occupancy(
         find_room=room_manager.find_user_room,
         is_seat_held=room_manager.is_seat_held,
         release_held_seat=room_manager.release_held_seat,
         is_queued=matchmaking_manager.is_queued,
         is_matched=matchmaking_manager.is_matched,
+        is_standing_by=bot_pool.is_standing_by,
+        is_claimed=bot_pool.is_claimed,
         is_playing=is_playing,
     )
-    return room_manager, matchmaking_manager, occupancy
+    return room_manager, matchmaking_manager, bot_pool, occupancy
 
 
 def create_app(  # noqa: PLR0913
@@ -184,7 +195,7 @@ def create_app(  # noqa: PLR0913
     if is_playing is None:
         is_playing = functools.partial(is_user_playing, game_server=game_server)
 
-    room_manager, matchmaking_manager, occupancy = _create_seating(is_playing=is_playing)
+    room_manager, matchmaking_manager, bot_pool, occupancy = _create_seating(is_playing=is_playing)
 
     routes: list[BaseRoute] = [
         # Protected HTML routes (redirect to login when unauthenticated)
@@ -213,6 +224,7 @@ def create_app(  # noqa: PLR0913
         # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
         WebSocketRoute("/ws/matchmaking", matchmaking_websocket, name="matchmaking_websocket"),
+        WebSocketRoute("/ws/bots/standby", standby_websocket, name="standby_websocket"),
         WebSocketRoute("/ws/games", playing_games_websocket, name="playing_games_websocket"),
         WebSocketRoute("/ws/tournaments/{tournament_id}", tournament_websocket, name="tournament_websocket"),
         WebSocketRoute(
@@ -347,6 +359,7 @@ def create_app(  # noqa: PLR0913
         auth_service=auth_service,
         room_manager=room_manager,
         matchmaking_manager=matchmaking_manager,
+        bot_pool=bot_pool,
         occupancy=occupancy,
     )
 
@@ -410,6 +423,7 @@ def _attach_state(  # noqa: PLR0913
     auth_service: AuthService,
     room_manager: LobbyRoomManager,
     matchmaking_manager: MatchmakingManager,
+    bot_pool: BotPool,
     occupancy: Occupancy,
 ) -> None:
     app.state.game_repo = game_repo
@@ -465,6 +479,7 @@ def _attach_state(  # noqa: PLR0913
     app.state.auth_service = auth_service
     app.state.room_manager = room_manager
     app.state.matchmaking_manager = matchmaking_manager
+    app.state.bot_pool = bot_pool
     app.state.occupancy = occupancy
 
 
