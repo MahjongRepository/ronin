@@ -95,7 +95,7 @@ class Occupancy:
         A seat the user holds in another room for a lost connection is no conflict (``release_held_seat``). The caller
         refuses joins to a transitioning room after asking, so a seat whose game is being created is never taken over. A
         matched user or a claimed bot gets ``match_starting``, as from the queue: they cannot leave a match, only wait
-        for its game.
+        for its game. A bot standing by is refused as ``already_in_standby``.
         """
         if self._was_handed_to_game(user_id):
             return ALREADY_IN_GAME
@@ -122,7 +122,7 @@ class Occupancy:
         A seat the user holds for a lost connection is no conflict (``release_held_seat``). A matched user waits for
         their game to be created and is refused as ``match_starting``, a retryable answer: once the game exists a new
         join is handed it as ``already_in_game``, and after a failed start it queues again. A claimed bot is refused the
-        same way.
+        same way, and a bot standing by as ``already_in_standby``.
         """
         if self._was_handed_to_game(user_id):
             return ALREADY_IN_GAME

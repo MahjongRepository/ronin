@@ -21,6 +21,7 @@ flowchart LR
         Auth["Auth<br/>session cookie or X-API-Key"]
         Rooms["Rooms<br/>LobbyRoomManager"]
         MM["Matchmaking<br/>MatchmakingManager"]
+        Standby["Bot standby<br/>/ws/bots/standby, BotPool"]
         Tour["Tournaments<br/>TournamentHub (online players, chat)"]
         Occ["Occupancy<br/>one place per user"]
         Start["start_game<br/>(game_transition.py)"]
@@ -43,10 +44,11 @@ flowchart LR
     Metrics[("metrics.db")]
 
     LobbyPages -- "HTTP + JSON WebSocket" --> Auth
-    Auth --> Rooms & MM & Tour
+    Auth --> Rooms & MM & Tour & Standby
     Tour --> DB
     Tour -. "poll played_games<br/>for game ends" .-> DB
-    Rooms & MM --> Occ
+    Rooms & MM & Standby --> Occ
+    Rooms -- "claim idle bots at Start" --> Standby
     Rooms & MM & Tour --> Start
     Start -- "POST /games" --> REST
     Occ -- "GET /players/{user_id}" --> REST
@@ -311,8 +313,11 @@ are discarded.
 * A room's start claims idle bots at random for its open seats. A claimed bot leaves idle for good and
   stays in flight until that start settles, refused everywhere as `match_starting` meanwhile, so a
   second socket of the same account cannot re-enter idle during the game server call.
-* A standby socket is sent nothing but `standby_joined`, `game_starting` and its close. Room errors
-  never reach it: the bot ends its wait on any `error`. uvicorn's pings keep an idle socket alive.
+* A refused join, like a non-bot account, gets an `error` frame and a 4000 close. Once admitted
+  (`standby_joined`), a standby socket is sent nothing but `game_starting` and its close, or
+  `replaced_by_new_connection` and a 4000 close when a newer connection of the account takes its entry
+  over. Room errors never reach it: the bot ends its wait on any `error`. uvicorn's pings keep an idle
+  socket alive.
 
 ## Tournaments
 

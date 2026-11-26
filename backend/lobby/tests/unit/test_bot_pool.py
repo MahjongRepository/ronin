@@ -28,7 +28,9 @@ def test_bot_pool_claim__when_bots_are_idle__should_claim_up_to_the_asked_number
     for bot_id in sorted(bot_ids):
         pool.add(_make_bot(bot_id, connection_id=f"c-{bot_id}"))
 
-    claimed_ids = {bot.user_id for bot in pool.claim(asked)}
+    claimed_bots = pool.claim(asked)
+    claimed_ids = {bot.user_id for bot in claimed_bots}
+    assert len(claimed_bots) == claimed
     assert len(claimed_ids) == claimed
     assert claimed_ids <= bot_ids
     assert all(pool.is_claimed(bot_id) and not pool.is_standing_by(bot_id) for bot_id in claimed_ids)

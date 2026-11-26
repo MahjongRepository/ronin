@@ -128,13 +128,13 @@ def _create_seating(
 
     def find_room_conflict(user_id: str, room_id: str) -> str | None:
         """
-        Apply the occupancy rule built below from the room and queue managers this function is injected into.
+        Apply the occupancy rule built below from the managers and the standby pool this function is injected into.
         """
         return occupancy.find_room_conflict(user_id, room_id)
 
     def find_queue_conflict(user_id: str) -> str | None:
         """
-        Apply the occupancy rule built below from the room and queue managers this function is injected into.
+        Apply the occupancy rule built below from the managers and the standby pool this function is injected into.
         """
         return occupancy.find_queue_conflict(user_id)
 
