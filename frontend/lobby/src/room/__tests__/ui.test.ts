@@ -215,7 +215,7 @@ describe("renderRoom strong bots option", () => {
         document.body.replaceChildren();
     });
 
-    test("sends use_strong_bots with the start when the owner ticked strong bots", () => {
+    test("sends use_strong_bots with the start only once the owner ticked strong bots", () => {
         const state = seatedState();
         Object.assign(state, { canStart: true, strongBotsAvailable: true });
         state.socket = new LobbySocket(vi.fn(), vi.fn());
