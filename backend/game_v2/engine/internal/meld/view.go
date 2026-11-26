@@ -3,21 +3,20 @@ package meld
 import (
 	"strconv"
 
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// FromView returns the meld a declared meld scores as, its ids read with the engine's aka dora;
-// false when its tiles do not fit its kind. An added kan is an open kan.
-func FromView(view play.MeldView) (Meld, bool) {
+// FromView returns the meld a declared meld scores as, its ids read with aka; false when its tiles
+// do not fit its kind. An added kan is an open kan.
+func FromView(view play.MeldView, aka tile.AkaDora) (Meld, bool) {
 	var tiles [4]tile.Tile
 	if len(view.Tiles) > len(tiles) {
 		return Meld{}, false
 	}
 
 	for i, id := range view.Tiles {
-		tiles[i] = id.Tile(rules.AkaDora)
+		tiles[i] = id.Tile(aka)
 	}
 
 	size := 4
@@ -65,9 +64,14 @@ func (e DuplicateTileError) Error() string {
 	return "tile " + strconv.Itoa(e.Tile.Index()) + " is held twice"
 }
 
+func fitsItsKind(view play.MeldView) bool {
+	_, ok := FromView(view, tile.AkaDoraDisabled)
+	return ok
+}
+
 func CheckHandInput(hand []tile.TileID, melds []play.MeldView) error {
 	for index, view := range melds {
-		if _, ok := FromView(view); !ok {
+		if !fitsItsKind(view) {
 			return MisfitMeldError{Index: index}
 		}
 	}

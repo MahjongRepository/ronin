@@ -52,22 +52,24 @@ type FinishedRound struct {
 // discard and once a meld claimed it, the next seat drew or the round ended. Result is nil while a
 // round is in play.
 type SeatRecord struct {
-	Seat            tile.Seat
-	Hand            []tile.TileID
-	Drawn           Option[tile.TileID]
-	Furiten         bool
-	Players         [tile.SeatCount]PublicSeat
-	DoraIndicators  []tile.TileID
-	LiveTiles       int
-	RiichiSticks    int
-	Current         tile.Seat
-	LatestDiscard   Option[tile.Seat]
-	Header          RoundHeader
-	Result          RoundResult
-	Phase           Phase
-	FirstDealer     tile.Seat
-	FirstDealerDice [2]tile.Dice
-	History         []FinishedRound
+	Seat             tile.Seat
+	Hand             []tile.TileID
+	Drawn            Option[tile.TileID]
+	Furiten          bool
+	Players          [tile.SeatCount]PublicSeat
+	DoraIndicators   []tile.TileID
+	LiveTiles        int
+	RiichiSticks     int
+	Current          tile.Seat
+	LatestDiscard    Option[tile.Seat]
+	Header           RoundHeader
+	Result           RoundResult
+	Phase            Phase
+	FirstDealer      tile.Seat
+	FirstDealerDice  [2]tile.Dice
+	RiichiStickValue int
+	HonbaValue       int
+	History          []FinishedRound
 }
 
 // SeatView is what one seat may see of the game now: the facts it knows, and its prompt, absent

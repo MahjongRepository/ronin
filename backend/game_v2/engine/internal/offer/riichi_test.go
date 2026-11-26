@@ -73,7 +73,7 @@ func TestRiichiDiscards_WhenTheHandIsFarFromTenpai_ShouldOfferNone(t *testing.T)
 func TestRiichiDiscards_WhenBesideAClosedKanOrAnOpenMeld_ShouldOfferOnlyBesideTheClosedKan(t *testing.T) {
 	hand := concat(copies(t, 0, "1123456788m"), copies(t, 0, "1z"))
 
-	got := offer.RiichiDiscards(hand, []play.MeldView{closedKan(t, "9999m")}, false, 25000, 70)
+	got := offer.RiichiDiscards(hand, []play.MeldView{closedKan(t, "9999m")}, false, 25000, 70, play.RulesetTenhou)
 
 	if want := copies(t, 0, "1z"); !slices.Equal(got, want) {
 		t.Errorf("RiichiDiscards beside a closed kan = %v, want %v", got, want)
@@ -87,7 +87,7 @@ func TestRiichiDiscards_WhenBesideAClosedKanOrAnOpenMeld_ShouldOfferOnlyBesideTh
 func TestRiichiDiscards_WhenTheDrawnHandIsComplete_ShouldOfferEveryDiscard(t *testing.T) {
 	hand := concat(copies(t, 0, "1123456788899m"), copies(t, 3, "9m"))
 
-	if got := offer.RiichiDiscards(hand, nil, false, 25000, 70); !slices.Equal(got, hand) {
+	if got := offer.RiichiDiscards(hand, nil, false, 25000, 70, play.RulesetTenhou); !slices.Equal(got, hand) {
 		t.Errorf("RiichiDiscards = %v, want %v", got, hand)
 	}
 }
@@ -95,7 +95,7 @@ func TestRiichiDiscards_WhenTheDrawnHandIsComplete_ShouldOfferEveryDiscard(t *te
 func TestRiichiDiscards_ShouldListOnlyTheTenpaiKeepingTilesInHandOrder(t *testing.T) {
 	hand := concat(copies(t, 0, "123456789m1p"), copies(t, 1, "1p"), copies(t, 0, "23p9s"))
 
-	got := offer.RiichiDiscards(hand, nil, false, 25000, 70)
+	got := offer.RiichiDiscards(hand, nil, false, 25000, 70, play.RulesetTenhou)
 	if want := concat(copies(t, 0, "1p"), copies(t, 1, "1p"), copies(t, 0, "9s")); !slices.Equal(got, want) {
 		t.Errorf("RiichiDiscards = %v, want %v", got, want)
 	}

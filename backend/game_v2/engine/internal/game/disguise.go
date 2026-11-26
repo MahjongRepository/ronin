@@ -3,7 +3,6 @@ package game
 import (
 	"slices"
 
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -16,7 +15,7 @@ func (g Game) Disguised(seat tile.Seat, action play.Action, pick func(n int) int
 			return action
 		}
 
-		return play.KanAction(kind, pickedLookalike(hand, named, nil, pick))
+		return play.KanAction(kind, pickedLookalike(hand, named, nil, pick, g.settings().AkaDora))
 	}
 
 	held, takesTwo := action.Held()
@@ -24,8 +23,8 @@ func (g Game) Disguised(seat tile.Seat, action play.Action, pick func(n int) int
 		return action
 	}
 
-	first := pickedLookalike(hand, held[0], nil, pick)
-	second := pickedLookalike(hand, held[1], []tile.TileID{first}, pick)
+	first := pickedLookalike(hand, held[0], nil, pick, g.settings().AkaDora)
+	second := pickedLookalike(hand, held[1], []tile.TileID{first}, pick, g.settings().AkaDora)
 	if action.Kind() == play.ActionPon {
 		return play.PonAction([2]tile.TileID{first, second})
 	}
@@ -33,10 +32,12 @@ func (g Game) Disguised(seat tile.Seat, action play.Action, pick func(n int) int
 	return play.ChiAction([2]tile.TileID{first, second})
 }
 
-func pickedLookalike(hand []tile.TileID, named tile.TileID, taken []tile.TileID, pick func(n int) int) tile.TileID {
+func pickedLookalike(
+	hand []tile.TileID, named tile.TileID, taken []tile.TileID, pick func(n int) int, aka tile.AkaDora,
+) tile.TileID {
 	var lookalikes []tile.TileID
 	for held := range tile.HeldCopies(hand, named.Kind()) {
-		if held.Tile(rules.AkaDora) == named.Tile(rules.AkaDora) && !slices.Contains(taken, held) {
+		if held.Tile(aka) == named.Tile(aka) && !slices.Contains(taken, held) {
 			lookalikes = append(lookalikes, held)
 		}
 	}

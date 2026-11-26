@@ -1,7 +1,6 @@
 package messaging
 
 import (
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -23,7 +22,7 @@ func ReconnectionPayload(
 		{Key: wire.KeyDealer, Value: seatValue(header.Dealer)},
 		{Key: wire.KeyFirstDealer, Value: seatValue(record.FirstDealer)},
 		{Key: wire.KeyDealerDice, Value: dealerDice(record.FirstDealerDice)},
-		{Key: wire.KeyRiichiStickValue, Value: scoreValue(engine.RiichiStickValue)},
+		{Key: wire.KeyRiichiStickValue, Value: scoreValue(record.RiichiStickValue)},
 		{Key: wire.KeySeat, Value: seatValue(record.Seat)},
 		{Key: wire.KeyWind, Value: wire.Int(header.Wind)},
 		{Key: wire.KeyRoundNumber, Value: wire.Int(header.RoundNumber)},

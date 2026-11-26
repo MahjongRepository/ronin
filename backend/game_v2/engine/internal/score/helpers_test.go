@@ -91,7 +91,9 @@ func fourTiles(tb testing.TB, mpsz string) []tile.Tile {
 }
 
 func defaultRules() score.Rules {
-	return score.Rules{DoubleYakuman: true, FuForOpenPinfu: true}
+	return score.Rules{
+		DoubleYakuman: true, FuForOpenPinfu: true, FuForDoubleWindPair: 4, KazoeYakuman: true, RiichiStickValue: 1000, HonbaValue: 300,
+	}
 }
 
 func ron() score.Situation {

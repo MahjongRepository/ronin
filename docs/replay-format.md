@@ -47,10 +47,11 @@ right after the declarer's last record, and `PAO_ASSIGNED` after the pon or open
 seat's third dragon or fourth wind from another seat's discard, checked against each win's pao seat. A
 replay it cannot carry over whole is left as it was and reported.
 
-`gs` contains an integer profile `id` and an empty `overrides` map. The Go server plays one rules preset,
-profile 2, and records `{"id": 2, "overrides": {}}`; a replay rewritten from `0.4-dev` keeps profile 1,
-the rules it was played under, so the two are told apart. The Go reader accepts those two IDs only, and
-no overrides; the browser keeps the envelope opaque and has no registry.
+`gs` contains an integer profile `id` and an empty `overrides` map. Each engine ruleset has its own
+profile ID, and the Go server records the game's: `{"id": 2, "overrides": {}}` for Tenhou, the only
+ruleset so far. A replay rewritten from `0.4-dev` keeps profile 1, the rules it was played under, so the
+two are told apart. The Go reader accepts a ruleset's ID and profile 1 only, and no overrides; the
+browser keeps the envelope opaque and has no registry.
 
 The game-start record independently carries the viewing fields `gt` (game length), `rsv` (riichi-stick
 value in wire score units), and `aka` (boolean red-five setting). Playback uses recorded events and these

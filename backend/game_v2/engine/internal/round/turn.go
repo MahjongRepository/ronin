@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/offer"
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -123,7 +122,7 @@ func (r *Round) TurnActions(seat tile.Seat, score int) []play.Action {
 }
 
 func (r *Round) riichiDiscards(seat tile.Seat, score int) []tile.TileID {
-	return offer.RiichiDiscards(r.hand(seat), r.seatMelds(seat), r.InRiichi(seat), score, r.LiveTiles())
+	return offer.RiichiDiscards(r.hand(seat), r.seatMelds(seat), r.InRiichi(seat), score, r.LiveTiles(), r.ruleset)
 }
 
 func (r *Round) endEveryIppatsu() {
@@ -133,7 +132,8 @@ func (r *Round) endEveryIppatsu() {
 }
 
 func (r *Round) mayKyuushu(seat tile.Seat) bool {
-	return len(r.rivers[seat.Index()]) == 0 && !r.hasAnyCall() && offer.HasNineTerminalKinds(r.hand(seat))
+	return r.settings().AbortKyuushuKyuuhai && len(r.rivers[seat.Index()]) == 0 && !r.hasAnyCall() &&
+		offer.HasNineTerminalKinds(r.hand(seat))
 }
 
 func (r *Round) checkDiscard(seat tile.Seat, id tile.TileID) (int, play.Option[play.Refusal]) {
@@ -203,6 +203,10 @@ func (r *Round) depositRiichi() (tile.Seat, bool) {
 }
 
 func (r *Round) isFourRiichi() bool {
+	if !r.settings().AbortFourRiichi {
+		return false
+	}
+
 	for _, riichi := range r.riichi {
 		if !riichi.OK {
 			return false
@@ -218,11 +222,11 @@ func (r *Round) isFourWinds() bool {
 		total += len(river)
 	}
 
-	if total != rules.FourWindsDiscardCount || r.hasAnyCall() {
+	if !r.settings().AbortFourWinds || total != tile.SeatCount || r.hasAnyCall() {
 		return false
 	}
 
-	discards := make([]tile.TileID, 0, rules.FourWindsDiscardCount)
+	discards := make([]tile.TileID, 0, tile.SeatCount)
 	for _, river := range r.rivers {
 		for _, discard := range river {
 			discards = append(discards, discard.Tile)

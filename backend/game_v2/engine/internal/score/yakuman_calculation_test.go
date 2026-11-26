@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/meld"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/score"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -464,7 +465,7 @@ func TestEstimateHandValue_WhenTenhou_ShouldKeepTheFuOfTheGivenWinTile(t *testin
 		{"9p", 30},
 	} {
 		t.Run(row.winTile, func(t *testing.T) {
-			got, err := yakumanEstimate(t, yakumanTenhouPinfuShape, row.winTile, nil, yakumanTenhou(), score.HandRules())
+			got, err := yakumanEstimate(t, yakumanTenhouPinfuShape, row.winTile, nil, yakumanTenhou(), score.HandRules(rules.Tenhou()))
 			want := play.Yakuman{Count: 1, Fu: play.Some(row.fu)}
 			if err != nil || got.Value != want {
 				t.Errorf("EstimateHandValue(%s on %s) = %v, %v, want %v",

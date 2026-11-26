@@ -3,7 +3,6 @@ package round
 import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/hand"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/offer"
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/score"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -25,6 +24,7 @@ func (r *Round) uraIndicators(seat tile.Seat) []tile.TileID {
 
 func (r *Round) scoring(seat tile.Seat, win score.Win) offer.Scoring {
 	return offer.Scoring{
+		Ruleset:        r.ruleset,
 		Situation:      r.situation(seat, win),
 		Melds:          r.seatMelds(seat),
 		DoraIndicators: r.wall.DoraIndicators(),
@@ -88,7 +88,7 @@ func (r *Round) tsumoResult(seat tile.Seat, honba, riichiSticks int) (play.WinRe
 		return play.WinResult{}, false
 	}
 
-	changes := offer.TsumoScoreChanges(seat, r.dealer, value.Payment, honba, riichiSticks, r.pao[seat.Index()])
+	changes := offer.TsumoScoreChanges(seat, r.dealer, value.Payment, honba, riichiSticks, r.pao[seat.Index()], r.ruleset)
 	return r.winResult(seat, play.Option[tile.Seat]{}, winTile, value, changes), true
 }
 
@@ -99,7 +99,7 @@ func (r *Round) rons(winners []tile.Seat, prompt CallPrompt, honba, riichiSticks
 		value := offer.SettledValue(r.hand(winner), prompt.tile, r.scoring(winner, win))
 		tableHonba, tableSticks := offer.RonTableShare(position, honba, riichiSticks)
 		pao := r.pao[winner.Index()]
-		changes := offer.RonScoreChanges(winner, prompt.from, value.Payment, tableHonba, tableSticks, pao)
+		changes := offer.RonScoreChanges(winner, prompt.from, value.Payment, tableHonba, tableSticks, pao, r.ruleset)
 		wins = append(wins, r.winResult(winner, play.Some(prompt.from), prompt.tile, value, changes))
 	}
 
@@ -113,7 +113,7 @@ func (r *Round) exhaustiveDraw() play.RoundResult {
 	}
 
 	var nagashi []tile.Seat
-	if rules.NagashiMangan {
+	if r.settings().NagashiMangan {
 		nagashi = offer.NagashiSeats(r.rivers, r.meldsBySeat())
 	}
 
@@ -144,7 +144,7 @@ func (r *Round) nagashiPayments(nagashi []tile.Seat) [tile.SeatCount]int {
 	var total [tile.SeatCount]int
 	for _, seat := range nagashi {
 		payment := score.NagashiMangan(r.seatWind(seat))
-		changes := offer.TsumoScoreChanges(seat, r.dealer, payment, 0, 0, play.Option[tile.Seat]{})
+		changes := offer.TsumoScoreChanges(seat, r.dealer, payment, 0, 0, play.Option[tile.Seat]{}, r.ruleset)
 		for i, change := range changes {
 			total[i] += change
 		}
@@ -156,6 +156,8 @@ func (r *Round) nagashiPayments(nagashi []tile.Seat) [tile.SeatCount]int {
 func isKeishikiTenpai(closed, melded []tile.TileID) bool {
 	return hand.IsTenpai(countsOf(closed), countsOf(melded))
 }
+
+const notenPenaltyTotal = 3000
 
 func notenPayments(tenpai [tile.SeatCount]bool) [tile.SeatCount]int {
 	tenpaiCount := 0
@@ -170,7 +172,7 @@ func notenPayments(tenpai [tile.SeatCount]bool) [tile.SeatCount]int {
 		return [tile.SeatCount]int{}
 	}
 
-	gain, loss := rules.NotenPenaltyTotal/tenpaiCount, rules.NotenPenaltyTotal/notenCount
+	gain, loss := notenPenaltyTotal/tenpaiCount, notenPenaltyTotal/notenCount
 	var payments [tile.SeatCount]int
 	for i, isTenpai := range tenpai {
 		payments[i] = -loss

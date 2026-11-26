@@ -68,7 +68,9 @@ func TestLoad_WhenARonRobsAClosedKan_ShouldNameTheKanByTheRobbedCopy(t *testing.
 	robbed := play.RoundEnded{Result: play.Ron{Discarder: seat(t, 1), Wins: []play.WinResult{{
 		Winner: seat(t, 2), Loser: play.Some(seat(t, 1)), WinTile: robbedCopy, Value: play.Yakuman{Count: 1},
 	}}}}
-	table := func() messaging.Table { return messaging.Table{Roster: testRoster} }
+	table := func() messaging.Table {
+		return messaging.Table{Roster: testRoster, Record: play.SeatRecord{RiichiStickValue: 1000, HonbaValue: 300}}
+	}
 	records := []wire.Map{messaging.ReplayGameStartedPayload(play.GameStarted{}, testRoster, engine.Seed{7})}
 	for _, event := range []play.Event{kan, robbed} {
 		record, err := messaging.EventPayload(event, table)

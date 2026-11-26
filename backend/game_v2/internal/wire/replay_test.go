@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 )
 
 const legacyChankanAddedPath = "testdata/legacy/chankan_added.msgpack"
@@ -82,7 +84,7 @@ func gameStartedRecord() Map {
 		field(KeyHasAkadora, Bool(true)),
 		field(KeySeed, Bin(make([]byte, ReplaySeedBytes))),
 		field(KeyRNGVersion, Str("shake256-v1")),
-		field(KeyGameSettings, ReplaySettings()),
+		field(KeyGameSettings, ReplaySettings(play.RulesetTenhou)),
 	)
 }
 
@@ -217,11 +219,11 @@ func TestEncodeReplay_WhenARecordBreaksTheFormat_ShouldRefuseItAtItsPosition(t *
 		{"short seed", with(gameStarted, KeySeed, Bin(make([]byte, ReplaySeedBytes-1)))},
 		{"hexadecimal seed", with(gameStarted, KeySeed, Str(strings.Repeat("00", ReplaySeedBytes)))},
 		{"rules envelope of an integer", with(gameStarted, KeyGameSettings, Int(1))},
-		{"rules envelope without overrides", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(RulesProfileID)}})},
+		{"rules envelope without overrides", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(TenhouRulesProfileID)}})},
 		{"unknown rules profile", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(3)}, {Key: "overrides", Value: StrMap{}}})},
 		{"rules profile of a boolean", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Bool(true)}, {Key: "overrides", Value: StrMap{}}})},
-		{"rules overrides", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(RulesProfileID)}, {Key: "overrides", Value: StrMap{{Key: "has_akadora", Value: Bool(false)}}}})},
-		{"rules overrides of an integer", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(RulesProfileID)}, {Key: "overrides", Value: Int(0)}})},
+		{"rules overrides", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(TenhouRulesProfileID)}, {Key: "overrides", Value: StrMap{{Key: "has_akadora", Value: Bool(false)}}}})},
+		{"rules overrides of an integer", with(gameStarted, KeyGameSettings, StrMap{{Key: "id", Value: Int(TenhouRulesProfileID)}, {Key: "overrides", Value: Int(0)}})},
 		{"dealer dice of an integer", with(gameStarted, KeyDealerDice, Int(2))},
 		{"one roll of dealer dice", with(gameStarted, KeyDealerDice, Array{ints(1, 2)})},
 		{"dealer roll of an integer", with(gameStarted, KeyDealerDice, Array{Int(1), ints(1, 2)})},
@@ -424,9 +426,9 @@ func TestDecodeReplay_WhenTheContentIsEmptyOrTooLarge_ShouldRefuseIt(t *testing.
 }
 
 func TestReplaySettings_ShouldNameThisServersRulesProfileWithoutOverrides(t *testing.T) {
-	got := appendValue(nil, ReplaySettings())
+	got := appendValue(nil, ReplaySettings(play.RulesetTenhou))
 
 	if want := hexBytes(t, "82a2696402a96f7665727269646573"+"80"); !bytes.Equal(got, want) {
-		t.Errorf("ReplaySettings() = %x, want %x", got, want)
+		t.Errorf("ReplaySettings(play.RulesetTenhou) = %x, want %x", got, want)
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/game"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rng"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/testkit"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/wall"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
@@ -52,6 +53,7 @@ func TestNew_WhenTheWallIsFixed_ShouldDealSeatZeroAndAnnounceEveryHand(t *testin
 	header := play.RoundHeader{Wind: tile.East, RoundInWind: 1, Dealer: seat(t, 0), Dice: evenDice()}
 	want := []play.Emitted{{To: play.ToAll(), Event: play.GameStarted{
 		FirstDealer: seat(t, 0), Dice: [2]tile.Dice{evenDice(), evenDice()},
+		Ruleset: play.RulesetTenhou, AkaDora: tile.AkaDoraEnabled, RiichiStickValue: 1000, HonbaValue: 300,
 	}}}
 	for _, s := range tile.Seats() {
 		want = append(want, play.Emitted{To: play.ToSeat(s), Event: play.RoundStarted{
@@ -77,6 +79,7 @@ func TestNew_WhenSeeded_ShouldTakeTheFirstDealerAndTheRoundZeroWallFromTheSeed(t
 
 	assertEqual[play.Event](t, "first event", events[0].Event, play.GameStarted{
 		FirstDealer: seat(t, 0), Dice: [2]tile.Dice{{First: 2, Second: 2}, {First: 5, Second: 1}},
+		Ruleset: play.RulesetTenhou, AkaDora: tile.AkaDoraEnabled, RiichiStickValue: 1000, HonbaValue: 300,
 	})
 	assertEqual(t, "dealer hand", g.Hand(seat(t, 0)), ids(t, 0, 6, 26, 35, 43, 54, 55, 62, 67, 73, 79, 88, 100, 72))
 	assertEqual(t, "dice", g.Header().Dice, tile.Dice{First: 5, Second: 5})
@@ -126,8 +129,17 @@ func TestNew_WhenTheWallIsFixedWithAStartPosition_ShouldDealTheStagedHandsFromIt
 	assertEqual(t, "round in wind", g.Header().RoundInWind, 3)
 }
 
+func TestNew_WhenTheRulesetIsUnknown_ShouldRefuseIt(t *testing.T) {
+	unknown := play.RulesetTenhou + 1
+
+	_, _, err := game.New(unknown, seeded(t), noStart())
+	if !errors.Is(err, rules.UnknownRulesetError{Ruleset: unknown}) {
+		t.Errorf("New(ruleset %d) error = %v, want UnknownRulesetError", unknown, err)
+	}
+}
+
 func TestNew_WhenTheFixedSetupHasNoWalls_ShouldRefuseIt(t *testing.T) {
-	_, _, err := game.New(fixed(), noStart())
+	_, _, err := game.New(play.RulesetTenhou, fixed(), noStart())
 	if !errors.Is(err, game.NoFixedWallError{}) {
 		t.Errorf("New(no walls) error = %v, want NoFixedWallError", err)
 	}
@@ -137,7 +149,7 @@ func TestNew_WhenTheFixedSetupRepeatsATile_ShouldRefuseIt(t *testing.T) {
 	repeated := tile.AllTileIDs()
 	repeated[1] = id(t, 0)
 
-	_, _, err := game.New(fixed(repeated), noStart())
+	_, _, err := game.New(play.RulesetTenhou, fixed(repeated), noStart())
 	if !errors.Is(err, game.InvalidWallError{Err: wall.DuplicateTileError{Tile: id(t, 0)}}) ||
 		!errors.Is(err, wall.DuplicateTileError{Tile: id(t, 0)}) {
 		t.Errorf("New(repeated tile) error = %v, want InvalidWallError of tile 0", err)
@@ -145,7 +157,7 @@ func TestNew_WhenTheFixedSetupRepeatsATile_ShouldRefuseIt(t *testing.T) {
 }
 
 func TestNew_WhenNoWallSourceIsGiven_ShouldRefuseItAsNoFixedWall(t *testing.T) {
-	if _, _, err := game.New(nil, noStart()); !errors.Is(err, game.NoFixedWallError{}) {
+	if _, _, err := game.New(play.RulesetTenhou, nil, noStart()); !errors.Is(err, game.NoFixedWallError{}) {
 		t.Errorf("New(nil) error = %v, want NoFixedWallError", err)
 	}
 }
@@ -153,7 +165,7 @@ func TestNew_WhenNoWallSourceIsGiven_ShouldRefuseItAsNoFixedWall(t *testing.T) {
 func startError(t *testing.T, scores [tile.SeatCount]int, riichiSticks int, wind tile.Wind) error {
 	t.Helper()
 	start := play.StartPosition{Scores: scores, RiichiSticks: riichiSticks, Dealer: seat(t, 0), Wind: wind}
-	_, _, err := game.New(seeded(t), play.Some(start))
+	_, _, err := game.New(play.RulesetTenhou, seeded(t), play.Some(start))
 	return err
 }
 
@@ -219,7 +231,7 @@ func TestNew_WhenTheRiichiStickCountIsNegative_ShouldRefuseIt(t *testing.T) {
 func TestNew_WhenTheHonbaCountIsNegative_ShouldRefuseIt(t *testing.T) {
 	start := play.StartPosition{Scores: [tile.SeatCount]int{25000, 25000, 25000, 25000}, Honba: -1}
 
-	_, _, err := game.New(seeded(t), play.Some(start))
+	_, _, err := game.New(play.RulesetTenhou, seeded(t), play.Some(start))
 	if !errors.Is(err, game.NegativeStartCountError{}) {
 		t.Errorf("error = %v, want NegativeStartCountError", err)
 	}

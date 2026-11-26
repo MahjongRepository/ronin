@@ -8,9 +8,10 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// Table is the round a win is settled in: its dealer, its round wind, and the honba and riichi
-// sticks on the table.
+// Table is the round a win is settled in: the ruleset it plays under, its zero value the default
+// play.RulesetTenhou; its dealer, its round wind, and the honba and riichi sticks on the table.
 type Table struct {
+	Ruleset      play.Ruleset
 	Dealer       tile.Seat
 	RoundWind    tile.Wind
 	Honba        int
@@ -75,7 +76,9 @@ func SettleTsumo(table Table, h WinningHand) (SettledWin, error) {
 		return SettledWin{}, err
 	}
 
-	changes := offer.TsumoScoreChanges(h.Seat, table.Dealer, value.Payment, table.Honba, table.RiichiSticks, h.Pao)
+	changes := offer.TsumoScoreChanges(
+		h.Seat, table.Dealer, value.Payment, table.Honba, table.RiichiSticks, h.Pao, table.Ruleset,
+	)
 	return SettledWin{Value: value, ScoreChanges: changes}, nil
 }
 
@@ -95,7 +98,7 @@ func SettleRon(table Table, discarder tile.Seat, winners []WinningHand) ([]Settl
 		}
 
 		honba, sticks := offer.RonTableShare(position, table.Honba, table.RiichiSticks)
-		changes := offer.RonScoreChanges(h.Seat, discarder, value.Payment, honba, sticks, h.Pao)
+		changes := offer.RonScoreChanges(h.Seat, discarder, value.Payment, honba, sticks, h.Pao, table.Ruleset)
 		settled = append(settled, SettledWin{Value: value, ScoreChanges: changes})
 	}
 
@@ -106,6 +109,7 @@ func settledValue(table Table, h WinningHand) (HandValue, error) {
 	situation := offer.BaseSituation(h.Win, h.Seat.Wind(table.Dealer), table.RoundWind, h.Riichi)
 	situation.FirstTurn = h.FirstTurn
 	return offer.HandValue(h.Concealed, h.WinTile, offer.Scoring{
+		Ruleset:        table.Ruleset,
 		Situation:      situation,
 		Melds:          h.Melds,
 		DoraIndicators: h.DoraIndicators,

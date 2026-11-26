@@ -110,7 +110,7 @@ func fixed(walls ...[tile.TileIDCount]tile.TileID) play.WallSource {
 
 func newGame(t *testing.T, source play.WallSource, start play.Option[play.StartPosition]) (game.Game, []play.Emitted) {
 	t.Helper()
-	g, dealt, err := game.New(source, start)
+	g, dealt, err := game.New(play.RulesetTenhou, source, start)
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}
@@ -313,9 +313,11 @@ func goAroundGame(
 }
 
 func sticksPaidScores(riichiSticks int) [tile.SeatCount]int {
-	scores := [tile.SeatCount]int{rules.StartingScore, rules.StartingScore, rules.StartingScore, rules.StartingScore}
+	tenhou := rules.Tenhou()
+	start := tenhou.StartingScore
+	scores := [tile.SeatCount]int{start, start, start, start}
 	for i := range riichiSticks {
-		scores[i%tile.SeatCount] -= rules.RiichiStickValue
+		scores[i%tile.SeatCount] -= tenhou.RiichiStickValue
 	}
 
 	return scores

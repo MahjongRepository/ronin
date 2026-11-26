@@ -1,6 +1,6 @@
 # Ronin Game Rules
 
-Standard Japanese Riichi Mahjong (4-player). This document lists the specific rules and settings that define Ronin's ruleset, separated into fixed mechanics (inherent to the game) and the settings of the one preset every game plays.
+Standard Japanese Riichi Mahjong (4-player). This document lists the specific rules and settings that define Ronin's ruleset, separated into fixed mechanics (inherent to the game) and the settings of the ruleset a game plays under.
 
 This document describes the Go engine (`backend/game_v2`).
 
@@ -43,7 +43,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 - Minimum wall tiles for declaration: 4
 - After riichi is established, every discard must be the tile just drawn. The player may instead declare a legal win or a permitted concealed kan. The declaration discard itself may be any tile that keeps the hand tenpai.
 - Concealed quad during riichi (ankan): allowed only when the tile just drawn is the kan tile (no okurikan: a quad held before the draw cannot be declared) and the kan leaves the set of waiting tiles unchanged. A kan that narrows the waits, breaks tenpai, or quads a tile that is itself a wait is refused. A kan that changes only how the hand splits into sets, or its yaku, is allowed: 111222333m456p5s waiting on 5s may quad a drawn 1m although the hand loses its ippeikou reading. Applies to concealed kan only — shouminkan is blocked during riichi. The waits before and after the kan are compared under our karaten rule (Keishiki tenpai, below): a tile whose 4 copies are all in the player's own hand and melds is not a wait.
-- Riichi sticks on exhaustive/abortive draw: Remain on the table for the next hand. Awarded to 1st place at game end if uncollected.
+- Riichi sticks on exhaustive/abortive draw: Remain on the table for the next hand. What happens to them at game end is a preset setting (Leftover riichi sticks, below).
 
 ### Furiten
 
@@ -74,6 +74,8 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 | Claimed (Daiminkan)   | At the replacement discard, before Ron, or when a further quad stands       | Dora not revealed | Dora applies         |
 | Extended (Shouminkan) | At the replacement discard, before Ron, or when a further quad stands       | Dora not revealed | Dora applies         |
 
+Both timings are preset settings (Kan dora timing, below); the table shows Tenhou's. A quad whose Dora is immediate reveals it as the quad stands, before the replacement draw, like a concealed quad above.
+
 Deferred Dora is revealed by the replacement discard itself, so a Ron on that discard counts it, with its Ura Dora for a Riichi winner.
 
 When the caller declares another quad on the replacement tile instead of discarding it, the deferred indicator is revealed as that quad stands, at its replacement draw (after its Chankan chance passes, so a robbed quad reveals nothing); the new quad's own indicator then follows its type. A Rinshan Kaihou on that later quad counts the earlier quad's Dora, and not the later one's when that quad is extended, since its own Dora stays deferred. This is our ruling: Japanese Wikipedia names the case as an open question of deferred reveal without settling it.
@@ -103,7 +105,7 @@ When the caller declares another quad on the replacement tile instead of discard
 - Noten penalty (exhaustive draw only): 3,000 points total redistributed (split evenly among noten payers, distributed evenly to tenpai players). No noten payments on abortive draws.
 - Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Tiles in the player's own melds count toward the 4 copies, whether concealed or called. Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
 - Best reading: A hand that reads several ways scores the reading that pays the most; a tie goes to a real yakuman over a counted one, then to the double forms, then to the reading on the given winning tile, then to the higher han, fu and unrounded fu.
-- Final points are not rounded (no goshashonyu): each player's difference from the target score, in thousands, plus uma, kept to a tenth of a point (for 42,300, 28,100, 18,600 and 11,000: +52.3, +8.1, −21.4, −39.0). First place adds the oka. The points sum to zero without adjustment.
+- Final points: each player's difference from the target score, in thousands, plus uma, kept to a tenth of a point (for 42,300, 28,100, 18,600 and 11,000: +52.3, +8.1, −21.4, −39.0). First place adds the oka. Whether they are rounded is a preset setting (Final points rounding, below).
 - Tie-breaking: When players have equal final scores, the player closer counter-clockwise to the starting dealer ranks higher. The starting dealer is chosen by dice from the game seed, so it is not always seat 0.
 - Double ron riichi sticks and honba bonus: only the winner closest counter-clockwise to the discarder receives them. For chankan the kan caller takes the discarder's role.
 
@@ -147,7 +149,9 @@ Applies when the game type and winning score threshold settings allow the game t
 
 ## Preset Settings
 
-Rules the engine models as settings. Every game plays one preset; its values are shown.
+Rules a ruleset sets. A game is set up with a ruleset; Tenhou is the default and so far the only one,
+and its values are shown. The settings a ruleset can change are the fields of
+`engine/internal/rules.Ruleset`; the rest below is fixed until a ruleset needs it changed.
 
 ### Game Structure
 
@@ -161,6 +165,8 @@ Rules the engine models as settings. Every game plays one preset; its values are
 - Tobi (negative score): Game ends immediately. Tobi threshold: Below 0 points (0 points does not end the game)
 - Agariyame (dealer stops in all-last while leading): Enabled and automatic. From South-4 on, a dealer who wins and places first with at least the winning score threshold ends the game. Ties for first follow the final standings.
 - Tenpaiyame (dealer stops in all-last if leading and tenpai at exhaustive draw): Enabled under the same conditions, nagashi mangan with a tenpai dealer included. An abortive draw never stops the game.
+- Leftover riichi sticks: Awarded to 1st place at game end. When disabled, they are lost: no player collects them, and the final scores sum to less than the table's total.
+- Final points rounding: Disabled; the points sum to zero without adjustment. When enabled, 2nd to 4th place are rounded to a whole point, halves away from zero (+10.5 to +11, −20.5 to −21), and 1st place takes what keeps the total unchanged.
 
 ### Yaku Toggles
 
@@ -185,13 +191,14 @@ Rules the engine models as settings. Every game plays one preset; its values are
 - Red dora (Akadora): 3 (one per suit, #5 tiles)
   - A pon or chii of a five whose hand holds both a red and a plain copy is offered both ways, with the red five and without it; a pon of the red five itself can take only plain copies, so it is offered once.
 - Kan dora: Enabled
+- Kan dora timing: Immediate for a concealed kan, deferred for an open (claimed or extended) kan, as in the Kan Dora Timing table above. Each kind can be immediate or deferred.
 - Kan ura dora: Enabled
 
 ### Abortive Draws
 
 - Kyuushu Kyuuhai (player choice): Any player may declare kyuushu kyuuhai with at least nine distinct terminal/honor types among their 14 tiles on their initial turn, before discarding, provided no player has made a chii, pon, or kan (including concealed kan). Other players' ordinary discards do not end eligibility, and the drawn tile counts toward the nine types. Not automatic — the server must offer this as an action.
 - Four Winds: All four players discard the same wind on first turn. Any call before the fourth discard, a closed kan included, prevents it. A riichi declared on the fourth wind discard is not established: the hand ends before the bet is taken, so no stick is deposited.
-- Four Riichi: After fourth riichi succeeds (if no one wins on the discard). A ron on the declaration discard stands, and the fourth riichi stick is not deposited.
+- Four Riichi: Enabled. After fourth riichi succeeds (if no one wins on the discard). A ron on the declaration discard stands, and the fourth riichi stick is not deposited. When disabled, play continues with the fourth stick deposited.
 - Four Kans: Four kans declared by two or more players. The fourth kan completes as usual: its declarer draws the replacement tile and may win by rinshan kaihou, or discards. If that discard is ronned, the ron stands; otherwise the hand ends in an abortive draw once the discard passes (it cannot be called for a meld, and any deferred kan dora is revealed first). A fourth kan that is robbed (an added kan by chankan, or a closed kan by kokushi musou) stays declared but reveals no kan dora, and the ron stands. If the replacement discard also declares the fourth riichi, the abort is reported as Four Riichi; a riichi declared on it that is not the fourth deposits its stick before the abortive draw, so the stick stays on the table. One player holding all four kans plays on, and no fifth kan can be declared.
 - Triple Ron: Three opponents declare Ron on the same discard or rob the same kan (an added kan, or a closed kan robbed by kokushi musou); no score changes. A riichi declared on that discard is void, and no stick is deposited. Being able to ron is not enough: each eligible player is offered the call, and if one of them passes, the other two win by double ron (or head bump when double ron is disabled).
 
@@ -199,13 +206,13 @@ Rules the engine models as settings. Every game plays one preset; its values are
 
 - Double Yakuman hands: Disabled. Kokushi Musou on a 13-sided wait, Suuankou Tanki (pair wait), Junsei Chuuren Poutou (9-sided wait) and Daisuushii (Big Four Winds) each score a single yakuman.
 - Multiple yakuman stacking: Allowed (e.g., Daisuushii + Tsuuiisou = double yakuman)
-- Kazoe Yakuman (13+ han): Single yakuman only. Dora (including red, kan, and ura dora) count toward the 13-han threshold.
+- Kazoe Yakuman (13+ han): Enabled, a single yakuman only. When disabled, 13+ han without a yakuman yaku is sanbaiman. Dora (including red, kan, and ura dora) count toward the 13-han threshold.
 - Yakuman hands and dora: Dora do not add han to yakuman hands. Yakuman scoring is fixed regardless of additional dora in the hand.
 - Maximum yakuman: capped at sextuple (6x), but with double yakuman disabled at most 4x is reachable (e.g., Tsuuiisou + Daisuushii + Suuankou + Tenhou).
 
 ### Scoring Options
 
-- Double wind pair: 4 fu
+- Double wind pair: 4 fu (a ruleset may set 2, the same as a single valued pair)
 - Chiitoitsu: Fixed 25 fu, 2 han
 - Pinfu tsumo: 0 fu (no additional fu for pinfu tsumo)
 - Open pinfu: 2 fu (fu added for open pinfu hands)

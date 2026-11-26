@@ -167,7 +167,7 @@ func TestNew_WhenALaterFixedWallRepeatsATile_ShouldRefuseTheSetup(t *testing.T) 
 	repeating := valid
 	repeating[1] = repeating[0]
 
-	_, _, err := game.New(fixed(valid, repeating), noStart())
+	_, _, err := game.New(play.RulesetTenhou, fixed(valid, repeating), noStart())
 	if want := (game.InvalidWallError{Err: wall.DuplicateTileError{Tile: repeating[0]}}); !errors.Is(err, want) {
 		t.Errorf("error = %v, want %v", err, want)
 	}

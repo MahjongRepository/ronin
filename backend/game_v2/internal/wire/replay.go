@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 )
 
 const ReplayVersion = "0.5-dev"
@@ -14,7 +16,30 @@ const MaxReplayBytes = 16 * 1024 * 1024
 
 const MigratedRulesProfileID = 1
 
-const RulesProfileID = 2
+const TenhouRulesProfileID = 2
+
+const noRulesProfile = 0
+
+// RulesProfileOf returns the rules profile a replay records for ruleset: 0, which no replay
+// accepts, for a ruleset with no profile.
+func RulesProfileOf(ruleset play.Ruleset) Int {
+	switch ruleset { //nolint:gocritic // a switch, so exhaustive flags a ruleset added without its profile
+	case play.RulesetTenhou:
+		return TenhouRulesProfileID
+	}
+
+	return noRulesProfile
+}
+
+// RulesetOfProfile returns the ruleset a replay of rules profile id plays again under; false for
+// the migrated profile, which no ruleset reproduces, and for any unknown one.
+func RulesetOfProfile(id Value) (play.Ruleset, bool) {
+	if id == Int(TenhouRulesProfileID) {
+		return play.RulesetTenhou, true
+	}
+
+	return 0, false
+}
 
 var replayKeys = keySet(func(k Key) bool {
 	return k <= KeyYakuYakumanCount || k == KeyShownHands
@@ -63,8 +88,8 @@ func (e UnsupportedVersionError) Error() string {
 	return "the first record is no version record"
 }
 
-func ReplaySettings() StrMap {
-	return StrMap{{Key: "id", Value: Int(RulesProfileID)}, {Key: "overrides", Value: StrMap{}}}
+func ReplaySettings(ruleset play.Ruleset) StrMap {
+	return StrMap{{Key: "id", Value: RulesProfileOf(ruleset)}, {Key: "overrides", Value: StrMap{}}}
 }
 
 func VersionRecord() Map {
@@ -238,7 +263,7 @@ func validateSettings(v Value) error {
 		return errors.New("the rules envelope must hold an id and its overrides, nothing else")
 	}
 
-	if id != Int(RulesProfileID) && id != Int(MigratedRulesProfileID) {
+	if _, known := RulesetOfProfile(id); !known && id != Int(MigratedRulesProfileID) {
 		return errors.New("unknown rules profile")
 	}
 

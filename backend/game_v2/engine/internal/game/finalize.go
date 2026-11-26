@@ -77,9 +77,10 @@ func gameEndCause(
 	result play.RoundResult,
 	scores [tile.SeatCount]int,
 	firstDealer tile.Seat,
+	ruleset rules.Ruleset,
 ) (play.GameEndCause, bool) {
-	if rules.Tobi && slices.ContainsFunc(scores[:], func(score int) bool {
-		return score < rules.TobiThreshold
+	if ruleset.Tobi && slices.ContainsFunc(scores[:], func(score int) bool {
+		return score < ruleset.TobiThreshold
 	}) {
 		return play.EndTobi, true
 	}
@@ -89,11 +90,11 @@ func gameEndCause(
 		targetCause = play.EndLength
 	}
 
-	if rules.Agariyame && next.dealer == ended.dealer && next.uniqueDealers >= hanchanDealers {
+	if ruleset.Agariyame && next.dealer == ended.dealer && next.uniqueDealers >= hanchanDealers {
 		_, isAbortive := result.(play.Abortive)
 		first := placementOrder(scores, firstDealer)[0]
 		dealerFirstAtTarget := first == next.dealer &&
-			scores[first.Index()] >= rules.WinningScoreThreshold
+			scores[first.Index()] >= ruleset.WinningScoreThreshold
 		if isAbortive || !dealerFirstAtTarget {
 			return 0, false
 		}
@@ -102,7 +103,7 @@ func gameEndCause(
 	}
 
 	hasWinner := slices.ContainsFunc(scores[:], func(score int) bool {
-		return score >= rules.WinningScoreThreshold
+		return score >= ruleset.WinningScoreThreshold
 	})
 	if next.uniqueDealers > hanchanDealers && hasWinner {
 		return targetCause, true
@@ -120,16 +121,19 @@ func finalStandings(
 	riichiSticks int,
 	firstDealer tile.Seat,
 	cause play.GameEndCause,
+	ruleset rules.Ruleset,
 ) play.Standings {
 	order := placementOrder(scores, firstDealer)
-	scores[order[0].Index()] += riichiSticks * rules.RiichiStickValue
+	if ruleset.LeftoverRiichiSticksToFirst {
+		scores[order[0].Index()] += riichiSticks * ruleset.RiichiStickValue
+	}
 
 	var scoresByPlace [tile.SeatCount]int
 	for place, seat := range order {
 		scoresByPlace[place] = scores[seat.Index()]
 	}
 
-	pointsByPlace := finalPoints(scoresByPlace)
+	pointsByPlace := finalPoints(scoresByPlace, ruleset)
 
 	standings := play.Standings{Cause: cause, Scores: scores}
 	for place, seat := range order {
@@ -151,13 +155,42 @@ func placementOrder(scores [tile.SeatCount]int, firstDealer tile.Seat) [tile.Sea
 	return order
 }
 
-func finalPoints(scoresByPlace [tile.SeatCount]int) [tile.SeatCount]int {
-	oka := (rules.TargetScore - rules.StartingScore) * tile.SeatCount / scorePerTenth
+func finalPoints(scoresByPlace [tile.SeatCount]int, ruleset rules.Ruleset) [tile.SeatCount]int {
+	oka := (ruleset.TargetScore - ruleset.StartingScore) * tile.SeatCount / scorePerTenth
 	var points [tile.SeatCount]int
 	for place, score := range scoresByPlace {
-		points[place] = (score-rules.TargetScore)/scorePerTenth + rules.Uma[place]*tenthsPerPoint
+		points[place] = (score-ruleset.TargetScore)/scorePerTenth + ruleset.Uma[place]*tenthsPerPoint
 	}
 
 	points[0] += oka
+	if ruleset.RoundFinalPoints {
+		return roundedPoints(points)
+	}
+
 	return points
+}
+
+func roundedPoints(points [tile.SeatCount]int) [tile.SeatCount]int {
+	total := 0
+	for _, p := range points {
+		total += p
+	}
+
+	rounded := points
+	for place := 1; place < tile.SeatCount; place++ {
+		rounded[place] = roundedToWholePoint(points[place])
+		total -= rounded[place]
+	}
+
+	rounded[0] = total
+	return rounded
+}
+
+func roundedToWholePoint(tenths int) int {
+	half := tenthsPerPoint / 2
+	if tenths < 0 {
+		return -((-tenths + half) / tenthsPerPoint * tenthsPerPoint)
+	}
+
+	return (tenths + half) / tenthsPerPoint * tenthsPerPoint
 }

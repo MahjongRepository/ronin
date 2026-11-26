@@ -112,7 +112,7 @@ func gameStartedPayload(e play.GameStarted, roster Roster) wire.Map {
 		{Key: wire.KeyPlayers, Value: rosterPlayers(roster, [tile.SeatCount]play.Option[wire.SeatControlReason]{})},
 		{Key: wire.KeyDealer, Value: seatValue(e.FirstDealer)},
 		{Key: wire.KeyDealerDice, Value: dealerDice(e.Dice)},
-		{Key: wire.KeyRiichiStickValue, Value: scoreValue(engine.RiichiStickValue)},
+		{Key: wire.KeyRiichiStickValue, Value: scoreValue(e.RiichiStickValue)},
 	}
 }
 
@@ -178,7 +178,7 @@ func gameEndedPayload(standings play.Standings, record play.SeatRecord) wire.Map
 		{Key: wire.KeyEventType, Value: wire.Int(wire.EventGameEnd)},
 		{Key: wire.KeyWinnerSeat, Value: seatValue(winner)},
 		{Key: wire.KeyStandings, Value: placed},
-		{Key: wire.KeyLeftoverBonus, Value: scoreValue(leftover * engine.RiichiStickValue)},
+		{Key: wire.KeyLeftoverBonus, Value: scoreValue(leftover * record.RiichiStickValue)},
 		{Key: wire.KeyLeftoverRiichi, Value: wire.Int(leftover)},
 		{Key: wire.KeyRoundCount, Value: wire.Int(record.Header.RoundNumber + 1)},
 		{Key: wire.KeyEndCause, Value: wire.Str(endCauseName(standings.Cause))},
@@ -240,10 +240,10 @@ func packMelds(caller tile.Seat, views []play.MeldView) (wire.Array, error) {
 
 func ReplayGameStartedPayload(e play.GameStarted, roster Roster, seed engine.Seed) wire.Map {
 	return append(gameStartedPayload(e, roster),
-		wire.Field{Key: wire.KeyHasAkadora, Value: wire.Bool(true)},
+		wire.Field{Key: wire.KeyHasAkadora, Value: wire.Bool(e.AkaDora == tile.AkaDoraEnabled)},
 		wire.Field{Key: wire.KeySeed, Value: wire.Bin(seed[:])},
 		wire.Field{Key: wire.KeyRNGVersion, Value: wire.Str(engine.RNGVersion)},
-		wire.Field{Key: wire.KeyGameSettings, Value: wire.ReplaySettings()})
+		wire.Field{Key: wire.KeyGameSettings, Value: wire.ReplaySettings(e.Ruleset)})
 }
 
 func ReplayRoundStartedPayload(dealt []play.RoundStarted) wire.Map {

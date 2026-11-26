@@ -16,6 +16,7 @@ const gameStartPosition = 2
 type Replay struct {
 	Records []wire.Map
 	Seed    engine.Seed
+	Ruleset play.Ruleset
 	Names   [tile.SeatCount]string
 	AI      [tile.SeatCount]bool
 	Actions []SeatAction
@@ -110,9 +111,12 @@ func readGameStart(record wire.Map) (Replay, error) {
 	settings, _ := record.Get(wire.KeyGameSettings)
 	envelope, _ := settings.(wire.StrMap)
 	profile, _ := envelope.Get("id")
-	if profile != wire.Int(wire.RulesProfileID) {
-		return r, errors.New("the game was played under another rules profile")
+	ruleset, known := wire.RulesetOfProfile(profile)
+	if !known {
+		return r, errors.New("the game was played under a rules profile no ruleset replays")
 	}
+
+	r.Ruleset = ruleset
 
 	raw, _ := record.Get(wire.KeySeed)
 	bin, _ := raw.(wire.Bin)

@@ -14,10 +14,11 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-const (
-	tablePoints = rules.StartingScore * tile.SeatCount
-	scoreStep   = 100
-)
+const scoreStep = 100
+
+func tablePoints(ruleset rules.Ruleset) int {
+	return ruleset.StartingScore * tile.SeatCount
+}
 
 type walls struct {
 	seed  play.Option[rng.Seed]
@@ -52,10 +53,18 @@ type Game struct {
 	next            play.Option[position]
 	standings       play.Option[play.Standings]
 	drawPending     bool
+	ruleset         play.Ruleset
 }
 
-func New(source play.WallSource, start play.Option[play.StartPosition]) (Game, []play.Emitted, error) {
-	g := Game{firstDealerDice: [2]tile.Dice{{First: 1, Second: 1}, {First: 1, Second: 1}}}
+func New(
+	ruleset play.Ruleset, source play.WallSource, start play.Option[play.StartPosition],
+) (Game, []play.Emitted, error) {
+	if !rules.Known(ruleset) {
+		return Game{}, nil, rules.UnknownRulesetError{Ruleset: ruleset}
+	}
+
+	settings := rules.Of(ruleset)
+	g := Game{firstDealerDice: [2]tile.Dice{{First: 1, Second: 1}, {First: 1, Second: 1}}, ruleset: ruleset}
 	var fixedWalls [][tile.TileIDCount]tile.TileID
 	switch s := source.(type) {
 	case play.Seeded:
@@ -67,7 +76,7 @@ func New(source play.WallSource, start play.Option[play.StartPosition]) (Game, [
 	}
 
 	if start.OK {
-		if err := checkStart(start.Value); err != nil {
+		if err := checkStart(start.Value, settings); err != nil {
 			return Game{}, nil, err
 		}
 	}
@@ -84,7 +93,7 @@ func New(source play.WallSource, start play.Option[play.StartPosition]) (Game, [
 	at := start.Value
 	if !start.OK {
 		at = play.StartPosition{Scores: [tile.SeatCount]int{
-			rules.StartingScore, rules.StartingScore, rules.StartingScore, rules.StartingScore,
+			settings.StartingScore, settings.StartingScore, settings.StartingScore, settings.StartingScore,
 		}, Dealer: g.firstDealer}
 	}
 
@@ -100,13 +109,20 @@ func New(source play.WallSource, start play.Option[play.StartPosition]) (Game, [
 		return Game{}, nil, NoFixedWallError{}
 	}
 
-	g.points = round.NewPoints(at.Scores, at.RiichiSticks)
+	g.points = round.NewPoints(at.Scores, at.RiichiSticks, settings.RiichiStickValue)
 	g.deal(p, w)
-	events := []play.Emitted{toAll(play.GameStarted{FirstDealer: g.firstDealer, Dice: g.firstDealerDice})}
+	events := []play.Emitted{toAll(play.GameStarted{
+		FirstDealer: g.firstDealer, Dice: g.firstDealerDice, Ruleset: ruleset, AkaDora: settings.AkaDora,
+		RiichiStickValue: settings.RiichiStickValue, HonbaValue: settings.HonbaValue,
+	})}
 	return g, append(events, g.roundStartedEvents()...), nil
 }
 
-func checkStart(start play.StartPosition) error {
+func (g *Game) settings() rules.Ruleset {
+	return rules.Of(g.ruleset)
+}
+
+func checkStart(start play.StartPosition, ruleset rules.Ruleset) error {
 	if start.Wind >= tile.North {
 		return StartInNorthError{}
 	}
@@ -117,7 +133,7 @@ func checkStart(start play.StartPosition) error {
 			return StartScoreOffHundredsError{Seat: seat}
 		}
 
-		if rules.Tobi && score < rules.TobiThreshold {
+		if ruleset.Tobi && score < ruleset.TobiThreshold {
 			return StartScoreBelowTobiError{Seat: seat}
 		}
 	}
@@ -126,13 +142,13 @@ func checkStart(start play.StartPosition) error {
 		return NegativeStartCountError{}
 	}
 
-	found := saturatingMul(start.RiichiSticks, rules.RiichiStickValue)
+	found := saturatingMul(start.RiichiSticks, ruleset.RiichiStickValue)
 	for _, score := range start.Scores {
 		found = saturatingAdd(found, score)
 	}
 
-	if found != tablePoints {
-		return StartPointsOffTotalError{Found: found, Expected: tablePoints}
+	if expected := tablePoints(ruleset); found != expected {
+		return StartPointsOffTotalError{Found: found, Expected: expected}
 	}
 
 	return nil
@@ -169,7 +185,7 @@ func (g *Game) deal(p position, w wall.Wall) {
 		Dice:         w.Dice(),
 	}
 	g.uniqueDealers = p.uniqueDealers
-	g.round = round.Deal(w, p.dealer, p.wind)
+	g.round = round.Deal(w, p.dealer, p.wind, g.ruleset)
 	g.next = play.Option[position]{}
 	g.phase = play.PhasePlaying
 	g.drawPending = true
@@ -397,7 +413,7 @@ func (g *Game) finishRound(result play.RoundResult) []play.Emitted {
 	}
 
 	next := ended.after(result)
-	cause, ends := gameEndCause(ended, next, result, g.points.Scores(), g.firstDealer)
+	cause, ends := gameEndCause(ended, next, result, g.points.Scores(), g.firstDealer, g.settings())
 
 	var riichiSeats []tile.Seat
 	for _, seat := range tile.Seats() {
@@ -427,7 +443,7 @@ func (g *Game) finishRound(result play.RoundResult) []play.Emitted {
 }
 
 func (g *Game) endGame(cause play.GameEndCause) play.Emitted {
-	standings := finalStandings(g.points.Scores(), g.points.RiichiSticks(), g.firstDealer, cause)
+	standings := finalStandings(g.points.Scores(), g.points.RiichiSticks(), g.firstDealer, cause, g.settings())
 	g.points.SetFinal(standings.Scores)
 	g.standings = play.Some(standings)
 	g.next = play.Option[position]{}
@@ -463,22 +479,24 @@ func (g Game) SeatView(seat tile.Seat) play.SeatView {
 	}
 
 	seen := play.SeatRecord{
-		Seat:            seat,
-		Hand:            g.round.Hand(seat),
-		Drawn:           drawn,
-		Furiten:         g.round.ShownFuriten(seat),
-		Players:         players,
-		DoraIndicators:  g.round.Wall().DoraIndicators(),
-		LiveTiles:       g.round.LiveTiles(),
-		RiichiSticks:    g.points.RiichiSticks(),
-		Current:         g.round.Current(),
-		LatestDiscard:   latestDiscard,
-		Header:          g.header,
-		Result:          result,
-		Phase:           g.phase,
-		FirstDealer:     g.firstDealer,
-		FirstDealerDice: g.firstDealerDice,
-		History:         g.history,
+		Seat:             seat,
+		Hand:             g.round.Hand(seat),
+		Drawn:            drawn,
+		Furiten:          g.round.ShownFuriten(seat),
+		Players:          players,
+		DoraIndicators:   g.round.Wall().DoraIndicators(),
+		LiveTiles:        g.round.LiveTiles(),
+		RiichiSticks:     g.points.RiichiSticks(),
+		Current:          g.round.Current(),
+		LatestDiscard:    latestDiscard,
+		Header:           g.header,
+		Result:           result,
+		Phase:            g.phase,
+		FirstDealer:      g.firstDealer,
+		FirstDealerDice:  g.firstDealerDice,
+		RiichiStickValue: g.settings().RiichiStickValue,
+		HonbaValue:       g.settings().HonbaValue,
+		History:          g.history,
 	}
 	return play.SeatView{
 		Record:   record.Clone(seen),
@@ -495,8 +513,9 @@ func (g Game) CheckInvariants() error {
 		return OwnershipError{Err: err}
 	}
 
-	if found := g.points.Total(); found != tablePoints {
-		return TablePointsError{Found: found, Expected: tablePoints}
+	expected := tablePoints(g.settings())
+	if found := g.points.Total(); found != expected {
+		return TablePointsError{Found: found, Expected: expected}
 	}
 
 	if !g.standings.OK {
@@ -513,8 +532,8 @@ func (g Game) CheckInvariants() error {
 	placements := standings.Placements
 	slices.Sort(placements[:])
 	switch {
-	case scores != tablePoints:
-		return FinalScoresError{Found: scores, Expected: tablePoints}
+	case scores != expected:
+		return FinalScoresError{Found: scores, Expected: expected}
 	case points != 0:
 		return FinalPointsError{Points: points}
 	case placements != [tile.SeatCount]int{1, 2, 3, 4}:

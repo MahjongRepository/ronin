@@ -1,7 +1,6 @@
 package round
 
 import (
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -11,11 +10,13 @@ import (
 type Points struct {
 	scores       [tile.SeatCount]int
 	riichiSticks int
+	stickValue   int
 }
 
-// NewPoints returns the ledger of scores with riichiSticks on the table.
-func NewPoints(scores [tile.SeatCount]int, riichiSticks int) Points {
-	return Points{scores: scores, riichiSticks: riichiSticks}
+// NewPoints returns the ledger of scores with riichiSticks on the table, each stick worth
+// stickValue points.
+func NewPoints(scores [tile.SeatCount]int, riichiSticks, stickValue int) Points {
+	return Points{scores: scores, riichiSticks: riichiSticks, stickValue: stickValue}
 }
 
 // Score returns the score of seat.
@@ -35,7 +36,7 @@ func (p Points) RiichiSticks() int {
 
 // Total returns the points of the scores and the riichi sticks together.
 func (p Points) Total() int {
-	total := p.riichiSticks * rules.RiichiStickValue
+	total := p.riichiSticks * p.stickValue
 	for _, score := range p.scores {
 		total += score
 	}
@@ -44,7 +45,7 @@ func (p Points) Total() int {
 }
 
 func (p *Points) depositRiichi(seat tile.Seat) play.Emitted {
-	p.scores[seat.Index()] -= rules.RiichiCost
+	p.scores[seat.Index()] -= p.stickValue
 	p.riichiSticks++
 	return toAll(play.RiichiDeposited{Seat: seat, Score: p.Score(seat), RiichiSticks: p.riichiSticks})
 }

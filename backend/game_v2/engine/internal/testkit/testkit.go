@@ -233,7 +233,7 @@ func BegunGame(w StartWall, start play.Option[play.StartPosition]) (game.Game, e
 		return game.Game{}, err
 	}
 
-	g, _, err := game.New(source, start)
+	g, _, err := game.New(play.RulesetTenhou, source, start)
 	if err != nil {
 		return game.Game{}, err
 	}

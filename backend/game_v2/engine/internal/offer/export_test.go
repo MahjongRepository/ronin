@@ -16,13 +16,13 @@ func CheckedMeldOffers(
 	hand []tile.TileID, inRiichi bool, seat, from tile.Seat, discard tile.TileID,
 	kans [tile.SeatCount]int, liveTiles int,
 ) ([]play.Action, error) {
-	return checkedMeldOffers(hand, inRiichi, seat, from, discard, kans, liveTiles)
+	return checkedMeldOffers(hand, inRiichi, seat, from, discard, kans, liveTiles, play.RulesetTenhou)
 }
 
 func CheckedRiichiDiscards(
 	hand []tile.TileID, melds []play.MeldView, inRiichi bool, score, liveTiles int,
 ) ([]tile.TileID, error) {
-	return checkedRiichiDiscards(hand, melds, inRiichi, score, liveTiles)
+	return checkedRiichiDiscards(hand, melds, inRiichi, score, liveTiles, play.RulesetTenhou)
 }
 
 func KanCount(melds []play.MeldView) int {
@@ -34,9 +34,9 @@ func MayAddKan(kans [tile.SeatCount]int, liveTiles int) bool {
 }
 
 func PonOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]tile.TileID {
-	return ponOptions(hand, inRiichi, discard)
+	return ponOptions(hand, inRiichi, discard, tile.AkaDoraEnabled)
 }
 
 func ChiOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]tile.TileID {
-	return chiOptions(hand, inRiichi, discard)
+	return chiOptions(hand, inRiichi, discard, tile.AkaDoraEnabled)
 }

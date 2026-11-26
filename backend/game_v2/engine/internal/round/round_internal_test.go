@@ -55,7 +55,7 @@ func orderedRound(t *testing.T, dealer tile.Seat) Round {
 		t.Fatalf("FromTiles error = %v", err)
 	}
 
-	return Deal(w, dealer, tile.East)
+	return Deal(w, dealer, tile.East, play.RulesetTenhou)
 }
 
 func TestSeatWind_WhenTheDealerIsSeatTwo_ShouldWrapTheWindsAroundTheTable(t *testing.T) {

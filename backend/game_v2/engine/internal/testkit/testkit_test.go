@@ -220,7 +220,7 @@ func TestFirstPon_WhenTheSeatAnswersNoPrompt_ShouldReportIt(t *testing.T) {
 }
 
 func TestEventExtractors_WhenTheEventsHoldNoRoundEnd_ShouldFindNoResult(t *testing.T) {
-	g, dealt, err := game.New(play.Seeded{}, play.Option[play.StartPosition]{})
+	g, dealt, err := game.New(play.RulesetTenhou, play.Seeded{}, play.Option[play.StartPosition]{})
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}

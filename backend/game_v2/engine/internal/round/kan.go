@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/offer"
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -107,7 +106,13 @@ func (r *Round) makeKan(seat tile.Seat, kind play.KanKind, id tile.TileID) play.
 
 func (r *Round) revealKanDora(kind play.KanKind) []tile.TileID {
 	revealed := r.wall.RevealPendingDora()
-	if kind == play.KanClosed && rules.KanDoraImmediateForClosedKan {
+	settings := r.settings()
+	immediate := settings.KanDoraImmediateForOpenKan
+	if kind == play.KanClosed {
+		immediate = settings.KanDoraImmediateForClosedKan
+	}
+
+	if immediate {
 		indicator, _ := r.wall.AddDoraIndicator()
 		return append(revealed, indicator)
 	}
@@ -117,5 +122,5 @@ func (r *Round) revealKanDora(kind play.KanKind) []tile.TileID {
 }
 
 func (r *Round) isFourKans() bool {
-	return offer.IsFourKans(offer.KansBySeat(r.meldsBySeat()))
+	return offer.IsFourKans(offer.KansBySeat(r.meldsBySeat()), r.ruleset)
 }

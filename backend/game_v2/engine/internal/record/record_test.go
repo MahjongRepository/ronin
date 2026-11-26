@@ -74,7 +74,7 @@ func TestFromStart_WhenTheDealerAbortsOnKyuushu_ShouldFollowItsAbort(t *testing.
 		t.Fatalf("FixedSetup error = %v", err)
 	}
 
-	g, initial, err := game.New(source, play.Option[play.StartPosition]{})
+	g, initial, err := game.New(play.RulesetTenhou, source, play.Option[play.StartPosition]{})
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}

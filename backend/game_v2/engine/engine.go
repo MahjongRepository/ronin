@@ -28,11 +28,13 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// Setup is everything a game is built from: where its walls come from, and the position it starts
-// at, absent for East 1 with every seat at the starting score.
+// Setup is everything a game is built from: the ruleset it plays under, its zero value the default
+// play.RulesetTenhou; where its walls come from; and the position it starts at, absent for East 1
+// with every seat at the starting score.
 type Setup struct {
-	Walls play.WallSource
-	Start play.Option[play.StartPosition]
+	Ruleset play.Ruleset
+	Walls   play.WallSource
+	Start   play.Option[play.StartPosition]
 }
 
 // Game is the full state of a game, held by its caller. Its zero value is not a game and must not
@@ -46,13 +48,16 @@ type Game struct {
 // source deals seat 0 first with every throw (1, 1) and ends the game with
 // play.EndFixedWallsDealt once its walls run out.
 func NewGame(setup Setup) (Game, []play.Emitted, error) {
-	g, events, err := game.New(setup.Walls, setup.Start)
+	g, events, err := game.New(setup.Ruleset, setup.Walls, setup.Start)
 	if err != nil {
 		return Game{}, nil, err
 	}
 
 	return Game{game: g}, detachFreshEvents(events), nil
 }
+
+// UnknownRulesetError reports a setup whose Ruleset names no ruleset.
+type UnknownRulesetError = rules.UnknownRulesetError
 
 // InvalidWallError reports a fixed wall that does not hold every tile id exactly once; it wraps
 // the error naming the first tile listed twice.
@@ -205,10 +210,8 @@ func cloneEvent(event play.Event) play.Event {
 }
 
 const (
-	SeedBytes        = rng.SeedBytes
-	RiichiStickValue = rules.RiichiStickValue
-	HonbaRonBonus    = rules.HonbaRonBonus
-	RNGVersion       = rng.Version
+	SeedBytes  = rng.SeedBytes
+	RNGVersion = rng.Version
 )
 
 // Seed is a game seed: SeedBytes bytes, written as twice as many hex characters. A play.Seeded

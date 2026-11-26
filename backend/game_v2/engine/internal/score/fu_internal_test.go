@@ -156,16 +156,26 @@ func TestCalculateFu_WhenWonOnAClosedWait_ShouldAddKanchanFu(t *testing.T) {
 		fuResult{[]FuDetail{{Fu: 2, Reason: FuKanchan}, {Fu: 30, Reason: FuBase}}, 40})
 }
 
-func TestCalculateFu_WhenThePairIsValuedOnceOrTwice_ShouldAdd2Or4(t *testing.T) {
+func TestCalculateFu_WhenThePairIsValuedOnceOrTwice_ShouldAdd2OrTheDoubleWindPairFu(t *testing.T) {
+	twoFuDoubleWind := defaultRules()
+	twoFuDoubleWind.FuForDoubleWindPair = 2
 	for _, tc := range []struct {
+		name   string
 		valued []tile.Kind
+		rules  Rules
 		want   FuDetail
 	}{
-		{[]tile.Kind{tile.KindEast}, FuDetail{Fu: 2, Reason: FuValuedPair}},
-		{[]tile.Kind{tile.KindEast, tile.KindEast}, FuDetail{Fu: 4, Reason: FuDoubleValuedPair}},
+		{"valued once", []tile.Kind{tile.KindEast}, defaultRules(), FuDetail{Fu: 2, Reason: FuValuedPair}},
+		{"valued twice", []tile.Kind{tile.KindEast, tile.KindEast}, defaultRules(), FuDetail{Fu: 4, Reason: FuDoubleValuedPair}},
+		{
+			"valued twice at 2 fu",
+			[]tile.Kind{tile.KindEast, tile.KindEast},
+			twoFuDoubleWind,
+			FuDetail{Fu: 2, Reason: FuDoubleValuedPair},
+		},
 	} {
-		t.Run(fmt.Sprintf("valued %d times", len(tc.valued)), func(t *testing.T) {
-			checkFu(t, fuCase{concealed: "123456m12378s11z", winTile: "6s", win: WinRon, rules: defaultRules(), valued: tc.valued},
+		t.Run(tc.name, func(t *testing.T) {
+			checkFu(t, fuCase{concealed: "123456m12378s11z", winTile: "6s", win: WinRon, rules: tc.rules, valued: tc.valued},
 				fuResult{[]FuDetail{tc.want, {Fu: 30, Reason: FuBase}}, 40})
 		})
 	}

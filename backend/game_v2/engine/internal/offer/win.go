@@ -22,6 +22,7 @@ func Completes(concealed []tile.TileID, winTile tile.TileID) bool {
 // Scoring is what a win is scored from besides the tiles. UraIndicators is empty unless the
 // winner is in riichi.
 type Scoring struct {
+	Ruleset        play.Ruleset
 	Situation      score.Situation
 	Melds          []play.MeldView
 	DoraIndicators []tile.TileID
@@ -29,9 +30,11 @@ type Scoring struct {
 }
 
 func HandValue(concealed []tile.TileID, winTile tile.TileID, scoring Scoring) (score.HandValue, error) {
+	settings := rules.Of(scoring.Ruleset)
+	aka := settings.AkaDora
 	melds := make([]meld.Meld, 0, len(scoring.Melds))
 	for index, view := range scoring.Melds {
-		m, ok := meld.FromView(view)
+		m, ok := meld.FromView(view, aka)
 		if !ok {
 			return score.HandValue{}, meld.MisfitMeldError{Index: index}
 		}
@@ -39,9 +42,9 @@ func HandValue(concealed []tile.TileID, winTile tile.TileID, scoring Scoring) (s
 		melds = append(melds, m)
 	}
 
-	h := score.Hand{Concealed: tilesOf(concealed), WinTile: winTile.Tile(rules.AkaDora), Melds: melds}
-	dora := score.Dora{Indicators: tilesOf(scoring.DoraIndicators), UraIndicators: tilesOf(scoring.UraIndicators)}
-	return score.EstimateHandValue(h, scoring.Situation, dora, score.HandRules())
+	h := score.Hand{Concealed: tilesOf(concealed, aka), WinTile: winTile.Tile(aka), Melds: melds}
+	dora := score.Dora{Indicators: tilesOf(scoring.DoraIndicators, aka), UraIndicators: tilesOf(scoring.UraIndicators, aka)}
+	return score.EstimateHandValue(h, scoring.Situation, dora, score.HandRules(settings))
 }
 
 func OfferedValue(concealed []tile.TileID, winTile tile.TileID, scoring Scoring) (score.HandValue, bool) {
@@ -76,10 +79,10 @@ func (e MisfitPaymentError) Error() string {
 	return fmt.Sprintf("the payment %T%+v does not fit the win", e.Payment, e.Payment)
 }
 
-func tilesOf(ids []tile.TileID) []tile.Tile {
+func tilesOf(ids []tile.TileID, aka tile.AkaDora) []tile.Tile {
 	tiles := make([]tile.Tile, len(ids))
 	for i, id := range ids {
-		tiles[i] = id.Tile(rules.AkaDora)
+		tiles[i] = id.Tile(aka)
 	}
 
 	return tiles
@@ -87,9 +90,11 @@ func tilesOf(ids []tile.TileID) []tile.Tile {
 
 func TsumoScoreChanges(
 	winner, dealer tile.Seat, payment play.Payment, honba, riichiSticks int, pao play.Option[tile.Seat],
+	ruleset play.Ruleset,
 ) [tile.SeatCount]int {
+	settings := rules.Of(ruleset)
 	dealerShare, nonDealerShare := tsumoShares(payment, winner == dealer)
-	honbaPerPayer := score.HonbaBonus(score.WinTsumo, honba)
+	honbaPerPayer := score.HonbaBonus(score.WinTsumo, honba, settings.HonbaValue)
 	var changes [tile.SeatCount]int
 	for _, payer := range tile.Seats() {
 		if payer == winner {
@@ -110,7 +115,7 @@ func TsumoScoreChanges(
 		changes[winner.Index()] += paid
 	}
 
-	changes[winner.Index()] += score.RiichiSticksBonus(riichiSticks)
+	changes[winner.Index()] += riichiSticks * settings.RiichiStickValue
 	return changes
 }
 
@@ -154,13 +159,15 @@ func (e MisfitWinError) Error() string {
 
 func RonScoreChanges(
 	winner, discarder tile.Seat, payment play.Payment, honba, riichiSticks int, pao play.Option[tile.Seat],
+	ruleset play.Ruleset,
 ) [tile.SeatCount]int {
+	settings := rules.Of(ruleset)
 	ron, ok := payment.(play.RonPayment)
 	if !ok {
 		panic(play.EngineFaultError{Err: MisfitPaymentError{Payment: payment}})
 	}
 
-	handPoints, honbaPoints := ron.Discarder, score.HonbaBonus(score.WinRon, honba)
+	handPoints, honbaPoints := ron.Discarder, score.HonbaBonus(score.WinRon, honba, settings.HonbaValue)
 
 	var changes [tile.SeatCount]int
 	if pao.OK && pao.Value != discarder {
@@ -171,7 +178,7 @@ func RonScoreChanges(
 		changes[discarder.Index()] = -(handPoints + honbaPoints)
 	}
 
-	changes[winner.Index()] = handPoints + honbaPoints + score.RiichiSticksBonus(riichiSticks)
+	changes[winner.Index()] = handPoints + honbaPoints + riichiSticks*settings.RiichiStickValue
 	return changes
 }
 

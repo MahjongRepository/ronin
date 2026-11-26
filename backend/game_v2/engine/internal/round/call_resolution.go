@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/offer"
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -71,7 +70,8 @@ func (r *Round) resolveCall(honba int, points *Points) Transition {
 		return r.passCall(prompt, points)
 	}
 
-	if rules.TripleRonAbort && len(rons) > rules.DoubleRonCount {
+	settings := r.settings()
+	if settings.AbortTripleRon && len(rons) > settings.MaxRonWinners {
 		var hands []play.ShownHand
 		for _, seat := range rons {
 			hands = append(hands, r.shownHand(seat))
@@ -81,7 +81,7 @@ func (r *Round) resolveCall(honba int, points *Points) Transition {
 		return ended(nil, play.Abortive{Kind: result})
 	}
 
-	split := min(len(rons), rules.DoubleRonCount)
+	split := min(len(rons), settings.MaxRonWinners)
 	wins := r.rons(rons[:split], prompt, honba, points.RiichiSticks())
 	result := play.Ron{Discarder: prompt.from, Wins: wins, HeadBumped: slices.Clone(rons[split:])}
 	return ended(nil, result)
@@ -148,7 +148,7 @@ func (r *Round) openCallPrompt(from tile.Seat, id tile.TileID) bool {
 }
 
 func (r *Round) meldOffers(seat, from tile.Seat, id tile.TileID, kans [tile.SeatCount]int) []play.Action {
-	return offer.MeldOffers(r.hand(seat), r.InRiichi(seat), seat, from, id, kans, r.LiveTiles())
+	return offer.MeldOffers(r.hand(seat), r.InRiichi(seat), seat, from, id, kans, r.LiveTiles(), r.ruleset)
 }
 
 func (r *Round) checkCall(seat tile.Seat, action play.Action) play.Option[play.Refusal] {
@@ -262,7 +262,7 @@ func (r *Round) call(seat tile.Seat, call play.MeldCall, from tile.Seat, id tile
 
 func (r *Round) ronOutcome(seat tile.Seat, id tile.TileID) offer.RonOutcome {
 	win := offer.RonWin(play.SourceDiscard, r.LiveTiles())
-	return offer.DiscardRon(r.ronCandidate(seat), id, r.situation(seat, win))
+	return offer.DiscardRon(r.ronCandidate(seat), id, r.situation(seat, win), r.ruleset)
 }
 
 func (r *Round) ronCandidate(seat tile.Seat) offer.RonCandidate {

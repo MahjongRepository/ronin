@@ -98,7 +98,7 @@ func TestFuriten_WhenARonIsDeclinedOrMissed_ShouldSetTheFlagsOfTheSeatsRiichi(t 
 func TestDiscardRon_WhenTheTileDoesNotComplete_ShouldBeNotComplete(t *testing.T) {
 	candidate := offer.RonCandidate{Hand: tanyaoHand(t)}
 
-	if got := offer.DiscardRon(candidate, copyOf(t, 1, "1m"), ronSituation()); got != offer.RonNotComplete {
+	if got := offer.DiscardRon(candidate, copyOf(t, 1, "1m"), ronSituation(), play.RulesetTenhou); got != offer.RonNotComplete {
 		t.Errorf("DiscardRon = %v, want %v", got, offer.RonNotComplete)
 	}
 }
@@ -107,7 +107,7 @@ func TestDiscardRon_WhenTheCompleteOpenHandHasNoYaku_ShouldBeMissed(t *testing.T
 	concealed, melds := openNoYakuHand(t)
 	candidate := offer.RonCandidate{Hand: concealed, Melds: melds}
 
-	if got := offer.DiscardRon(candidate, copyOf(t, 1, "1z"), ronSituation()); got != offer.RonMissed {
+	if got := offer.DiscardRon(candidate, copyOf(t, 1, "1z"), ronSituation(), play.RulesetTenhou); got != offer.RonMissed {
 		t.Errorf("DiscardRon = %v, want %v", got, offer.RonMissed)
 	}
 }
@@ -115,7 +115,7 @@ func TestDiscardRon_WhenTheCompleteOpenHandHasNoYaku_ShouldBeMissed(t *testing.T
 func TestDiscardRon_WhenTheCompleteHandHasAYaku_ShouldBeOffered(t *testing.T) {
 	candidate := offer.RonCandidate{Hand: tanyaoHand(t)}
 
-	if got := offer.DiscardRon(candidate, copyOf(t, 1, "8s"), ronSituation()); got != offer.RonOffered {
+	if got := offer.DiscardRon(candidate, copyOf(t, 1, "8s"), ronSituation(), play.RulesetTenhou); got != offer.RonOffered {
 		t.Errorf("DiscardRon = %v, want %v", got, offer.RonOffered)
 	}
 }
@@ -130,7 +130,7 @@ func TestDiscardRon_WhenFuritenOrAWaitIsInTheRiver_ShouldBeMissed(t *testing.T) 
 	}
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
-			if got := offer.DiscardRon(c.candidate, copyOf(t, 1, "8s"), ronSituation()); got != offer.RonMissed {
+			if got := offer.DiscardRon(c.candidate, copyOf(t, 1, "8s"), ronSituation(), play.RulesetTenhou); got != offer.RonMissed {
 				t.Errorf("DiscardRon = %v, want %v", got, offer.RonMissed)
 			}
 		})
@@ -143,9 +143,11 @@ func TestDiscardRon_ShouldMatchScoringWithRealDoraIndicators(t *testing.T) {
 	tanyao, tanyaoTile := tanyaoHand(t), copyOf(t, 1, "8s")
 
 	_, noYakuErr := offer.HandValue(noYakuHand, noYakuTile, offer.Scoring{
+		Ruleset:   play.RulesetTenhou,
 		Situation: ronSituation(), Melds: melds, DoraIndicators: copies(t, 0, "4z"),
 	})
 	_, tanyaoErr := offer.HandValue(tanyao, tanyaoTile, offer.Scoring{
+		Ruleset:   play.RulesetTenhou,
 		Situation: ronSituation(), DoraIndicators: copies(t, 0, "4s"),
 	})
 
@@ -154,7 +156,7 @@ func TestDiscardRon_ShouldMatchScoringWithRealDoraIndicators(t *testing.T) {
 	}
 
 	noYakuCandidate := offer.RonCandidate{Hand: noYakuHand, Melds: melds}
-	if got := offer.DiscardRon(noYakuCandidate, noYakuTile, ronSituation()); got != offer.RonMissed {
+	if got := offer.DiscardRon(noYakuCandidate, noYakuTile, ronSituation(), play.RulesetTenhou); got != offer.RonMissed {
 		t.Errorf("DiscardRon of the no-yaku hand = %v, want %v", got, offer.RonMissed)
 	}
 
@@ -162,7 +164,7 @@ func TestDiscardRon_ShouldMatchScoringWithRealDoraIndicators(t *testing.T) {
 		t.Errorf("HandValue of tanyao error = %v, want nil", tanyaoErr)
 	}
 
-	if got := offer.DiscardRon(offer.RonCandidate{Hand: tanyao}, tanyaoTile, ronSituation()); got != offer.RonOffered {
+	if got := offer.DiscardRon(offer.RonCandidate{Hand: tanyao}, tanyaoTile, ronSituation(), play.RulesetTenhou); got != offer.RonOffered {
 		t.Errorf("DiscardRon of tanyao = %v, want %v", got, offer.RonOffered)
 	}
 }
@@ -170,7 +172,7 @@ func TestDiscardRon_ShouldMatchScoringWithRealDoraIndicators(t *testing.T) {
 func TestDiscardRon_WhenTheScorerRejectsTheCompletedHand_ShouldPanicWithAnEngineFault(t *testing.T) {
 	candidate := offer.RonCandidate{Hand: []tile.TileID{id(t, 0)}}
 
-	fault := faultOf(t, func() { offer.DiscardRon(candidate, id(t, 1), ronSituation()) })
+	fault := faultOf(t, func() { offer.DiscardRon(candidate, id(t, 1), ronSituation(), play.RulesetTenhou) })
 
 	wrongCount, ok := errors.AsType[score.WrongTileCountError](fault)
 	if !ok {

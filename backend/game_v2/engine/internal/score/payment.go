@@ -1,7 +1,6 @@
 package score
 
 import (
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -21,19 +20,16 @@ const (
 	basePointsHanOffset = 2
 )
 
-// HonbaBonus returns what each payer of a win adds for honba repeat counters: 300 each on a ron,
-// 100 each on a tsumo.
-func HonbaBonus(win Win, honba int) int {
+const tsumoPayers = tile.SeatCount - 1
+
+// HonbaBonus returns what each payer of a win adds for honba repeat counters worth honbaValue
+// each: the whole value from a ron's discarder, an even share from each of a tsumo's payers.
+func HonbaBonus(win Win, honba, honbaValue int) int {
 	if win.IsTsumo() {
-		return honba * rules.HonbaTsumoBonusPerLoser
+		return honba * honbaValue / tsumoPayers
 	}
 
-	return honba * rules.HonbaRonBonus
-}
-
-// RiichiSticksBonus returns what riichiSticks pay the winner who takes them: 1000 each.
-func RiichiSticksBonus(riichiSticks int) int {
-	return riichiSticks * rules.RiichiStickValue
+	return honba * honbaValue
 }
 
 func NagashiMangan(seatWind tile.Wind) play.Payment {
@@ -60,7 +56,7 @@ func paymentOf(value play.Value, win Win, seatWind tile.Wind, honba int, rules R
 	play.Option[play.Limit], play.Payment,
 ) {
 	limit, paid := limitAndShares(value, rules)
-	bonus := HonbaBonus(win, honba)
+	bonus := HonbaBonus(win, honba, rules.HonbaValue)
 	isDealer := seatWind == tile.East
 	switch {
 	case win.IsTsumo() && isDealer:
@@ -92,13 +88,13 @@ func hanShares(value play.Han, rules Rules) (play.Option[play.Limit], shares) {
 		return hanFuShares(value.Han, value.Fu, rules)
 	}
 
-	limit, rounded := limitTier(value.Han)
+	limit, rounded := limitTier(value.Han, rules.KazoeYakuman)
 	return play.Some(limit), sharesOf(rounded)
 }
 
-func limitTier(han int) (play.Limit, int) {
+func limitTier(han int, kazoeYakuman bool) (play.Limit, int) {
 	switch {
-	case han >= kazoeHan:
+	case han >= kazoeHan && kazoeYakuman:
 		return play.LimitYakuman, yakumanBase
 	case han >= sanbaimanHan:
 		return play.LimitSanbaiman, sanbaimanBase
@@ -114,7 +110,7 @@ func limitTier(han int) (play.Limit, int) {
 func hanFuShares(han, fu int, rules Rules) (play.Option[play.Limit], shares) {
 	basePoints := fu << (basePointsHanOffset + han)
 	single := nextMultipleOf(basePoints, paymentRounding)
-	isKiriage := rules.Kiriage && ((han == 4 && fu == 30) || (han == 3 && fu == 60))
+	isKiriage := rules.KiriageMangan && ((han == 4 && fu == 30) || (han == 3 && fu == 60))
 	if single > manganBase || isKiriage {
 		return play.Some(play.LimitMangan), sharesOf(manganBase)
 	}

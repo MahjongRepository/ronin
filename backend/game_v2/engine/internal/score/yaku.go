@@ -125,7 +125,7 @@ func (in yakuInput) isPinfu(reading hand.Reading, winBlock hand.WinBlock) bool {
 		return false
 	}
 
-	_, hasPairFu := valuedPairFu(reading.Pair, in.valuedKinds())
+	_, hasPairFu := valuedPairFu(reading.Pair, in.valuedKinds(), in.rules.FuForDoubleWindPair)
 	_, hasWaitFu := chiWaitFu(set.Kind, in.win)
 	hasTsumoFu := in.situation.Win.IsTsumo() && in.rules.FuForPinfuTsumo
 	return reading.Triplets == 0 && !hasPairFu && !hasWaitFu && !hasTsumoFu

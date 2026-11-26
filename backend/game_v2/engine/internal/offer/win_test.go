@@ -15,7 +15,7 @@ import (
 func TestTsumoScoreChanges_ShouldChargeEachSeatItsShareAndHonba(t *testing.T) {
 	payment := play.TsumoPayment{Dealer: 2000, NonDealer: 1000}
 
-	got := offer.TsumoScoreChanges(seat(t, 1), seat(t, 0), payment, 1, 0, play.Option[tile.Seat]{})
+	got := offer.TsumoScoreChanges(seat(t, 1), seat(t, 0), payment, 1, 0, play.Option[tile.Seat]{}, play.RulesetTenhou)
 
 	if want := [4]int{-2100, 4300, -1100, -1100}; got != want {
 		t.Errorf("TsumoScoreChanges = %v, want %v", got, want)
@@ -25,7 +25,7 @@ func TestTsumoScoreChanges_ShouldChargeEachSeatItsShareAndHonba(t *testing.T) {
 func TestTsumoScoreChanges_ShouldGiveTheRiichiSticksToTheWinner(t *testing.T) {
 	payment := play.DealerTsumoPayment{NonDealer: 6000}
 
-	got := offer.TsumoScoreChanges(seat(t, 0), seat(t, 0), payment, 1, 2, play.Option[tile.Seat]{})
+	got := offer.TsumoScoreChanges(seat(t, 0), seat(t, 0), payment, 1, 2, play.Option[tile.Seat]{}, play.RulesetTenhou)
 
 	if want := [4]int{20300, -6100, -6100, -6100}; got != want {
 		t.Errorf("TsumoScoreChanges = %v, want %v", got, want)
@@ -35,7 +35,7 @@ func TestTsumoScoreChanges_ShouldGiveTheRiichiSticksToTheWinner(t *testing.T) {
 func TestTsumoScoreChanges_WhenALiableSeat_ShouldChargeItEveryShareAndTheWholeHonba(t *testing.T) {
 	payment := play.TsumoPayment{Dealer: 16000, NonDealer: 8000}
 
-	got := offer.TsumoScoreChanges(seat(t, 1), seat(t, 0), payment, 1, 1, play.Some(seat(t, 2)))
+	got := offer.TsumoScoreChanges(seat(t, 1), seat(t, 0), payment, 1, 1, play.Some(seat(t, 2)), play.RulesetTenhou)
 	if want := [4]int{0, 33300, -32300, 0}; got != want {
 		t.Errorf("TsumoScoreChanges = %v, want %v", got, want)
 	}
@@ -65,7 +65,7 @@ func TestTsumoScoreChanges_WhenThePaymentDoesNotFitTheWinner_ShouldPanicWithAnEn
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
 			fault := faultOf(t, func() {
-				offer.TsumoScoreChanges(c.winner, seat(t, 0), c.payment, 1, 0, play.Option[tile.Seat]{})
+				offer.TsumoScoreChanges(c.winner, seat(t, 0), c.payment, 1, 0, play.Option[tile.Seat]{}, play.RulesetTenhou)
 			})
 
 			if want := (offer.MisfitPaymentError{Payment: c.payment}); !errors.Is(fault, want) {
@@ -82,8 +82,8 @@ func TestTsumoScoreChanges_WhenThePaymentDoesNotFitTheWinner_ShouldPanicWithAnEn
 func TestRonScoreChanges_ShouldChargeTheDiscarderAndGiveTheTableOnlyWhenTaken(t *testing.T) {
 	payment := play.RonPayment{Discarder: 8000}
 
-	taken := offer.RonScoreChanges(seat(t, 2), seat(t, 1), payment, 2, 2, play.Option[tile.Seat]{})
-	left := offer.RonScoreChanges(seat(t, 2), seat(t, 1), payment, 0, 0, play.Option[tile.Seat]{})
+	taken := offer.RonScoreChanges(seat(t, 2), seat(t, 1), payment, 2, 2, play.Option[tile.Seat]{}, play.RulesetTenhou)
+	left := offer.RonScoreChanges(seat(t, 2), seat(t, 1), payment, 0, 0, play.Option[tile.Seat]{}, play.RulesetTenhou)
 
 	if want := [4]int{0, -8600, 10600, 0}; taken != want {
 		t.Errorf("RonScoreChanges taking the table = %v, want %v", taken, want)
@@ -98,7 +98,7 @@ func TestRonScoreChanges_WhenPaidATsumoPayment_ShouldPanicWithAnEngineFault(t *t
 	payment := play.TsumoPayment{Dealer: 2000, NonDealer: 1000}
 
 	fault := faultOf(t, func() {
-		offer.RonScoreChanges(seat(t, 2), seat(t, 1), payment, 0, 0, play.Option[tile.Seat]{})
+		offer.RonScoreChanges(seat(t, 2), seat(t, 1), payment, 0, 0, play.Option[tile.Seat]{}, play.RulesetTenhou)
 	})
 
 	if want := (offer.MisfitPaymentError{Payment: payment}); !errors.Is(fault, want) {
@@ -109,8 +109,8 @@ func TestRonScoreChanges_WhenPaidATsumoPayment_ShouldPanicWithAnEngineFault(t *t
 func TestRonScoreChanges_WhenALiableSeat_ShouldSplitTheHandWithItAndChargeItTheHonba(t *testing.T) {
 	payment := play.RonPayment{Discarder: 32000}
 
-	liableBeside := offer.RonScoreChanges(seat(t, 1), seat(t, 2), payment, 1, 0, play.Some(seat(t, 3)))
-	liableDiscarder := offer.RonScoreChanges(seat(t, 1), seat(t, 3), payment, 1, 0, play.Some(seat(t, 3)))
+	liableBeside := offer.RonScoreChanges(seat(t, 1), seat(t, 2), payment, 1, 0, play.Some(seat(t, 3)), play.RulesetTenhou)
+	liableDiscarder := offer.RonScoreChanges(seat(t, 1), seat(t, 3), payment, 1, 0, play.Some(seat(t, 3)), play.RulesetTenhou)
 
 	if want := [4]int{0, 32300, -16000, -16300}; liableBeside != want {
 		t.Errorf("RonScoreChanges with another liable seat = %v, want %v", liableBeside, want)
@@ -145,7 +145,7 @@ func TestHandValue_WhenAMeldDoesNotFitItsKind_ShouldReportTheMisfitMeld(t *testi
 		{Kind: play.MeldChi, Tiles: copies(t, 0, "135s")},
 	}
 
-	_, err := offer.HandValue(concealed, copyOf(t, 1, "5s"), offer.Scoring{Situation: ronSituation(), Melds: melds})
+	_, err := offer.HandValue(concealed, copyOf(t, 1, "5s"), offer.Scoring{Ruleset: play.RulesetTenhou, Situation: ronSituation(), Melds: melds})
 
 	if want := (meld.MisfitMeldError{Index: 1}); !errors.Is(err, want) {
 		t.Errorf("HandValue error = %v, want %v", err, want)
@@ -154,7 +154,7 @@ func TestHandValue_WhenAMeldDoesNotFitItsKind_ShouldReportTheMisfitMeld(t *testi
 
 func TestSettledValue_WhenTheHandHasNoYaku_ShouldPanicWithAnEngineFault(t *testing.T) {
 	concealed, melds := openNoYakuHand(t)
-	scoring := offer.Scoring{Situation: ronSituation(), Melds: melds}
+	scoring := offer.Scoring{Ruleset: play.RulesetTenhou, Situation: ronSituation(), Melds: melds}
 
 	fault := faultOf(t, func() { offer.SettledValue(concealed, copyOf(t, 1, "1z"), scoring) })
 

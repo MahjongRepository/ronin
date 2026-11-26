@@ -4,7 +4,6 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -35,10 +34,10 @@ func roundEndFields(
 	switch r := result.(type) {
 	case play.Tsumo:
 		code = wire.ResultTsumo
-		fields, err = tsumoFields(r.Win, before, honba)
+		fields, err = tsumoFields(r.Win, before, honba*record.HonbaValue, record.RiichiStickValue)
 	case play.Ron:
 		code = wire.ResultRon
-		fields, err = ronFields(r, before, honba)
+		fields, err = ronFields(r, before, honba*record.HonbaValue, record.RiichiStickValue)
 	case play.ExhaustiveDraw:
 		code = wire.ResultExhaustiveDraw
 		fields, err = exhaustiveDrawFields(r, before)
@@ -59,19 +58,19 @@ func roundEndFields(
 	}, fields...), nil
 }
 
-func tsumoFields(win play.WinResult, scores [tile.SeatCount]int, honba int) (wire.Map, error) {
+func tsumoFields(win play.WinResult, scores [tile.SeatCount]int, honbaPoints, stickValue int) (wire.Map, error) {
 	melds, err := packMelds(win.Winner, win.Melds)
 	if err != nil {
 		return nil, err
 	}
 
-	bonus := honba * engine.HonbaRonBonus
+	bonus := honbaPoints
 	m := wire.Map{
 		{Key: wire.KeyWinnerSeat, Value: seatValue(win.Winner)},
-		{Key: wire.KeyHandResult, Value: handResult(win, bonus)},
+		{Key: wire.KeyHandResult, Value: handResult(win, bonus, stickValue)},
 		{Key: wire.KeyScores, Value: scoreMap(scores)},
 		{Key: wire.KeyScoreChanges, Value: scoreMap(win.ScoreChanges)},
-		{Key: wire.KeyRiichiCollected, Value: wire.Int(collectedSticks(win))},
+		{Key: wire.KeyRiichiCollected, Value: wire.Int(collectedSticks(win, stickValue))},
 		{Key: wire.KeyClosedTiles, Value: shownTilesValue(win.Hand)},
 		{Key: wire.KeyMelds, Value: melds},
 		{Key: wire.KeyWinningTile, Value: tileValue(win.WinTile)},
@@ -80,16 +79,16 @@ func tsumoFields(win play.WinResult, scores [tile.SeatCount]int, honba int) (wir
 	return winExtras(m, win, bonus), nil
 }
 
-func ronFields(ron play.Ron, scores [tile.SeatCount]int, honba int) (wire.Map, error) {
+func ronFields(ron play.Ron, scores [tile.SeatCount]int, honbaPoints, stickValue int) (wire.Map, error) {
 	wins := make(wire.Array, 0, len(ron.Wins))
 	winTile := tile.TileID{}
 	for i, win := range ron.Wins {
 		bonus := 0
 		if i == 0 {
-			bonus = honba * engine.HonbaRonBonus
+			bonus = honbaPoints
 		}
 
-		shaped, err := ronWin(win, bonus)
+		shaped, err := ronWin(win, bonus, stickValue)
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +111,7 @@ func ronFields(ron play.Ron, scores [tile.SeatCount]int, honba int) (wire.Map, e
 	return m, nil
 }
 
-func ronWin(win play.WinResult, bonus int) (wire.Map, error) {
+func ronWin(win play.WinResult, bonus, stickValue int) (wire.Map, error) {
 	melds, err := packMelds(win.Winner, win.Melds)
 	if err != nil {
 		return nil, err
@@ -120,9 +119,9 @@ func ronWin(win play.WinResult, bonus int) (wire.Map, error) {
 
 	m := wire.Map{
 		{Key: wire.KeyWinnerSeat, Value: seatValue(win.Winner)},
-		{Key: wire.KeyHandResult, Value: handResult(win, bonus)},
+		{Key: wire.KeyHandResult, Value: handResult(win, bonus, stickValue)},
 		{Key: wire.KeyScoreChanges, Value: scoreMap(win.ScoreChanges)},
-		{Key: wire.KeyRiichiCollected, Value: wire.Int(collectedSticks(win))},
+		{Key: wire.KeyRiichiCollected, Value: wire.Int(collectedSticks(win, stickValue))},
 		{Key: wire.KeyClosedTiles, Value: shownTilesValue(win.Hand)},
 		{Key: wire.KeyMelds, Value: melds},
 		{Key: wire.KeyHonbaBonus, Value: scoreValue(bonus)},
@@ -144,13 +143,13 @@ func winExtras(m wire.Map, win play.WinResult, bonus int) wire.Map {
 	return m
 }
 
-func collectedSticks(win play.WinResult) int {
+func collectedSticks(win play.WinResult, stickValue int) int {
 	moved := 0
 	for _, change := range win.ScoreChanges {
 		moved += change
 	}
 
-	return moved / engine.RiichiStickValue
+	return moved / stickValue
 }
 
 func paoLiability(win play.WinResult, bonus int) wire.Map {
@@ -173,7 +172,7 @@ func paoLiability(win play.WinResult, bonus int) wire.Map {
 	}
 }
 
-func handResult(win play.WinResult, bonus int) wire.Map {
+func handResult(win play.WinResult, bonus, stickValue int) wire.Map {
 	han, fu, yakumanCount := 0, 0, play.Option[int]{}
 	switch v := win.Value.(type) {
 	case play.Han:
@@ -185,7 +184,7 @@ func handResult(win play.WinResult, bonus int) wire.Map {
 		han, fu, yakumanCount = yakumanHan*v.Count, v.Fu.Value, play.Some(v.Count)
 	}
 
-	points := win.ScoreChanges[win.Winner.Index()] - bonus - collectedSticks(win)*engine.RiichiStickValue
+	points := win.ScoreChanges[win.Winner.Index()] - bonus - collectedSticks(win, stickValue)*stickValue
 	m := wire.Map{
 		{Key: wire.KeyHan, Value: wire.Int(han)},
 		{Key: wire.KeyFu, Value: wire.Int(fu)},

@@ -255,7 +255,7 @@ func TestMeldOffers_WhenTheDiscardIsTheKamichas_ShouldListTheOpenKanThePonThenTh
 		t.Fatalf("CheckedMeldOffers error = %v", err)
 	}
 
-	fromToimen := offer.MeldOffers(hand, false, caller, seat(t, 2), discard, [4]int{}, 10)
+	fromToimen := offer.MeldOffers(hand, false, caller, seat(t, 2), discard, [4]int{}, 10, play.RulesetTenhou)
 
 	kan, pon := play.KanAction(play.KanOpen, discard), play.PonAction([2]tile.TileID{hand[0], hand[1]})
 	chi := play.ChiAction([2]tile.TileID{hand[3], hand[4]})
@@ -273,16 +273,16 @@ func TestMeldOffers_WhenFourKansAbortOrTheWallIsEmpty_ShouldStop(t *testing.T) {
 	discard := copyOf(t, 3, "4m")
 	pon := play.PonAction([2]tile.TileID{hand[0], hand[1]})
 
-	if got := offer.MeldOffers(hand, false, seat(t, 1), seat(t, 0), discard, [4]int{2, 2, 0, 0}, 10); len(got) != 0 {
+	if got := offer.MeldOffers(hand, false, seat(t, 1), seat(t, 0), discard, [4]int{2, 2, 0, 0}, 10, play.RulesetTenhou); len(got) != 0 {
 		t.Errorf("MeldOffers at four kans by two seats = %v, want none", got)
 	}
 
-	oneSeat := offer.MeldOffers(hand, false, seat(t, 1), seat(t, 2), discard, [4]int{4, 0, 0, 0}, 10)
+	oneSeat := offer.MeldOffers(hand, false, seat(t, 1), seat(t, 2), discard, [4]int{4, 0, 0, 0}, 10, play.RulesetTenhou)
 	if want := []play.Action{pon}; !slices.Equal(oneSeat, want) {
 		t.Errorf("MeldOffers at four kans by one seat = %v, want %v", oneSeat, want)
 	}
 
-	if got := offer.MeldOffers(hand, false, seat(t, 1), seat(t, 0), discard, [4]int{}, 0); len(got) != 0 {
+	if got := offer.MeldOffers(hand, false, seat(t, 1), seat(t, 0), discard, [4]int{}, 0, play.RulesetTenhou); len(got) != 0 {
 		t.Errorf("MeldOffers on an empty wall = %v, want none", got)
 	}
 }
@@ -290,7 +290,7 @@ func TestMeldOffers_WhenFourKansAbortOrTheWallIsEmpty_ShouldStop(t *testing.T) {
 func TestMeldOffers_WhenTheCallerIsTheDiscarder_ShouldOfferNone(t *testing.T) {
 	hand := copies(t, 0, "444m56m19p")
 
-	if got := offer.MeldOffers(hand, false, seat(t, 1), seat(t, 1), copyOf(t, 3, "4m"), [4]int{}, 10); len(got) != 0 {
+	if got := offer.MeldOffers(hand, false, seat(t, 1), seat(t, 1), copyOf(t, 3, "4m"), [4]int{}, 10, play.RulesetTenhou); len(got) != 0 {
 		t.Errorf("MeldOffers = %v, want none", got)
 	}
 }
@@ -309,8 +309,8 @@ func TestMeldOffers_WhenKanCountsAreHuge_ShouldCountThemAsFourOrMore(t *testing.
 	triplet := copies(t, 0, "444m56m")
 	fourMan := copyOf(t, 3, "4m")
 
-	oneSeat := offer.MeldOffers(triplet, false, seat(t, 1), seat(t, 2), fourMan, [4]int{math.MaxInt, 0, 0, 0}, 10)
-	twoSeats := offer.MeldOffers(triplet, false, seat(t, 1), seat(t, 0), fourMan, [4]int{math.MaxInt, 1, 0, 0}, 10)
+	oneSeat := offer.MeldOffers(triplet, false, seat(t, 1), seat(t, 2), fourMan, [4]int{math.MaxInt, 0, 0, 0}, 10, play.RulesetTenhou)
+	twoSeats := offer.MeldOffers(triplet, false, seat(t, 1), seat(t, 0), fourMan, [4]int{math.MaxInt, 1, 0, 0}, 10, play.RulesetTenhou)
 
 	if want := []play.Action{play.PonAction([2]tile.TileID{triplet[0], triplet[1]})}; !slices.Equal(oneSeat, want) {
 		t.Errorf("MeldOffers with one seat's huge count = %v, want %v", oneSeat, want)

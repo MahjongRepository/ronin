@@ -207,7 +207,7 @@ func (w winningHand) scoreValue(value play.Value, dora play.DoraCount) scored {
 		value:   value,
 		limit:   limit,
 		payment: payment,
-		total:   payment.Sum() + RiichiSticksBonus(situation.RiichiSticks),
+		total:   payment.Sum() + situation.RiichiSticks*w.input.rules.RiichiStickValue,
 		dora:    dora,
 	}
 }

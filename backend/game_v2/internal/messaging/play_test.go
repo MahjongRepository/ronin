@@ -168,7 +168,7 @@ func (s *shapedGame) checkRoundEnd(ended play.RoundEnded, m wire.Map) {
 		points := int(field(s.t, hand, wire.KeyPoints).(wire.Int))
 		sticks := int(field(s.t, shaped[i], wire.KeyRiichiCollected).(wire.Int))
 		bonus := int(field(s.t, shaped[i], wire.KeyHonbaBonus).(wire.Int))
-		if points <= 0 || (points+bonus)*wire.ScoreDivisor+sticks*engine.RiichiStickValue != win.ScoreChanges[win.Winner.Index()] {
+		if points <= 0 || (points+bonus)*wire.ScoreDivisor+sticks*1000 != win.ScoreChanges[win.Winner.Index()] {
 			s.t.Errorf("win %+v: points %d, honba %d, sticks %d do not make the winner's change", win, points, bonus, sticks)
 		}
 	}

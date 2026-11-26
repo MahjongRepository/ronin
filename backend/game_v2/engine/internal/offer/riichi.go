@@ -11,18 +11,21 @@ import (
 )
 
 func checkedRiichiDiscards(
-	hand []tile.TileID, melds []play.MeldView, inRiichi bool, score, liveTiles int,
+	hand []tile.TileID, melds []play.MeldView, inRiichi bool, score, liveTiles int, ruleset play.Ruleset,
 ) ([]tile.TileID, error) {
 	if err := meld.CheckHandInput(hand, melds); err != nil {
 		return nil, err
 	}
 
-	return RiichiDiscards(hand, melds, inRiichi, score, liveTiles), nil
+	return RiichiDiscards(hand, melds, inRiichi, score, liveTiles, ruleset), nil
 }
 
-func RiichiDiscards(held []tile.TileID, melds []play.MeldView, inRiichi bool, score, liveTiles int) []tile.TileID {
+func RiichiDiscards(
+	held []tile.TileID, melds []play.MeldView, inRiichi bool, score, liveTiles int, ruleset play.Ruleset,
+) []tile.TileID {
 	closed := !slices.ContainsFunc(melds, func(view play.MeldView) bool { return view.Kind != play.MeldClosedKan })
-	if inRiichi || !closed || score < rules.RiichiCost || liveTiles < rules.MinWallForRiichi {
+	settings := rules.Of(ruleset)
+	if inRiichi || !closed || score < settings.RiichiStickValue || liveTiles < settings.RiichiMinWall {
 		return nil
 	}
 

@@ -10,6 +10,11 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
+const (
+	maxKans               = 4
+	minPlayersForKanAbort = 2
+)
+
 func isKan(view play.MeldView) bool {
 	return view.Kind == play.MeldOpenKan || view.Kind == play.MeldAddedKan || view.Kind == play.MeldClosedKan
 }
@@ -39,20 +44,20 @@ func kanCount(melds []play.MeldView) int {
 // mayAddKan reports whether one more kan may stand beside the kans of each seat: a live tile left
 // for the dead wall to take and a rinshan tile left to draw.
 func mayAddKan(kans [tile.SeatCount]int, liveTiles int) bool {
-	return liveTiles >= rules.MinWallForKan && totalKans(kans) < rules.MaxKans
+	return liveTiles > 0 && totalKans(kans) < maxKans
 }
 
 func totalKans(kans [tile.SeatCount]int) int {
 	total := 0
 	for _, count := range kans {
-		total += min(count, rules.MaxKans)
+		total += min(count, maxKans)
 	}
 
 	return total
 }
 
 // IsFourKans reports whether four kans stand and more than one seat declared them.
-func IsFourKans(kans [tile.SeatCount]int) bool {
+func IsFourKans(kans [tile.SeatCount]int, ruleset play.Ruleset) bool {
 	declaring := 0
 	for _, count := range kans {
 		if count > 0 {
@@ -60,7 +65,7 @@ func IsFourKans(kans [tile.SeatCount]int) bool {
 		}
 	}
 
-	return rules.Suukaikan && totalKans(kans) >= rules.MaxKans && declaring >= rules.MinPlayersForKanAbort
+	return rules.Of(ruleset).AbortFourKans && totalKans(kans) >= maxKans && declaring >= minPlayersForKanAbort
 }
 
 func checkedKanOffers(

@@ -49,12 +49,12 @@ func TestIsFourKans_WhenOneSeatHoldsAllFour_ShouldBeFalseUntilASecondSeatHoldsOn
 	melds[0] = melds[0][:3]
 	twoSeats := offer.KansBySeat(melds)
 
-	if offer.IsFourKans(oneSeat) || offer.MayAddKan(oneSeat, 10) {
+	if offer.IsFourKans(oneSeat, play.RulesetTenhou) || offer.MayAddKan(oneSeat, 10) {
 		t.Errorf("IsFourKans, MayAddKan(%v) = %t, %t, want false, false",
-			oneSeat, offer.IsFourKans(oneSeat), offer.MayAddKan(oneSeat, 10))
+			oneSeat, offer.IsFourKans(oneSeat, play.RulesetTenhou), offer.MayAddKan(oneSeat, 10))
 	}
 
-	if !offer.IsFourKans(twoSeats) {
+	if !offer.IsFourKans(twoSeats, play.RulesetTenhou) {
 		t.Errorf("IsFourKans(%v) = false, want true", twoSeats)
 	}
 }

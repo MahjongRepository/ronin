@@ -214,7 +214,9 @@ func TestEventPayload_WhenTheGameEndsWithSticksUnawarded_ShouldNameTheirCountBon
 		Points:     [tile.SeatCount]int{-170, 510, 40, -380},
 	}}
 	record := play.SeatRecord{
-		Header: play.RoundHeader{RoundNumber: 7},
+		Header:           play.RoundHeader{RoundNumber: 7},
+		RiichiStickValue: 1000,
+		HonbaValue:       300,
 		History: []play.FinishedRound{{
 			Header:      play.RoundHeader{RoundNumber: 7, RiichiSticks: 1},
 			Result:      play.ExhaustiveDraw{},

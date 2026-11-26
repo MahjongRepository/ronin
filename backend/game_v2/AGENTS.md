@@ -273,8 +273,8 @@ and the fixture tools.
   there is no lenient mode. A closed kan's record holds no copy its declarer named, which only a
   robbing ron's winning tile shows, so the loader names that copy for a robbed closed kan and the
   lowest one for any other.
-* Only this server's rules profile loads: a replay rewritten from `0.4-dev` was scored under older
-  rules and does not reproduce. A replay holds its seed and no wall, so a game staged on fixed
+* A replay loads only under a ruleset's rules profile (`wire.RulesetOfProfile`): a replay rewritten from
+  `0.4-dev` was scored under older rules and does not reproduce. A replay holds its seed and no wall, so a game staged on fixed
   walls runs again only from its own setup.
 * `cmd/verify` checks a game's stored replay, not its row: it requires the game end, records the
   run through a fresh `messaging.ReplayLog` with the stored names and AI flags under the requested
@@ -410,6 +410,16 @@ The lobby reads what the game server writes, and signs what it verifies, so `sto
   alphabet), exactly the four fields, `expires_at` a JSON float. `testdata/lobby_tickets.json`
   holds tickets the lobby's code signed and the verdict `verify_game_ticket` reached on each. An empty secret
   verifies nothing.
+
+## Rulesets
+
+* A game picks its ruleset at setup (`engine.Setup.Ruleset`, a `play.Ruleset`; the zero value is Tenhou,
+  the default). Engine state holds that id, never the settings, and reads them with `rules.Of` where a
+  rule needs one. A mechanic no ruleset varies is a constant in the package that uses it, never in
+  `engine/internal/rules`.
+* A `rules.Ruleset` field exists only for a setting the engine reads. A new ruleset gets its constructor
+  file in `engine/internal/rules`, its case in `rules.lookup` and its own replay profile ID in
+  `internal/wire` (`RulesProfileOf`, `RulesetOfProfile`), so its replays verify under it.
 
 ## Engine purity
 

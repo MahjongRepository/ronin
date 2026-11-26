@@ -2,6 +2,13 @@ package play
 
 import "github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 
+// Ruleset names the rules a game plays under. Its zero value is RulesetTenhou, the default.
+type Ruleset uint8
+
+const (
+	RulesetTenhou Ruleset = iota
+)
+
 // WallSource is where a game's walls come from: Seeded or Fixed.
 //
 //sumtype:decl

@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/offer"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/wall"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -43,13 +44,18 @@ type Round struct {
 	furiten           [tile.SeatCount]offer.Furiten
 	undepositedRiichi play.Option[tile.Seat]
 	prompt            play.Option[CallPrompt]
+	ruleset           play.Ruleset
 }
 
-// Deal deals the starting hands of a fresh wall from dealer, in a round of roundWind. The dealer
-// is on turn and has not drawn yet.
-func Deal(w wall.Wall, dealer tile.Seat, roundWind tile.Wind) Round {
+func (r *Round) settings() rules.Ruleset {
+	return rules.Of(r.ruleset)
+}
+
+// Deal deals the starting hands of a fresh wall from dealer, in a round of roundWind played under
+// ruleset. The dealer is on turn and has not drawn yet.
+func Deal(w wall.Wall, dealer tile.Seat, roundWind tile.Wind, ruleset play.Ruleset) Round {
 	dealt := w.Deal(dealer)
-	r := Round{wall: w, dealer: dealer, roundWind: roundWind, current: dealer}
+	r := Round{wall: w, dealer: dealer, roundWind: roundWind, current: dealer, ruleset: ruleset}
 	for i, held := range dealt {
 		r.hands[i] = newHand(held)
 	}

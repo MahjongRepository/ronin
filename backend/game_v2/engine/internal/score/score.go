@@ -7,20 +7,28 @@ import (
 )
 
 type Rules struct {
-	OpenTanyao      bool
-	DoubleYakuman   bool
-	Kiriage         bool
-	FuForOpenPinfu  bool
-	FuForPinfuTsumo bool
+	OpenTanyao          bool
+	DoubleYakuman       bool
+	KiriageMangan       bool
+	FuForOpenPinfu      bool
+	FuForPinfuTsumo     bool
+	FuForDoubleWindPair int
+	KazoeYakuman        bool
+	RiichiStickValue    int
+	HonbaValue          int
 }
 
-func HandRules() Rules {
+func HandRules(ruleset rules.Ruleset) Rules {
 	return Rules{
-		OpenTanyao:      rules.Kuitan,
-		DoubleYakuman:   rules.DoubleYakuman,
-		Kiriage:         rules.KiriageMangan,
-		FuForOpenPinfu:  rules.FuForOpenPinfu,
-		FuForPinfuTsumo: rules.FuForPinfuTsumo,
+		OpenTanyao:          ruleset.OpenTanyao,
+		DoubleYakuman:       ruleset.DoubleYakuman,
+		KiriageMangan:       ruleset.KiriageMangan,
+		FuForOpenPinfu:      ruleset.FuForOpenPinfu,
+		FuForPinfuTsumo:     ruleset.FuForPinfuTsumo,
+		FuForDoubleWindPair: ruleset.FuForDoubleWindPair,
+		KazoeYakuman:        ruleset.KazoeYakuman,
+		RiichiStickValue:    ruleset.RiichiStickValue,
+		HonbaValue:          ruleset.HonbaValue,
 	}
 }
 

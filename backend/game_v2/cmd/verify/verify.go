@@ -42,7 +42,7 @@ func verifyGame(replays replayfile.Dir, gameID string) error {
 		return errNoGameEnd
 	}
 
-	steps, err := replay.Run(engine.Setup{Walls: play.Seeded{Seed: loaded.Seed}}, loaded.Actions)
+	steps, err := replay.Run(engine.Setup{Ruleset: loaded.Ruleset, Walls: play.Seeded{Seed: loaded.Seed}}, loaded.Actions)
 	if err != nil {
 		return fmt.Errorf("run replay %s: %w", gameID, err)
 	}

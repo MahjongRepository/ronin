@@ -56,7 +56,7 @@ func TestFromView_WhenTheTilesFitTheKind_ShouldReadRedFivesAndScoreAnAddedKanAsO
 		{"closed kan", view(t, play.MeldClosedKan, "9999s"), closedKan(t, "9999s")},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got, ok := meld.FromView(c.view)
+			got, ok := meld.FromView(c.view, tile.AkaDoraEnabled)
 			if !ok || got != c.want {
 				t.Errorf("FromView(%v) = %v, %t, want %v", c.view, got, ok, c.want)
 			}
@@ -78,7 +78,7 @@ func TestFromView_WhenTheTilesDoNotFitTheKind_ShouldRefuse(t *testing.T) {
 		{"unknown kind", play.MeldView{Kind: play.MeldKind(9), Tiles: ids(t, 0, "1111p")}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if got, ok := meld.FromView(c.view); ok {
+			if got, ok := meld.FromView(c.view, tile.AkaDoraEnabled); ok {
 				t.Errorf("FromView = %v, want refused", got)
 			}
 		})

@@ -102,5 +102,7 @@ func readingOf(t *testing.T, mpsz string, melds ...meld.Meld) hand.Reading {
 }
 
 func defaultRules() Rules {
-	return Rules{DoubleYakuman: true, FuForOpenPinfu: true}
+	return Rules{
+		DoubleYakuman: true, FuForOpenPinfu: true, FuForDoubleWindPair: 4, KazoeYakuman: true, RiichiStickValue: 1000, HonbaValue: 300,
+	}
 }

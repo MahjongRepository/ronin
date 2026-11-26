@@ -18,7 +18,7 @@ func seededGame(t *testing.T) Game {
 		t.Fatalf("ParseSeed error = %v", err)
 	}
 
-	g, _, err := New(play.Seeded{Seed: seed}, play.Option[play.StartPosition]{})
+	g, _, err := New(play.RulesetTenhou, play.Seeded{Seed: seed}, play.Option[play.StartPosition]{})
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}

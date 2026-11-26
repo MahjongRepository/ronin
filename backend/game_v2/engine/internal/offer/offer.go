@@ -3,7 +3,6 @@ package offer
 import (
 	"slices"
 
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -53,6 +52,6 @@ func meldedTiles(melds []play.MeldView) []tile.TileID {
 	return tiles
 }
 
-func isRed(id tile.TileID) bool {
-	return id.Tile(rules.AkaDora).IsRed()
+func isRed(id tile.TileID, aka tile.AkaDora) bool {
+	return id.Tile(aka).IsRed()
 }

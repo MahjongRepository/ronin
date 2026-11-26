@@ -205,7 +205,7 @@ type follower struct {
 
 func newFollower(t *testing.T, gameNumber uint64) *follower {
 	t.Helper()
-	g, initial, err := game.New(paritySeed(gameNumber), play.Option[play.StartPosition]{})
+	g, initial, err := game.New(play.RulesetTenhou, paritySeed(gameNumber), play.Option[play.StartPosition]{})
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}

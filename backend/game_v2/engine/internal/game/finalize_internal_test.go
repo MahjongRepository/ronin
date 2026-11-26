@@ -3,6 +3,7 @@ package game
 import (
 	"testing"
 
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -91,7 +92,7 @@ func endsBy(cause play.GameEndCause) ending {
 
 func causeAfter(t *testing.T, ended position, result play.RoundResult, scores [tile.SeatCount]int) ending {
 	t.Helper()
-	cause, ends := gameEndCause(ended, ended.after(result), result, scores, seat(t, 0))
+	cause, ends := gameEndCause(ended, ended.after(result), result, scores, seat(t, 0), rules.Tenhou())
 	return ending{cause: cause, ends: ends}
 }
 
@@ -387,41 +388,51 @@ func TestGameEndCause_WhenTheWestFourDealerWinsAtTheThreshold_ShouldEndByTarget(
 
 func TestFinalPoints_WhenScoresAreDistinct_ShouldAddUmaAndOkaSummingToZero(t *testing.T) {
 	want := [tile.SeatCount]int{523, 81, -214, -390}
-	if got := finalPoints([tile.SeatCount]int{42300, 28100, 18600, 11000}); got != want {
+	if got := finalPoints([tile.SeatCount]int{42300, 28100, 18600, 11000}, rules.Tenhou()); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
 
 func TestFinalPoints_WhenScoresAreEqual_ShouldGiveEachPlaceItsUma(t *testing.T) {
 	want := [tile.SeatCount]int{350, 50, -150, -250}
-	if got := finalPoints([tile.SeatCount]int{25000, 25000, 25000, 25000}); got != want {
+	if got := finalPoints([tile.SeatCount]int{25000, 25000, 25000, 25000}, rules.Tenhou()); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
 
 func TestFinalPoints_WhenScoresTie_ShouldGiveTheOkaToFirstPlaceOnly(t *testing.T) {
 	want := [tile.SeatCount]int{400, 100, -200, -300}
-	if got := finalPoints([tile.SeatCount]int{30000, 30000, 20000, 20000}); got != want {
+	if got := finalPoints([tile.SeatCount]int{30000, 30000, 20000, 20000}, rules.Tenhou()); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
 
 func TestFinalPoints_WhenARawScoreIsNegative_ShouldStillSumToZero(t *testing.T) {
 	want := [tile.SeatCount]int{650, 50, -150, -550}
-	if got := finalPoints([tile.SeatCount]int{55000, 25000, 25000, -5000}); got != want {
+	if got := finalPoints([tile.SeatCount]int{55000, 25000, 25000, -5000}, rules.Tenhou()); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
 
 func TestFinalPoints_WhenScoresHaveHundreds_ShouldKeepThemUnrounded(t *testing.T) {
 	want := [tile.SeatCount]int{406, 105, -205, -306}
-	if got := finalPoints([tile.SeatCount]int{30600, 30500, 19500, 19400}); got != want {
+	if got := finalPoints([tile.SeatCount]int{30600, 30500, 19500, 19400}, rules.Tenhou()); got != want {
+		t.Errorf("finalPoints = %v, want %v", got, want)
+	}
+}
+
+func TestFinalPoints_WhenTheRulesetRoundsThem_ShouldRoundHalvesAwayFromZeroAndLeaveFirstPlaceTheRest(t *testing.T) {
+	rounding := rules.Tenhou()
+	rounding.RoundFinalPoints = true
+
+	want := [tile.SeatCount]int{410, 110, -210, -310}
+	if got := finalPoints([tile.SeatCount]int{30600, 30500, 19500, 19400}, rounding); got != want {
 		t.Errorf("finalPoints = %v, want %v", got, want)
 	}
 }
 
 func TestFinalStandings_WhenSeatsAreOutOfOrder_ShouldPlaceThemByScore(t *testing.T) {
-	standings := finalStandings([tile.SeatCount]int{28100, 11000, 42300, 18600}, 0, seat(t, 0), play.EndLength)
+	standings := finalStandings([tile.SeatCount]int{28100, 11000, 42300, 18600}, 0, seat(t, 0), play.EndLength, rules.Tenhou())
 	if want := [tile.SeatCount]int{2, 4, 1, 3}; standings.Placements != want {
 		t.Errorf("placements = %v, want %v", standings.Placements, want)
 	}
@@ -432,7 +443,7 @@ func TestFinalStandings_WhenSeatsAreOutOfOrder_ShouldPlaceThemByScore(t *testing
 }
 
 func TestFinalStandings_WhenRiichiSticksAreLeft_ShouldGiveThemToTheTopPlayer(t *testing.T) {
-	standings := finalStandings([tile.SeatCount]int{30000, 25000, 22000, 23000}, 2, seat(t, 0), play.EndTobi)
+	standings := finalStandings([tile.SeatCount]int{30000, 25000, 22000, 23000}, 2, seat(t, 0), play.EndTobi, rules.Tenhou())
 	if want := [tile.SeatCount]int{32000, 25000, 22000, 23000}; standings.Scores != want {
 		t.Errorf("scores = %v, want %v", standings.Scores, want)
 	}
@@ -442,19 +453,33 @@ func TestFinalStandings_WhenRiichiSticksAreLeft_ShouldGiveThemToTheTopPlayer(t *
 	}
 }
 
+func TestFinalStandings_WhenTheRulesetLosesLeftoverRiichiSticks_ShouldGiveThemToNobody(t *testing.T) {
+	losing := rules.Tenhou()
+	losing.LeftoverRiichiSticksToFirst = false
+
+	standings := finalStandings([tile.SeatCount]int{30000, 25000, 22000, 23000}, 2, seat(t, 0), play.EndTobi, losing)
+	if want := [tile.SeatCount]int{30000, 25000, 22000, 23000}; standings.Scores != want {
+		t.Errorf("scores = %v, want %v", standings.Scores, want)
+	}
+
+	if want := [tile.SeatCount]int{400, 50, -280, -170}; standings.Points != want {
+		t.Errorf("points = %v, want %v", standings.Points, want)
+	}
+}
+
 func TestFinalStandings_WhenScoresAreEqual_ShouldRankBySeatFromTheFirstDealer(t *testing.T) {
 	equal := [tile.SeatCount]int{25000, 25000, 25000, 25000}
-	if got, want := finalStandings(equal, 0, seat(t, 0), play.EndLength).Placements, [tile.SeatCount]int{1, 2, 3, 4}; got != want {
+	if got, want := finalStandings(equal, 0, seat(t, 0), play.EndLength, rules.Tenhou()).Placements, [tile.SeatCount]int{1, 2, 3, 4}; got != want {
 		t.Errorf("placements from seat 0 = %v, want %v", got, want)
 	}
 
-	if got, want := finalStandings(equal, 0, seat(t, 2), play.EndLength).Placements, [tile.SeatCount]int{3, 4, 1, 2}; got != want {
+	if got, want := finalStandings(equal, 0, seat(t, 2), play.EndLength, rules.Tenhou()).Placements, [tile.SeatCount]int{3, 4, 1, 2}; got != want {
 		t.Errorf("placements from seat 2 = %v, want %v", got, want)
 	}
 }
 
 func TestFinalStandings_WhenScoresDiffer_ShouldRankByScoreBeforeSeatOrder(t *testing.T) {
-	standings := finalStandings([tile.SeatCount]int{24000, 26000, 25000, 25000}, 0, seat(t, 0), play.EndLength)
+	standings := finalStandings([tile.SeatCount]int{24000, 26000, 25000, 25000}, 0, seat(t, 0), play.EndLength, rules.Tenhou())
 	if want := [tile.SeatCount]int{4, 1, 2, 3}; standings.Placements != want {
 		t.Errorf("placements = %v, want %v", standings.Placements, want)
 	}

@@ -86,7 +86,7 @@ const (
 	RonOffered
 )
 
-func DiscardRon(candidate RonCandidate, discard tile.TileID, situation score.Situation) RonOutcome {
+func DiscardRon(candidate RonCandidate, discard tile.TileID, situation score.Situation, ruleset play.Ruleset) RonOutcome {
 	if !candidate.completesOn(discard) {
 		return RonNotComplete
 	}
@@ -95,7 +95,7 @@ func DiscardRon(candidate RonCandidate, discard tile.TileID, situation score.Sit
 		return RonMissed
 	}
 
-	scoring := Scoring{Situation: situation, Melds: candidate.Melds}
+	scoring := Scoring{Ruleset: ruleset, Situation: situation, Melds: candidate.Melds}
 	if _, ok := OfferedValue(candidate.Hand, discard, scoring); !ok {
 		return RonMissed
 	}

@@ -109,7 +109,7 @@ func chiWaitFu(start, win tile.Kind) (FuDetail, bool) {
 	}
 }
 
-func valuedPairFu(pair tile.Kind, valued [valuedKinds]tile.Kind) (FuDetail, bool) {
+func valuedPairFu(pair tile.Kind, valued [valuedKinds]tile.Kind, doubleWindPairFu int) (FuDetail, bool) {
 	listed := 0
 	for _, kind := range valued {
 		if kind == pair {
@@ -123,7 +123,7 @@ func valuedPairFu(pair tile.Kind, valued [valuedKinds]tile.Kind) (FuDetail, bool
 	case 1:
 		return FuDetail{Fu: 2, Reason: FuValuedPair}, true
 	default:
-		return FuDetail{Fu: 4, Reason: FuDoubleValuedPair}, true
+		return FuDetail{Fu: doubleWindPairFu, Reason: FuDoubleValuedPair}, true
 	}
 }
 
@@ -151,7 +151,7 @@ func calculateFu(in fuInput) (fuDetails, int) {
 		}
 	}
 
-	if detail, ok := valuedPairFu(in.reading.Pair, in.valued); ok {
+	if detail, ok := valuedPairFu(in.reading.Pair, in.valued, in.rules.FuForDoubleWindPair); ok {
 		details.push(detail)
 	}
 

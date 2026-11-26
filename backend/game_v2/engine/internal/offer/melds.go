@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/meld"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -23,30 +24,31 @@ const (
 // meld.DuplicateTileError for the first tile id held twice in hand.
 func checkedMeldOffers(
 	hand []tile.TileID, inRiichi bool, seat, from tile.Seat, discard tile.TileID,
-	kans [tile.SeatCount]int, liveTiles int,
+	kans [tile.SeatCount]int, liveTiles int, ruleset play.Ruleset,
 ) ([]play.Action, error) {
 	if err := meld.CheckHandInput(hand, nil); err != nil {
 		return nil, err
 	}
 
-	return MeldOffers(hand, inRiichi, seat, from, discard, kans, liveTiles), nil
+	return MeldOffers(hand, inRiichi, seat, from, discard, kans, liveTiles, ruleset), nil
 }
 
 func MeldOffers(
 	hand []tile.TileID, inRiichi bool, seat, from tile.Seat, discard tile.TileID,
-	kans [tile.SeatCount]int, liveTiles int,
+	kans [tile.SeatCount]int, liveTiles int, ruleset play.Ruleset,
 ) []play.Action {
-	if seat == from || liveTiles == 0 || IsFourKans(kans) {
+	if seat == from || liveTiles == 0 || IsFourKans(kans, ruleset) {
 		return nil
 	}
 
 	openKan := holdsOpenKan(hand, inRiichi, discard) && mayAddKan(kans, liveTiles)
-	pons := ponOptions(hand, inRiichi, discard)
+	aka := rules.Of(ruleset).AkaDora
+	pons := ponOptions(hand, inRiichi, discard, aka)
 
 	var chiBuffer [maxChiOptions][2]tile.TileID
 	chis := chiBuffer[:0]
 	if seat.Kamicha() == from {
-		chis = appendChiOptions(chis, hand, inRiichi, discard)
+		chis = appendChiOptions(chis, hand, inRiichi, discard, aka)
 	}
 
 	count := len(pons) + len(chis)
@@ -74,14 +76,14 @@ func MeldOffers(
 	return offers
 }
 
-func ponOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]tile.TileID {
+func ponOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID, aka tile.AkaDora) [][2]tile.TileID {
 	if inRiichi {
 		return nil
 	}
 
 	var red, plain []tile.TileID
 	for held := range tile.HeldCopies(hand, discard.Kind()) {
-		if isRed(held) {
+		if isRed(held, aka) {
 			red = append(red, held)
 		} else {
 			plain = append(plain, held)
@@ -113,12 +115,12 @@ func heldCount(hand []tile.TileID, kind tile.Kind) int {
 	return count
 }
 
-func chiOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]tile.TileID {
-	return appendChiOptions(nil, hand, inRiichi, discard)
+func chiOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID, aka tile.AkaDora) [][2]tile.TileID {
+	return appendChiOptions(nil, hand, inRiichi, discard, aka)
 }
 
 func appendChiOptions(
-	options [][2]tile.TileID, hand []tile.TileID, inRiichi bool, discard tile.TileID,
+	options [][2]tile.TileID, hand []tile.TileID, inRiichi bool, discard tile.TileID, aka tile.AkaDora,
 ) [][2]tile.TileID {
 	kind := discard.Kind()
 	if inRiichi || kind.IsHonor() {
@@ -142,8 +144,8 @@ func appendChiOptions(
 
 	for _, shape := range shapes {
 		var lowLooks, highLooks [maxLooksPerKind]tile.TileID
-		highs := appendLooks(highLooks[:0], hand, shape[1])
-		for _, low := range appendLooks(lowLooks[:0], hand, shape[0]) {
+		highs := appendLooks(highLooks[:0], hand, shape[1], aka)
+		for _, low := range appendLooks(lowLooks[:0], hand, shape[0], aka) {
 			for _, high := range highs {
 				pair := [2]tile.TileID{low, high}
 				if leavesLegalDiscard(hand, discard, pair) {
@@ -156,9 +158,9 @@ func appendChiOptions(
 	return options
 }
 
-func appendLooks(found, hand []tile.TileID, kind tile.Kind) []tile.TileID {
+func appendLooks(found, hand []tile.TileID, kind tile.Kind, aka tile.AkaDora) []tile.TileID {
 	for held := range tile.HeldCopies(hand, kind) {
-		seen := slices.ContainsFunc(found, func(look tile.TileID) bool { return isRed(look) == isRed(held) })
+		seen := slices.ContainsFunc(found, func(look tile.TileID) bool { return isRed(look, aka) == isRed(held, aka) })
 		if !seen {
 			found = append(found, held)
 		}

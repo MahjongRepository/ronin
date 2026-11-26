@@ -64,6 +64,8 @@ func Apply(r play.SeatRecord, e play.Emitted) play.SeatRecord {
 	case play.GameStarted:
 		r.FirstDealer = event.FirstDealer
 		r.FirstDealerDice = event.Dice
+		r.RiichiStickValue = event.RiichiStickValue
+		r.HonbaValue = event.HonbaValue
 		r.History = nil
 	case play.RoundStarted:
 		if event.Seat == r.Seat {

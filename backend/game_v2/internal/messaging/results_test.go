@@ -11,8 +11,10 @@ import (
 
 func endedRound(honba int, dora ...int) play.SeatRecord {
 	return play.SeatRecord{
-		Header:         play.RoundHeader{Dealer: tile.Seats()[3], Honba: honba},
-		DoraIndicators: idsOf(dora),
+		Header:           play.RoundHeader{Dealer: tile.Seats()[3], Honba: honba},
+		DoraIndicators:   idsOf(dora),
+		RiichiStickValue: 1000,
+		HonbaValue:       300,
 	}
 }
 

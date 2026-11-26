@@ -49,11 +49,16 @@ type Event interface {
 	isEvent()
 }
 
-// GameStarted reports the game set up: the first dealer and the two throws that chose it. Seen by
-// all.
+// GameStarted reports the game set up: the first dealer and the two throws that chose it, the
+// ruleset it plays under, whether that ruleset tells the red fives apart, the points a riichi
+// stick is worth and what each honba counter adds to a win. Seen by all.
 type GameStarted struct {
-	FirstDealer tile.Seat
-	Dice        [2]tile.Dice
+	FirstDealer      tile.Seat
+	Dice             [2]tile.Dice
+	Ruleset          Ruleset
+	AkaDora          tile.AkaDora
+	RiichiStickValue int
+	HonbaValue       int
 }
 
 // RoundStarted reports a round dealt, one event per seat with that seat's own hand, the dora
