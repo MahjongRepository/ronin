@@ -430,7 +430,7 @@ sequenceDiagram
 
     P->>WS: connect /ws/{game_id}
     WS->>SM: Connect (auth timeout armed)
-    P->>R: JOIN_GAME {game_ticket}  or  RECONNECT {game_ticket}
+    P->>R: JOIN_GAME or RECONNECT {game_ticket, seat_version, claim_id}
     R->>R: verify ticket, ticket.room_id == path game_id
     R->>SM: Join / Reconnect (participant looked up by ticket)
     SM-->>P: game_joined, then once every player joined game_started (with the seat) and the first deal, which opens the start confirm / game_reconnected snapshot (with the participant's latest decision id)
@@ -449,10 +449,10 @@ sequenceDiagram
 * A participant is keyed by its ticket for the whole game and its seat never rotates, so a reconnect
   with the same ticket resumes the same seat and timer bank.
 * A JOIN_GAME or RECONNECT for a participant whose socket the server still holds (half-open after a
-  network switch, or another tab) replaces that socket at once, unless its seat claim is stale
-  (Recovering a lost handoff, Seat claims), which is closed with 4002 instead: the old one closes with 4002
+  network switch, or another tab) replaces that socket at once: the old one closes with 4002
   `replaced_by_new_connection`, after which its client stops reconnecting, or two tabs would take
-  the seat from each other forever. The wait carries on with its timer; the new socket gets the
+  the seat from each other forever. A new socket whose seat claim is stale (Recovering a lost handoff,
+  Seat claims) is itself closed with 4002 and the held socket stays. The wait carries on with its timer; the new socket gets the
   snapshot and the event that opened the seat's wait. A 1008 kick is terminal for the client too;
   a 1000 `game_ended` close is not, so a client that missed the game end reconnects and is refused
   into the lobby.

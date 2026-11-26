@@ -48,18 +48,28 @@ export async function checkLiveGame(live: LiveGameReturn, context: LiveGameConte
     context.render();
 }
 
+/** Leave for the game, or report that its claim could not be stored, since the game page would not find it. */
+function enterReturnedGame(game: GameStart): boolean {
+    try {
+        enterGame(game);
+        return true;
+    } catch (error: unknown) {
+        console.error("game session not stored", error);
+        return false;
+    }
+}
+
 function finishReturn(
     live: LiveGameReturn,
     lookup: LiveGameLookup,
     context: LiveGameContext,
 ): void {
-    if (lookup.kind === "playing") {
-        enterGame(lookup.game);
+    if (lookup.kind === "playing" && enterReturnedGame(lookup.game)) {
         return;
     }
     live.returning = false;
     live.playing = lookup.kind !== "none";
-    live.returnFailed = lookup.kind === "failed";
+    live.returnFailed = lookup.kind !== "none";
     context.render();
 }
 

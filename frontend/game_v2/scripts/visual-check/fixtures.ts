@@ -137,7 +137,12 @@ export async function openContext(
         (route) => route.fulfill({ body: "", contentType: "text/css", status: 200 }),
     );
     const wsUrl = `${origin.replace("http", "ws")}/ws/${GAME_ID}`;
-    const handoff = JSON.stringify({ gameTicket: "visual-check", wsUrl });
+    const handoff = JSON.stringify({
+        claimId: "visual-check",
+        gameTicket: "visual-check",
+        seatVersion: 0,
+        wsUrl,
+    });
     await context.addInitScript(([key, value]) => sessionStorage.setItem(key, value), [
         `game_session:${GAME_ID}`,
         handoff,

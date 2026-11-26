@@ -45,6 +45,21 @@ describe("returnToGame", () => {
         expect(replace).toHaveBeenCalledExactlyOnceWith("/play/game-1");
     });
 
+    it("offers the return again when the session cannot be stored", async () => {
+        const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
+        vi.spyOn(sessionStorage, "setItem").mockImplementation(() => {
+            throw new DOMException("full", "QuotaExceededError");
+        });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        answerGameSession(200, LIVE_GAME);
+        const live = playing();
+
+        await returnToGame(live, context);
+
+        expect(replace).not.toHaveBeenCalled();
+        expect(live).toEqual({ playing: true, returnFailed: true, returning: false });
+    });
+
     it.each([
         {
             body: { error: "not_playing" },
