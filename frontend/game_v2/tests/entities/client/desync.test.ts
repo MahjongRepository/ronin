@@ -272,7 +272,7 @@ const [firstWinner, ...otherWinners] = wirePayloadList(DOUBLE_RON_END, WIRE_KEY.
 const DROPPED_AT = 4000;
 const OPENED_AT = 5001;
 const LOST_AT = 5002;
-const RECONNECT: ClientEffect = { message: buildReconnectMessage("ticket-1"), type: "send" };
+const RECONNECT: ClientEffect = { message: buildReconnectMessage(HANDOFF), type: "send" };
 
 function undecodable(at: number): LiveEvent {
     return { at, detail: "Received a non-binary frame", kind: "frame_undecodable" };
@@ -461,7 +461,7 @@ describe("stepGameClient - desync", () => {
             message(retryAt, SNAPSHOT),
         ]);
         expect(sends(reconnected.effects)).toEqual([
-            { message: buildReconnectMessage("ticket-1"), type: "send" },
+            { message: buildReconnectMessage(HANDOFF), type: "send" },
         ]);
         expect([desyncOf(reconnected.state), reconnected.state.resyncRequests]).toEqual([null, 1]);
         expect(reconnected.state.session).toMatchObject({ status: "playing" });

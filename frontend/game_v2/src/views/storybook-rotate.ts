@@ -11,7 +11,12 @@ import { type SessionState, describePlayerSessionStatus } from "@/entities/sessi
 
 import { STORYBOOK_INDEX } from "./storybook-nav";
 
-const HANDOFF = { gameTicket: "story", wsUrl: "ws://story" } as const;
+const HANDOFF = {
+    claimId: "story",
+    gameTicket: "story",
+    seatVersion: 0,
+    wsUrl: "ws://story",
+} as const;
 const PLAYING: SessionState = {
     gameId: "story",
     gameStarted: true,

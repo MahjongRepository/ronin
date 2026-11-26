@@ -21,6 +21,7 @@ import { type ClientEffect, type LiveClient, type LocalIntent, type Offer } from
 
 /** What a transcript writes for the game ticket of a JOIN_GAME or RECONNECT, which the lobby's handoff holds. */
 const GAME_TICKET_PLACEHOLDER = "<game ticket>";
+const CLAIM_ID_PLACEHOLDER = "<claim id>";
 
 /**
  * The closes after which the client must not reconnect, as `docs/architecture.md` (Game client contract) names
@@ -77,16 +78,20 @@ const sentActionSchema = z.discriminatedUnion(String(WIRE_KEY.ACTION), [
     z.strictObject({ ...actionBase, [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.CONFIRM_ROUND) }),
 ]);
 
-const ticketSchema = z.literal(GAME_TICKET_PLACEHOLDER);
+const claimBase = {
+    [WIRE_KEY.CLAIM_ID]: z.literal(CLAIM_ID_PLACEHOLDER),
+    [WIRE_KEY.GAME_TICKET]: z.literal(GAME_TICKET_PLACEHOLDER),
+    [WIRE_KEY.SEAT_VERSION]: z.int().check(z.nonnegative()),
+};
 
-/** A JOIN_GAME or RECONNECT exactly as the seat sent it, its ticket replaced by the placeholder. */
+/** A JOIN_GAME or RECONNECT exactly as the seat sent it, its ticket and claim id replaced by placeholders. */
 const sentIdentitySchema = z.discriminatedUnion(String(WIRE_KEY.EVENT_TYPE), [
     z.strictObject({
-        [WIRE_KEY.GAME_TICKET]: ticketSchema,
+        ...claimBase,
         [WIRE_KEY.EVENT_TYPE]: z.literal(CLIENT_MESSAGE_TYPE.JOIN_GAME),
     }),
     z.strictObject({
-        [WIRE_KEY.GAME_TICKET]: ticketSchema,
+        ...claimBase,
         [WIRE_KEY.EVENT_TYPE]: z.literal(CLIENT_MESSAGE_TYPE.RECONNECT),
     }),
 ]);
@@ -286,13 +291,18 @@ function answeringIntent(action: SentAction, startConfirm: boolean): LocalIntent
 }
 
 /**
- * A sent message as the client sends it: a JOIN_GAME or RECONNECT with the handoff's ticket, an action or a RESYNC as
+ * A sent message as the client sends it: a JOIN_GAME or RECONNECT with the handoff's ticket and claim, an action or a RESYNC as
  * recorded. A recorded RESYNC is always taken as asked after a frame that did not decode (`sentStep`): a transcript the
  * server makes cannot show any other loss of step, and a repeated request is a hand-written branch.
  */
 function sentEffect(message: SentMessage, handoff: GameSessionData): ClientEffect {
     const sent: ClientMessage = isIdentity(message)
-        ? { ...message, [WIRE_KEY.GAME_TICKET]: handoff.gameTicket }
+        ? {
+              ...message,
+              [WIRE_KEY.CLAIM_ID]: handoff.claimId,
+              [WIRE_KEY.GAME_TICKET]: handoff.gameTicket,
+              [WIRE_KEY.SEAT_VERSION]: handoff.seatVersion,
+          }
         : message;
     return { message: sent, type: "send" };
 }

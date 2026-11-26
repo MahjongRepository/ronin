@@ -155,12 +155,12 @@ func TestJoin_WhenItCannotBind_ShouldAnswerWhy(t *testing.T) {
 		h.create("Alice", "Bob")
 		alice := h.join("Alice")
 
-		h.m.Join(alice, "ticket-Bob")
+		h.m.Join(alice, "ticket-Bob", noClaim)
 		stranger := h.connect()
-		h.m.Join(stranger, "ticket-Nobody")
+		h.m.Join(stranger, "ticket-Nobody", noClaim)
 		lost := &fakeConn{id: "conn-lost", gameID: "game-0404"}
 		h.m.Connect(lost)
-		h.m.Join(lost, "ticket-Alice")
+		h.m.Join(lost, "ticket-Alice", noClaim)
 		synctest.Wait()
 
 		for _, tc := range []struct {
@@ -217,7 +217,7 @@ func TestAuthTimeout_WhenAConnectionNeverAuthenticates_ShouldCloseIt4001(t *test
 			t.Error("the joined connection was closed")
 		}
 
-		h.m.Join(idle, "ticket-Bob")
+		h.m.Join(idle, "ticket-Bob", noClaim)
 		synctest.Wait()
 		if got := len(idle.messages()); got != 0 {
 			t.Errorf("the evicted connection got %d messages, want none", got)

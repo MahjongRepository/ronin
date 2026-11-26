@@ -23,18 +23,21 @@ type sessionRefusal struct {
 	message string
 }
 
-func (g *game) join(conn Connection, ticket string) error {
+func (g *game) join(conn Connection, ticket string, claim play.Option[messaging.Claim]) error {
 	if g.lifecycle == lifecyclePlaying {
 		sendSessionError(g.log, conn, messaging.SessionJoinGameAlreadyStarted, "Game already started, use RECONNECT")
 		return nil
 	}
 
-	b := g.m.bindJoining(g, conn, ticket)
+	b := g.m.bindJoining(g, conn, ticket, claim)
 	switch {
 	case !b.registered:
 		return nil
 	case b.refused.OK:
 		sendSessionError(g.log, conn, b.refused.Value.code, b.refused.Value.message)
+		return nil
+	case b.fenced:
+		g.closeFenced(b.participant, conn)
 		return nil
 	}
 
@@ -50,6 +53,11 @@ func (g *game) byTicket(ticket string) *participant {
 	}
 
 	return nil
+}
+
+func (g *game) closeFenced(p *participant, conn Connection) {
+	p.log.Info(logStaleClaimRefused, "connection_id", conn.ID())
+	conn.Close(CloseReplaced, "replaced_by_new_connection")
 }
 
 func (g *game) closeReplaced(p *participant, replaced, conn Connection) {

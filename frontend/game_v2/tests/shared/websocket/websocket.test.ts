@@ -209,18 +209,23 @@ describe("GameSocket frames", () => {
     it("sends named client fields as integer map keys and reports readable incoming fields", () => {
         const messages: Record<string, unknown>[] = [];
         const ws = connectedSocket([], { onMessage: (message) => messages.push(message) });
-        socket?.send(buildJoinGameMessage("ticket"));
+        const claim = { claimId: "c", gameTicket: "ticket", seatVersion: 0 };
+        socket?.send(buildJoinGameMessage(claim));
         expect(ws.sent).toHaveLength(2);
         expect(ws.sent[1]).toEqual(
             new Uint8Array([
-                0x82,
+                0x84,
                 WIRE_KEY.EVENT_TYPE,
                 CLIENT_MESSAGE_TYPE.JOIN_GAME,
                 WIRE_KEY.GAME_TICKET,
                 ...encode("ticket"),
+                WIRE_KEY.SEAT_VERSION,
+                0,
+                WIRE_KEY.CLAIM_ID,
+                ...encode("c"),
             ]),
         );
-        expect(decodeWireMessage(ws.sent[1])).toEqual(buildJoinGameMessage("ticket"));
+        expect(decodeWireMessage(ws.sent[1])).toEqual(buildJoinGameMessage(claim));
         ws.receiveFrame(
             encodeWireMessage({ [WIRE_KEY.PACKED_MOVE]: 37, [WIRE_KEY.EVENT_TYPE]: 2 }).buffer,
         );

@@ -130,7 +130,7 @@ class TestLobbyRoomRoute:
     ):
         register_with_csrf(client, "alice")
         game_server.respond = lambda _request: httpx.Response(
-            game_session_status, json={"game_id": "game 1", "game_ticket": "ticket"}
+            game_session_status, json={"game_id": "game 1", "game_ticket": "ticket", "seat_version": 0}
         )
 
         response = client.get("/api/lobby/rooms/gone-room")

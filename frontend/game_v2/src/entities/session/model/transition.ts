@@ -48,8 +48,8 @@ function unchanged(state: SessionState): SessionStep {
 
 function identityMessage({ handoff, identity }: SeekingSession): ClientMessage {
     return identity.kind === "join"
-        ? buildJoinGameMessage(handoff.gameTicket)
-        : buildReconnectMessage(handoff.gameTicket);
+        ? buildJoinGameMessage(handoff)
+        : buildReconnectMessage(handoff);
 }
 
 /** Whether the session holds the seat, the only state that sends game messages: playing. */

@@ -42,6 +42,7 @@ type Manager struct {
 type listing struct {
 	game    *game
 	players []PlayerSpec
+	claims  map[string]*seatClaim
 	started play.Option[StartedGame]
 }
 
@@ -89,10 +90,12 @@ type StartedGame struct {
 	Names     [tile.SeatCount]string
 }
 
-// Playing is the game a user plays and the game ticket of their participant in it.
+// Playing is the game a user plays, the game ticket of their participant in it and the seat
+// version a client must name to take that seat over.
 type Playing struct {
-	GameID string
-	Ticket string
+	GameID      string
+	Ticket      string
+	SeatVersion int
 }
 
 func newManager(ctx context.Context, cfg Config) *Manager {
@@ -181,7 +184,7 @@ func (m *Manager) playingLocked(userID string) (Playing, bool) {
 	for id, l := range m.games {
 		for _, spec := range l.players {
 			if spec.UserID == userID {
-				return Playing{GameID: id, Ticket: spec.Ticket}, true
+				return Playing{GameID: id, Ticket: spec.Ticket, SeatVersion: l.claims[spec.Ticket].version}, true
 			}
 		}
 	}
@@ -211,7 +214,7 @@ func (m *Manager) CreatePendingGame(gameID string, players []PlayerSpec, seating
 	}
 
 	g := newGame(m, gameID, players, seating)
-	l := &listing{game: g, players: players}
+	l := &listing{game: g, players: players, claims: newSeatClaims(players)}
 	m.games[gameID] = l
 	for _, spec := range players {
 		m.tickets[spec.Ticket] = l
@@ -318,14 +321,14 @@ func (m *Manager) evictLocked(conn Connection) {
 	entry.authTimer()
 }
 
-func (m *Manager) Join(conn Connection, ticket string) {
+func (m *Manager) Join(conn Connection, ticket string, claim play.Option[messaging.Claim]) {
 	g, registered := m.pathGame(conn)
 	if !registered {
 		return
 	}
 
 	posted := g != nil && g.postAndWait(func() {
-		g.serve(conn, "join failed", func() error { return g.join(conn, ticket) })
+		g.serve(conn, "join failed", func() error { return g.join(conn, ticket, claim) })
 	})
 	if !posted {
 		sendSessionError(m.log, conn, messaging.SessionJoinGameNotFound, "Game not found")
@@ -372,9 +375,10 @@ type seatBinding struct {
 	participant *participant
 	replaced    Connection
 	refused     play.Option[sessionRefusal]
+	fenced      bool
 }
 
-func (m *Manager) bindJoining(g *game, conn Connection, ticket string) seatBinding {
+func (m *Manager) bindJoining(g *game, conn Connection, ticket string, claim play.Option[messaging.Claim]) seatBinding {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -386,6 +390,15 @@ func (m *Manager) bindJoining(g *game, conn Connection, ticket string) seatBindi
 	p, refused := m.joiningLocked(g, entry, ticket)
 	if refused.OK {
 		return seatBinding{registered: true, refused: refused}
+	}
+
+	return m.claimLocked(p, entry, claim)
+}
+
+func (m *Manager) claimLocked(p *participant, entry *connEntry, claim play.Option[messaging.Claim]) seatBinding {
+	if !m.tickets[p.spec.Ticket].claims[p.spec.Ticket].take(claim) {
+		m.evictLocked(entry.conn)
+		return seatBinding{registered: true, participant: p, fenced: true}
 	}
 
 	return seatBinding{registered: true, participant: p, replaced: m.bindLocked(p, entry)}
@@ -406,7 +419,7 @@ func (m *Manager) joiningLocked(g *game, entry *connEntry, ticket string) (*part
 	return g.byTicket(ticket), play.Option[sessionRefusal]{}
 }
 
-func (m *Manager) bindReconnecting(g *game, conn Connection, ticket string) seatBinding {
+func (m *Manager) bindReconnecting(g *game, conn Connection, ticket string, claim play.Option[messaging.Claim]) seatBinding {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -420,8 +433,7 @@ func (m *Manager) bindReconnecting(g *game, conn Connection, ticket string) seat
 		})}
 	}
 
-	p := g.byTicket(ticket)
-	return seatBinding{registered: true, participant: p, replaced: m.bindLocked(p, entry)}
+	return m.claimLocked(g.byTicket(ticket), entry, claim)
 }
 
 func (m *Manager) bindLocked(p *participant, entry *connEntry) Connection {

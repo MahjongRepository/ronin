@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -18,7 +19,14 @@ func noStartPause(timing *session.Timing) {
 
 func (h *harness) reconnect(ticket string) *fakeConn {
 	conn := h.connect()
-	h.m.Reconnect(conn, ticket)
+	h.m.Reconnect(conn, ticket, noClaim)
+	synctest.Wait()
+	return conn
+}
+
+func (h *harness) reconnectAliceClaiming(id string, version int) *fakeConn {
+	conn := h.connect()
+	h.m.Reconnect(conn, "ticket-Alice", play.Some(messaging.Claim{ID: id, SeatVersion: version}))
 	synctest.Wait()
 	return conn
 }
@@ -124,6 +132,38 @@ func TestReconnect_WhenTheAIPlayedTheTurnTheSeatLeft_ShouldShowTheBankChargedOnl
 	})
 }
 
+func TestReconnect_WhenAnOlderOrNoClaimRetriesAfterANewerOneTookTheSeat_ShouldFenceItOffAndKeepTheNewerOne(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h, _, _ := twoHumans(t, withTiming(noStartPause))
+		laptop := h.reconnectAliceClaiming("laptop", 0)
+		phone := h.reconnectAliceClaiming("phone", 1)
+		staleLaptop := h.reconnectAliceClaiming("laptop", 0)
+		unclaimed := h.reconnect("ticket-Alice")
+		_, phoneClosedByStale := phone.closeCode()
+		phoneRetry := h.reconnectAliceClaiming("phone", 1)
+
+		if code, closed := laptop.closeCode(); !closed || code != session.CloseReplaced {
+			t.Errorf("laptop close = %v, %v, want 4002 once the phone claimed the seat", code, closed)
+		}
+		if code, closed := staleLaptop.closeCode(); !closed || code != session.CloseReplaced {
+			t.Errorf("stale laptop retry close = %v, %v, want 4002", code, closed)
+		}
+		if got := len(ofSession(staleLaptop.messages(), "game_reconnected")); got != 0 {
+			t.Errorf("stale laptop retry got %d game_reconnected, want none", got)
+		}
+		if code, closed := unclaimed.closeCode(); !closed || code != session.CloseReplaced {
+			t.Errorf("unclaimed retry close = %v, %v, want 4002 once a claim owns the seat", code, closed)
+		}
+		if phoneClosedByStale {
+			t.Error("a stale or unclaimed retry closed the phone, want the phone kept")
+		}
+		reconnected(t, phoneRetry)
+		if playing, _ := h.m.PlayingGame("user-Alice"); playing.SeatVersion != 2 {
+			t.Errorf("seat version = %d, want 2 after two claims took the seat", playing.SeatVersion)
+		}
+	})
+}
+
 func TestReconnect_WhenTheParticipantIsStillConnected_ShouldReplaceItsConnectionAndKeepTheWaitRunning(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h, alice, bob := twoHumans(t, withTiming(noStartPause))
@@ -215,8 +255,8 @@ func TestReconnect_WhenItCannotTakeASeat_ShouldAnswerWhy(t *testing.T) {
 		stranger := h.reconnect("ticket-Nobody")
 		lost := &fakeConn{id: "conn-lost", gameID: "game-0404"}
 		h.m.Connect(lost)
-		h.m.Reconnect(lost, "ticket-Bob")
-		h.m.Reconnect(alice, "ticket-Bob")
+		h.m.Reconnect(lost, "ticket-Bob", noClaim)
+		h.m.Reconnect(alice, "ticket-Bob", noClaim)
 		synctest.Wait()
 
 		for _, tc := range []struct {

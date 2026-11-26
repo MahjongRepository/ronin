@@ -191,8 +191,10 @@ describe("seatScenarioFromTranscript", () => {
 
     it("expects the JOIN_GAME the transcript recorded on a reopen before the seat was admitted", () => {
         const join = {
+            [WIRE_KEY.CLAIM_ID]: "<claim id>",
             [WIRE_KEY.GAME_TICKET]: TICKET,
             [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.JOIN_GAME,
+            [WIRE_KEY.SEAT_VERSION]: 0,
         };
         const [, transcript] = parseSeatTranscript({
             events: [
@@ -214,7 +216,7 @@ describe("seatScenarioFromTranscript", () => {
         const reopened = scenario.steps[scenarioStateIndex(scenario, "reopened") - 1];
 
         expect(reopened.effects).toEqual([
-            { message: buildJoinGameMessage(scenario.handoff.gameTicket), type: "send" },
+            { message: buildJoinGameMessage(scenario.handoff), type: "send" },
         ]);
         expect(
             runSeatScenario(scenario).mismatches.filter(({ kind }) => kind === "effects"),

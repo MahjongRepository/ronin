@@ -1,6 +1,6 @@
 import { z } from "zod/mini";
 
-import { type GameSessionData } from "@/shared/session";
+import { type GameSessionData, claimGameSession } from "@/shared/session";
 
 const GAME_SESSION_URL = "/api/game-session";
 const HTTP_UNAUTHORIZED = 401;
@@ -11,6 +11,7 @@ const handoffSchema = z.object({
     game_client_url: z.string().check(z.minLength(1)),
     game_id: z.string().check(z.minLength(1)),
     game_ticket: z.string().check(z.minLength(1)),
+    seat_version: z.int().check(z.nonnegative()),
     ws_url: z.string().check(z.minLength(1)),
 });
 
@@ -48,11 +49,17 @@ export async function fetchGameHandoff(signal: AbortSignal): Promise<HandoffReco
     if (!parsed.success) {
         return { detail: "malformed game session", kind: "failed" };
     }
-    const { game_client_url: gameClientUrl, game_id: gameId, game_ticket, ws_url } = parsed.data;
+    const {
+        game_client_url: gameClientUrl,
+        game_id: gameId,
+        game_ticket,
+        seat_version,
+        ws_url,
+    } = parsed.data;
     return {
         gameClientUrl,
         gameId,
-        handoff: { gameTicket: game_ticket, wsUrl: ws_url },
+        handoff: claimGameSession(ws_url, game_ticket, seat_version),
         kind: "found",
     };
 }

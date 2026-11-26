@@ -16,8 +16,8 @@ import { buildJoinGameMessage, buildReconnectMessage } from "@/shared/protocol";
 
 const { closed, leave, message, opened, recovered, tick } = sessionInput;
 
-const JOIN = { message: buildJoinGameMessage(HANDOFF.gameTicket), type: "send" } as const;
-const RECONNECT = { message: buildReconnectMessage(HANDOFF.gameTicket), type: "send" } as const;
+const JOIN = { message: buildJoinGameMessage(HANDOFF), type: "send" } as const;
+const RECONNECT = { message: buildReconnectMessage(HANDOFF), type: "send" } as const;
 const OPEN = { type: "open_socket", url: HANDOFF.wsUrl } as const;
 const FORGET_HANDOFF = { gameId: "g1", type: "clear_handoff" } as const;
 const LEAVE_FOR_LOBBY = [FORGET_HANDOFF, { type: "redirect_to_lobby" }] as const;
@@ -428,7 +428,12 @@ describe("stepSession", () => {
 });
 
 describe("handoff recovery", () => {
-    const OTHER_HANDOFF = { gameTicket: "ticket-2", wsUrl: "ws://game/ws/g2" } as const;
+    const OTHER_HANDOFF = {
+        claimId: "claim-2",
+        gameTicket: "ticket-2",
+        seatVersion: 1,
+        wsUrl: "ws://game/ws/g2",
+    } as const;
 
     it("asks the lobby for the game when the tab holds no handoff, then keeps the one it finds and joins with it", () => {
         const scenario = sessionScenario(null);

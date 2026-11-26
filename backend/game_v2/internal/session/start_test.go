@@ -187,7 +187,7 @@ func TestJoin_WhenAnActionFollowsOnTheSameConnection_ShouldReturnOnlyOnceTheBind
 
 		joined := make(chan struct{})
 		go func() {
-			h.m.Join(alice, "ticket-Alice")
+			h.m.Join(alice, "ticket-Alice", noClaim)
 			close(joined)
 		}()
 		synctest.Wait()
@@ -217,10 +217,10 @@ func TestQueueDelayMax_WhenAJoinWaitsBehindABusyStep_ShouldReportHowLongItWaited
 		h := newHarness(t)
 		h.create("Alice", "Bob")
 		alice := h.connectHeld()
-		go h.m.Join(alice, "ticket-Alice")
+		go h.m.Join(alice, "ticket-Alice", noClaim)
 		sleep(500 * time.Millisecond)
 		bob := h.connect()
-		go h.m.Join(bob, "ticket-Bob")
+		go h.m.Join(bob, "ticket-Bob", noClaim)
 
 		sleep(1000 * time.Millisecond)
 		close(alice.release)

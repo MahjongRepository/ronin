@@ -27,7 +27,7 @@ func TestSettle_WhenTheLastJoinStartsTheGame_ShouldReturnOnceTheDealWasSent(t *t
 	h.create("Alice")
 	conn := h.connect()
 
-	h.m.Join(conn, "ticket-Alice")
+	h.m.Join(conn, "ticket-Alice", noClaim)
 	h.m.Settle()
 	if got := ofEvent(conn.messages(), wire.EventRoundStarted); len(got) != 1 {
 		t.Errorf("round starts sent before Settle returned = %d, want 1", len(got))
@@ -38,7 +38,7 @@ func TestSettle_WhenTheLastParticipantLeaves_ShouldReturnOnceTheFinalizerRecorde
 	h := newHarness(t, withStoppedClock())
 	h.create("Alice")
 	conn := h.connect()
-	h.m.Join(conn, "ticket-Alice")
+	h.m.Join(conn, "ticket-Alice", noClaim)
 	h.m.Settle()
 
 	h.m.Disconnect(conn)

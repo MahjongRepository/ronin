@@ -42,17 +42,20 @@ class GameLookupError(Exception):
 @dataclass(frozen=True)
 class GameHandoff:
     """
-    What a player needs to reach their seat: the game, its WebSocket URL, their ticket and where the game client lives.
+    What a player needs to reach their seat: the game, its WebSocket URL, their ticket, the seat version a client names
+    to take the seat over and where the game client lives.
 
-    ``game_starting`` carries it, and the game page's recovery returns it; the ticket stays out of the repr.
+    ``game_starting`` carries it, and the game page's recovery returns it; the ticket stays out of the repr. A new
+    game's seats start at version 0.
     """
 
     game_id: str
     ws_url: str
     game_ticket: str = field(repr=False)
+    seat_version: int
     game_client_url: str
 
-    def to_game_starting(self) -> dict[str, str]:
+    def to_game_starting(self) -> dict[str, str | int]:
         return {"type": "game_starting", **asdict(self)}
 
 
@@ -98,6 +101,7 @@ class _PlayingGames(BaseModel):
 class _LiveSeat(BaseModel):
     game_id: str = Field(min_length=1)
     game_ticket: str = Field(min_length=1)
+    seat_version: int = Field(ge=0)
 
 
 class GameServerStatus(BaseModel, frozen=True):
@@ -149,11 +153,12 @@ def create_game_server_client(
     return httpx.AsyncClient(base_url=game_server_url, transport=transport, limits=_GAME_SERVER_LIMITS)
 
 
-def _build_handoff(*, game_id: str, game_ticket: str, settings: LobbyServerSettings) -> GameHandoff:
+def _build_handoff(*, game_id: str, game_ticket: str, seat_version: int, settings: LobbyServerSettings) -> GameHandoff:
     return GameHandoff(
         game_id=game_id,
         ws_url=f"{settings.game_server_ws_url}/ws/{game_id}",
         game_ticket=game_ticket,
+        seat_version=seat_version,
         game_client_url=settings.game_client_url,
     )
 
@@ -223,7 +228,7 @@ async def start_game(  # noqa: PLR0913
         raise GameStartError(_REFUSAL_REASONS.get(response.status_code, _GAME_SERVER_ERROR))
 
     for player, ticket in zip(players, tickets, strict=True):
-        handoff = _build_handoff(game_id=game_id, game_ticket=ticket, settings=settings)
+        handoff = _build_handoff(game_id=game_id, game_ticket=ticket, seat_version=0, settings=settings)
         player.send(handoff.to_game_starting())
         player.connection.close()
 
@@ -384,7 +389,9 @@ async def find_game_handoff(
     except ValidationError:
         raise GameLookupError("malformed answer") from None
 
-    return _build_handoff(game_id=seat.game_id, game_ticket=seat.game_ticket, settings=settings)
+    return _build_handoff(
+        game_id=seat.game_id, game_ticket=seat.game_ticket, seat_version=seat.seat_version, settings=settings
+    )
 
 
 async def fetch_tenhou_replay(

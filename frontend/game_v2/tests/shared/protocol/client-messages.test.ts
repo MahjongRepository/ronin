@@ -20,18 +20,30 @@ import { CLIENT_MESSAGE_TYPE, GAME_ACTION, KAN_TYPE } from "@/shared/protocol/co
 describe("client message builders", () => {
     describe("session messages", () => {
         it("buildJoinGameMessage creates correct wire format", () => {
-            const msg = buildJoinGameMessage("ticket-abc-123");
+            const msg = buildJoinGameMessage({
+                claimId: "claim-a",
+                gameTicket: "ticket-abc-123",
+                seatVersion: 2,
+            });
             expect(msg).toEqual({
+                [WIRE_KEY.CLAIM_ID]: "claim-a",
                 [WIRE_KEY.GAME_TICKET]: "ticket-abc-123",
                 [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.JOIN_GAME,
+                [WIRE_KEY.SEAT_VERSION]: 2,
             });
         });
 
         it("buildReconnectMessage creates correct wire format", () => {
-            const msg = buildReconnectMessage("ticket-xyz-789");
+            const msg = buildReconnectMessage({
+                claimId: "claim-b",
+                gameTicket: "ticket-xyz-789",
+                seatVersion: 0,
+            });
             expect(msg).toEqual({
+                [WIRE_KEY.CLAIM_ID]: "claim-b",
                 [WIRE_KEY.GAME_TICKET]: "ticket-xyz-789",
                 [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.RECONNECT,
+                [WIRE_KEY.SEAT_VERSION]: 0,
             });
         });
     });

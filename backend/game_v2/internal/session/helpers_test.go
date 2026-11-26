@@ -26,6 +26,8 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
+var noClaim = play.Option[messaging.Claim]{}
+
 const testGameID = "game-0001"
 
 type fakeConn struct {
@@ -239,7 +241,7 @@ func (h *harness) connectHeld() *heldConn {
 
 func (h *harness) join(name string) *fakeConn {
 	conn := h.connect()
-	h.m.Join(conn, "ticket-"+name)
+	h.m.Join(conn, "ticket-"+name, noClaim)
 	synctest.Wait()
 	return conn
 }

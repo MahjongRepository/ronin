@@ -6,6 +6,7 @@ const LIVE_GAME = {
     game_client_url: "/play",
     game_id: "game-1",
     game_ticket: "ticket-1",
+    seat_version: 2,
     ws_url: "ws://game/ws",
 };
 
@@ -36,7 +37,9 @@ describe("returnToGame", () => {
         await returnToGame(playing(), context);
 
         expect(JSON.parse(sessionStorage.getItem("game_session:game-1") ?? "null")).toEqual({
+            claimId: expect.any(String),
             gameTicket: "ticket-1",
+            seatVersion: 2,
             wsUrl: "ws://game/ws",
         });
         expect(replace).toHaveBeenCalledExactlyOnceWith("/play/game-1");

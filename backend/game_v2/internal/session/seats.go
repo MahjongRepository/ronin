@@ -8,7 +8,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-func (m *Manager) Reconnect(conn Connection, ticket string) {
+func (m *Manager) Reconnect(conn Connection, ticket string, claim play.Option[messaging.Claim]) {
 	g, refused, registered := m.reconnecting(conn, ticket)
 	switch {
 	case !registered:
@@ -19,7 +19,7 @@ func (m *Manager) Reconnect(conn Connection, ticket string) {
 	}
 
 	posted := g.postAndWait(func() {
-		g.serve(conn, "reconnect failed", func() error { return g.reconnect(conn, ticket) })
+		g.serve(conn, "reconnect failed", func() error { return g.reconnect(conn, ticket, claim) })
 	})
 	if !posted {
 		sendSessionError(m.log, conn, messaging.SessionReconnectNoSession, noLiveGame)
@@ -39,7 +39,7 @@ func (m *Manager) Resync(conn Connection) {
 	})
 }
 
-func (g *game) reconnect(conn Connection, ticket string) error {
+func (g *game) reconnect(conn Connection, ticket string, claim play.Option[messaging.Claim]) error {
 	if g.lifecycle == lifecyclePending {
 		sendSessionError(g.log, conn, messaging.SessionReconnectRetryLater, "Game has not started yet, retry shortly")
 		return nil
@@ -50,12 +50,15 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 		return nil
 	}
 
-	b := g.m.bindReconnecting(g, conn, ticket)
+	b := g.m.bindReconnecting(g, conn, ticket, claim)
 	switch {
 	case !b.registered:
 		return nil
 	case b.refused.OK:
 		sendSessionError(g.log, conn, b.refused.Value.code, b.refused.Value.message)
+		return nil
+	case b.fenced:
+		g.closeFenced(b.participant, conn)
 		return nil
 	}
 

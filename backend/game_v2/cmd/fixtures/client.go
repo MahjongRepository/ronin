@@ -17,6 +17,7 @@ import (
 const (
 	unseenDropCode      = 1006
 	ticketPlaceholder   = "<game ticket>"
+	claimPlaceholder    = "<claim id>"
 	kanClosed           = "closed"
 	kanAdded            = "added"
 	sessionErrorType    = "session_error"
@@ -246,6 +247,8 @@ func (c *seatClient) identity(typ messaging.ClientMessageType) wire.Map {
 	return wire.Map{
 		{Key: wire.KeyEventType, Value: wire.Int(typ)},
 		{Key: wire.KeyGameTicket, Value: wire.Str(c.ticket)},
+		{Key: wire.KeySeatVersion, Value: wire.Int(0)},
+		{Key: wire.KeyClaimID, Value: wire.Str("claim-" + c.name)},
 	}
 }
 
@@ -267,6 +270,10 @@ func (c *seatClient) open(typ messaging.ClientMessageType, label string) error {
 	for i, f := range shown {
 		if f.Key == wire.KeyGameTicket {
 			shown[i].Value = wire.Str(ticketPlaceholder)
+		}
+
+		if f.Key == wire.KeyClaimID {
+			shown[i].Value = wire.Str(claimPlaceholder)
 		}
 	}
 

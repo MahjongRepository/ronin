@@ -58,11 +58,11 @@ func (r *Router) Route(conn session.Connection, m wire.Map) {
 		r.session.Act(conn, msg)
 	case messaging.JoinGameMessage:
 		if r.verifiedTicket(conn, msg.Ticket) {
-			r.session.Join(conn, msg.Ticket)
+			r.session.Join(conn, msg.Ticket, msg.Claim)
 		}
 	case messaging.ReconnectMessage:
 		if r.verifiedTicket(conn, msg.Ticket) {
-			r.session.Reconnect(conn, msg.Ticket)
+			r.session.Reconnect(conn, msg.Ticket, msg.Claim)
 		}
 	case messaging.ResyncMessage:
 		r.session.Resync(conn)

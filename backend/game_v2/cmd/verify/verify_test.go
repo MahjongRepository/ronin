@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
@@ -77,7 +79,7 @@ func playSeededGame(t *testing.T) string {
 
 		human := &humanConn{}
 		m.Connect(human)
-		m.Join(human, "ticket-1")
+		m.Join(human, "ticket-1", play.Option[messaging.Claim]{})
 		for hours := 0; !human.isClosed() && hours < maxGameHours; hours++ {
 			time.Sleep(time.Hour)
 			synctest.Wait()

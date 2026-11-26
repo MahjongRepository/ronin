@@ -208,7 +208,12 @@ function waitId(state: LiveClient): number {
  */
 function resumedOver(name: string, resent: string): LiveClient {
     const { transcript } = loadSeatScenario(name);
-    const handoff = { gameTicket: "ticket", wsUrl: `ws://game/ws/${transcript.gameId}` };
+    const handoff = {
+        claimId: "claim",
+        gameTicket: "ticket",
+        seatVersion: 0,
+        wsUrl: `ws://game/ws/${transcript.gameId}`,
+    };
     const steps = [
         { at: 0, kind: "transport_opened" },
         { at: 100, kind: "server_message", raw: receivedPayload(transcript, "reconnected") },

@@ -422,6 +422,7 @@ class TestGameTransition:
         assert msg["game_id"] == game_id
         assert msg["ws_url"] == f"wss://game-client.invalid/ws/{game_id}"
         assert "game_ticket" in msg
+        assert msg["seat_version"] == 0
         assert app.state.room_manager.get_room("game-room") is None
 
     async def test_room_websocket__when_a_peer_is_held_at_game_start__should_deliver_to_the_rest_and_remove_room(
@@ -790,7 +791,9 @@ class TestRoomOccupancy:
 
         async def held_creation_then_alice_plays_it(request: httpx.Request) -> httpx.Response:
             if request.url.path == "/players/alice-id/game-session":
-                return httpx.Response(200, json={"game_id": "game-1", "game_ticket": "alice-game-1-ticket"})
+                return httpx.Response(
+                    200, json={"game_id": "game-1", "game_ticket": "alice-game-1-ticket", "seat_version": 1}
+                )
 
             creation_requested.set()
             await creation_released.wait()
@@ -829,7 +832,9 @@ class TestRoomOccupancy:
 
             is_internal = request.headers.get("authorization") == f"Bearer {app.state.settings.internal_api_secret}"
             if request.url.path == "/players/alice-id/game-session" and is_internal:
-                return httpx.Response(200, json={"game_id": "game-1", "game_ticket": "alice-game-1-ticket"})
+                return httpx.Response(
+                    200, json={"game_id": "game-1", "game_ticket": "alice-game-1-ticket", "seat_version": 1}
+                )
 
             return httpx.Response(404)
 
@@ -844,6 +849,7 @@ class TestRoomOccupancy:
                 "game_id": "game-1",
                 "ws_url": "wss://game-client.invalid/ws/game-1",
                 "game_ticket": "alice-game-1-ticket",
+                "seat_version": 1,
                 "game_client_url": "/play",
             }
         ]

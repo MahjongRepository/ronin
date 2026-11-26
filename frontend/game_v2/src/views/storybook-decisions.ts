@@ -470,7 +470,9 @@ function parsedTranscript(transcriptName: TranscriptName): SeatTranscript {
 function checkpointState(transcriptName: TranscriptName, label: string): LiveClient {
     const transcript = parsedTranscript(transcriptName);
     const handoff = {
+        claimId: "storybook",
         gameTicket: "storybook",
+        seatVersion: 0,
         wsUrl: `ws://storybook/ws/${transcript.gameId}`,
     };
     return scenarioCheckpoint(seatScenarioFromTranscript(transcript, handoff), label);
@@ -485,7 +487,9 @@ function freshPageState(transcriptName: TranscriptName, label: string): LiveClie
     }
     const { at, payload } = snapshot;
     const handoff = {
+        claimId: "storybook",
         gameTicket: "storybook",
+        seatVersion: 0,
         wsUrl: `ws://storybook/ws/${transcript.gameId}`,
     };
     const events: readonly LiveEvent[] = [

@@ -187,12 +187,13 @@ but no ticket, and occupancy keeps them out of everything else until the game en
 back the participant's own ticket, the same string the game server keys the seat by, so nothing is
 re-signed or rotated:
 
-* The game server's `GET /players/{user_id}/game-session` returns the user's game id and exact
-  ticket. It answers only the internal API secret as a bearer token (the game server's CORS lets
+* The game server's `GET /players/{user_id}/game-session` returns the user's game id, exact
+  ticket and the seat's current `seat_version` (Seat claims below). It answers only the internal API secret as a bearer token (the game server's CORS lets
   the lobby origin read its GETs in development, so network isolation alone is not enough), never
   through Traefik, and every credential-bearing answer is `Cache-Control: no-store`.
 * The lobby asks it only for the authenticated user (`find_game_handoff`), never for a client-given
-  id, and adds the `ws_url` and `game_client_url` a start would send. A lookup failure is an error,
+  id, and adds the `ws_url` and `game_client_url` a start would send (a start's own `game_starting`
+  carries `seat_version` 0). A lookup failure is an error,
   not "not playing": unlike the occupancy lookup it never fails open.
 * Two entry points: a room or matchmaking join refused as `already_in_game` is answered with
   `game_starting` (both lobby pages already follow it; the room page of a room removed by its
@@ -203,6 +204,16 @@ re-signed or rotated:
   `join_game_already_started` once the game plays (it may start between the lookup and the join),
   taking the seat over from any socket still holding it. A game that ended meanwhile refuses the
   join and the client returns to the lobby.
+* Seat claims: every handoff a client stores is a new claim, a random `claim_id` made with the
+  `seat_version` the lobby read, and the client sends both unchanged in every JOIN_GAME and RECONNECT of
+  that handoff. The game server binds a claim that already owns the seat, or one that names the
+  seat's current version, which makes it the owner and raises the version; any other claim is closed
+  with 4002 without touching the seat. So a deliberate entry (a lobby page's Return, a start, an
+  `already_in_game` hand-back, a game page opened with no handoff) takes the seat over for good, and an
+  older tab or device whose retry arrives later is fenced off instead of taking it back. Reading the
+  version (opening a lobby page) changes nothing. A JOIN_GAME or RECONNECT with neither field, a bot's,
+  binds as before only while no claim owns the seat, so an old client cannot take a claimed seat back. Two
+  tabs sharing one stored claim (a duplicated tab copies session storage) are one claim to the server.
 
 ## Rooms
 
@@ -438,7 +449,8 @@ sequenceDiagram
 * A participant is keyed by its ticket for the whole game and its seat never rotates, so a reconnect
   with the same ticket resumes the same seat and timer bank.
 * A JOIN_GAME or RECONNECT for a participant whose socket the server still holds (half-open after a
-  network switch, or another tab) replaces that socket at once: the old one closes with 4002
+  network switch, or another tab) replaces that socket at once, unless its seat claim is stale
+  (Recovering a lost handoff, Seat claims), which is closed with 4002 instead: the old one closes with 4002
   `replaced_by_new_connection`, after which its client stops reconnecting, or two tabs would take
   the seat from each other forever. The wait carries on with its timer; the new socket gets the
   snapshot and the event that opened the seat's wait. A 1008 kick is terminal for the client too;
@@ -508,15 +520,17 @@ honours this contract can replace it.
   other path is a 404, so a new client
   route needs its path added there.
 * **Handoff:** before navigating to `{game_client_url}/{game_id}`, the lobby page writes
-  `sessionStorage.setItem("game_session:{game_id}", JSON.stringify({wsUrl, gameTicket}))`. Session
+  `sessionStorage.setItem("game_session:{game_id}", JSON.stringify({wsUrl, gameTicket, seatVersion, claimId}))`,
+  a new `claimId` for every handoff (`claimGameSession`). Session
   storage is per origin, which is why the game client must be served by the lobby. A game page
   whose tab holds no entry recovers it from `GET /api/game-session` (`game_id`, `ws_url`,
-  `game_ticket`, `game_client_url`; 404 when the player plays no game, 503 when the lookup failed)
+  `game_ticket`, `seat_version`, `game_client_url`; 404 when the player plays no game, 503 when the lookup failed)
   and stores it under the same key. The v2 client forgets it at the game end, since its ticket will never
   hold the seat again, and the lobby forgets every entry of the tab on logout and before any sign-in, so a
   ticket never seats the next account to use that tab.
-* **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
-  (`backend/game_v2/AGENTS.md`, The wire); it reuses the same ticket to reconnect. Both directions use
+* **Game server:** the client joins `wsUrl` with the ticket and its seat claim (`SEAT_VERSION`,
+  `CLAIM_ID`) and speaks the MessagePack protocol (`backend/game_v2/AGENTS.md`, The wire); it reuses
+  the same ticket and claim to reconnect. Both directions use
   integer metadata keys from the named `WireKey` registry. Builders, serializers and schemas reference
   those keys directly; codecs validate and preserve them. Parsed models, handlers and UI keep readable fields.
   Score-map seats remain string data keys. Backend, browser and external bot codecs share golden frames

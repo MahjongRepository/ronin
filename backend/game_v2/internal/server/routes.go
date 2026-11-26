@@ -167,9 +167,10 @@ func (s *Server) playerGameSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.writeJSON(w, http.StatusOK, struct {
-		GameID string `json:"game_id"`
-		Ticket string `json:"game_ticket"`
-	}{GameID: playing.GameID, Ticket: playing.Ticket})
+		GameID      string `json:"game_id"`
+		Ticket      string `json:"game_ticket"`
+		SeatVersion int    `json:"seat_version"`
+	}{GameID: playing.GameID, Ticket: playing.Ticket, SeatVersion: playing.SeatVersion})
 }
 
 type playingGameJSON struct {

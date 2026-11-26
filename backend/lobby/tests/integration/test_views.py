@@ -386,7 +386,9 @@ class TestGameSessionRoute:
             if request.headers.get("authorization") != f"Bearer {client.app.state.settings.internal_api_secret}":
                 return httpx.Response(401)
 
-            return httpx.Response(200, json={"game_id": "game-1", "game_ticket": f"ticket-of-{request.url.path}"})
+            return httpx.Response(
+                200, json={"game_id": "game-1", "game_ticket": f"ticket-of-{request.url.path}", "seat_version": 3}
+            )
 
         game_server.respond = answer_the_internal_caller
 
@@ -397,6 +399,7 @@ class TestGameSessionRoute:
             "game_id": "game-1",
             "ws_url": "wss://game-client.invalid/ws/game-1",
             "game_ticket": f"ticket-of-/players/{user_id}/game-session",
+            "seat_version": 3,
             "game_client_url": "/play",
         }
         assert looked_up == [f"/players/{user_id}/game-session"]

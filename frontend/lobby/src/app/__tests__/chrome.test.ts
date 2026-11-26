@@ -1,5 +1,5 @@
 import { type Router, startRouter } from "@ronin/shared/router";
-import { getGameSession, storeGameSession } from "@ronin/shared/session-storage";
+import { claimGameSession, getGameSession, storeGameSession } from "@ronin/shared/session-storage";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { type Chrome, startChrome } from "@/app/chrome";
@@ -129,7 +129,7 @@ describe("startChrome", () => {
     it("forgets every game handoff of the tab on logout", () => {
         const { chrome, nav } = chromeOnPage();
         chrome.showSession({ user: { isAdmin: false, isGuest: false, username: "dev" } });
-        storeGameSession("game-1", "ws://game", "ticket-of-dev");
+        storeGameSession("game-1", claimGameSession("ws://game", "ticket-of-dev", 0));
 
         postedTokenAfterRotation(nav, "first-token");
 

@@ -21,7 +21,9 @@ export interface GeneratedScenario {
 /** The seat scenario a transcript describes, run from a handoff of its own game. */
 export function scenarioFromTranscript(transcript: SeatTranscript): GeneratedScenario {
     const handoff = {
+        claimId: `claim-${transcript.seat}`,
         gameTicket: `ticket-${transcript.seat}`,
+        seatVersion: 0,
         wsUrl: `ws://game/ws/${transcript.gameId}`,
     };
     return {

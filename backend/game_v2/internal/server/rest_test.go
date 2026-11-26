@@ -500,7 +500,7 @@ func TestPlayerGameSession_WhenCallerIsInternal_ShouldAnswerTheTicketUncached(t 
 	h.postGame(body)
 
 	got := h.internal(http.MethodGet, "/players/user-alice/game-session")
-	want := map[string]any{"game_id": testGameID, "game_ticket": body.Players[0].Ticket}
+	want := map[string]any{"game_id": testGameID, "game_ticket": body.Players[0].Ticket, "seat_version": float64(0)}
 	if got.status != http.StatusOK || !cmp.Equal(got.body, want) {
 		t.Errorf("GET game-session = %d %v, want 200 %v", got.status, got.body, want)
 	}

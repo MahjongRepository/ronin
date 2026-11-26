@@ -21,7 +21,9 @@ import { type GameSessionData } from "@/shared/session";
 
 export const GAME_ID = "g1";
 export const HANDOFF = {
+    claimId: "claim-1",
     gameTicket: "ticket-1",
+    seatVersion: 0,
     wsUrl: "ws://game/ws/g1",
 } as const;
 

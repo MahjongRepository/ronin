@@ -12,6 +12,7 @@ import (
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -105,7 +106,7 @@ func TestSendEvents_WhenAnEventHasNoAudience_ShouldFailTheGameAndSendNothingOfIt
 			{conn: bob, ticket: "ticket-Bob"},
 		} {
 			m.Connect(joining.conn)
-			m.Join(joining.conn, joining.ticket)
+			m.Join(joining.conn, joining.ticket, play.Option[messaging.Claim]{})
 		}
 		synctest.Wait()
 

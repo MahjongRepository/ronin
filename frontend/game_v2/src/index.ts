@@ -123,7 +123,7 @@ function leaveGame(gameId: string): void {
 /** Keep a recovered handoff for a reload, as the lobby would have; storage that refuses it only costs a refetch. */
 function storeHandoff(gameId: string, handoff: GameSessionData): void {
     try {
-        storeGameSession(gameId, handoff.wsUrl, handoff.gameTicket);
+        storeGameSession(gameId, handoff);
     } catch (error: unknown) {
         console.warn("The recovered game session holds for this page only:", error);
     }

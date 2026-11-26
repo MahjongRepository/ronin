@@ -1,10 +1,16 @@
-/** The lobby's handoff for one game: the socket to join and the ticket that names the seat. */
+/**
+ * The lobby's handoff for one game (the socket to join, the ticket that names the seat and the seat version the
+ * lobby read) and this tab's claim on the seat, sent unchanged on every join and reconnect of the handoff.
+ */
 export interface GameSessionData {
     readonly wsUrl: string;
     readonly gameTicket: string;
+    readonly seatVersion: number;
+    readonly claimId: string;
 }
 
 const HANDOFF_KEY_PREFIX = "game_session:";
+const CLAIM_ID_BYTES = 16;
 
 function handoffKey(gameId: string): string {
     return `${HANDOFF_KEY_PREFIX}${gameId}`;
@@ -17,13 +23,36 @@ function isGameSessionData(data: unknown): data is GameSessionData {
         "wsUrl" in data &&
         typeof data.wsUrl === "string" &&
         "gameTicket" in data &&
-        typeof data.gameTicket === "string"
+        typeof data.gameTicket === "string" &&
+        "seatVersion" in data &&
+        Number.isInteger(data.seatVersion) &&
+        Number(data.seatVersion) >= 0 &&
+        "claimId" in data &&
+        typeof data.claimId === "string" &&
+        data.claimId !== ""
     );
 }
 
+function newClaimId(): string {
+    const bytes = crypto.getRandomValues(new Uint8Array(CLAIM_ID_BYTES));
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Claim the seat a lobby handoff names: a new claim id with the seat version the lobby read. Each handoff the lobby
+ * gives is a new claim, which takes the seat over from any older one, so only a deliberate entry makes one.
+ */
+export function claimGameSession(
+    wsUrl: string,
+    gameTicket: string,
+    seatVersion: number,
+): GameSessionData {
+    return { claimId: newClaimId(), gameTicket, seatVersion, wsUrl };
+}
+
 /** Keep a game's handoff for a reload, under the key the lobby writes it to. */
-export function storeGameSession(gameId: string, wsUrl: string, gameTicket: string): void {
-    sessionStorage.setItem(handoffKey(gameId), JSON.stringify({ gameTicket, wsUrl }));
+export function storeGameSession(gameId: string, session: GameSessionData): void {
+    sessionStorage.setItem(handoffKey(gameId), JSON.stringify(session));
 }
 
 /** The game's handoff this tab holds, or null when it holds none or one it cannot read. */

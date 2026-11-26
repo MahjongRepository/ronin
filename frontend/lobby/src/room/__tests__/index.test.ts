@@ -221,12 +221,15 @@ describe("mountRoomView", () => {
                 game_client_url: "/play",
                 game_id: "game-1",
                 game_ticket: "ticket-1",
+                seat_version: 2,
                 type: "game_starting",
                 ws_url: "ws://game/ws",
             });
 
             expect(JSON.parse(sessionStorage.getItem("game_session:game-1") ?? "null")).toEqual({
+                claimId: expect.any(String),
                 gameTicket: "ticket-1",
+                seatVersion: 2,
                 wsUrl: "ws://game/ws",
             });
             expect(replace).toHaveBeenCalledExactlyOnceWith("/play/game-1");

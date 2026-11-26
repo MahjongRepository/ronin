@@ -171,7 +171,7 @@ func TestJoin_WhenServingAnUnseatedConnectionPanics_ShouldFailTheGameAndCloseThe
 		late := h.connect()
 		late.breakSends(1)
 
-		h.m.Join(late, "ticket-Alice")
+		h.m.Join(late, "ticket-Alice", noClaim)
 		synctest.Wait()
 
 		assertClosedWithInternalError(t, late)

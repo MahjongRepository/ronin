@@ -1,4 +1,4 @@
-import { getGameSession, storeGameSession } from "@ronin/shared/session-storage";
+import { claimGameSession, getGameSession, storeGameSession } from "@ronin/shared/session-storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { submitCredentials } from "@/auth/handlers";
@@ -109,7 +109,7 @@ describe("submitCredentials", () => {
 
     it("forgets every game handoff of the tab before sending the sign-in", async () => {
         setMetaToken("token");
-        storeGameSession("game-1", "ws://game", "ticket-of-previous-account");
+        storeGameSession("game-1", claimGameSession("ws://game", "ticket-of-previous-account", 0));
         const handoffsAtSend: unknown[] = [];
         const fetchMock = vi.fn(() => {
             handoffsAtSend.push(getGameSession("game-1"));

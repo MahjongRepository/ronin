@@ -160,7 +160,11 @@ a contract.
   connection the server closes leaves the registry in the same step, so a pipelined join cannot pick
   it up, and a message arriving on it afterwards gets no answer. A participant's newest connection
   wins: the bound one is closed with 4002, which the client treats as terminal, and a connection
-  already bound is refused before anyone is replaced.
+  already bound is refused before anyone is replaced. A connection that brings a seat claim binds only
+  if the claim owns the seat or names its current version (which takes ownership and raises the
+  version, under the registry's lock with the bind); a stale claim is closed with 4002 and changes
+  nothing (`claim.go`, `docs/architecture.md` Seat claims). A connection with no claim, a bot's, binds as before
+  only while no claim owns the seat.
 * Every game action echoes the wait id stamped on the message that opened the participant's
   decision. The id advances only when a new wait, or a pause opening with it, opens a decision for
   that connected participant, or a reconnect takes back its AI player's turn; it survives

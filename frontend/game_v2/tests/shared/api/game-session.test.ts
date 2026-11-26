@@ -14,18 +14,24 @@ afterEach(() => {
 });
 
 describe("fetchGameHandoff", () => {
-    it("reads the lobby's handoff into the game, its client's URL and the socket and ticket to join with", async () => {
+    it("reads the lobby's handoff into the game, its client's URL and a new claim on the seat to join with", async () => {
         answer(200, {
             game_client_url: "/play",
             game_id: "g2",
             game_ticket: "ticket-2",
+            seat_version: 3,
             ws_url: "ws://game/ws/g2",
         });
 
         await expect(fetchGameHandoff(new AbortController().signal)).resolves.toEqual({
             gameClientUrl: "/play",
             gameId: "g2",
-            handoff: { gameTicket: "ticket-2", wsUrl: "ws://game/ws/g2" },
+            handoff: {
+                claimId: expect.stringMatching(/^[0-9a-f]{32}$/u),
+                gameTicket: "ticket-2",
+                seatVersion: 3,
+                wsUrl: "ws://game/ws/g2",
+            },
             kind: "found",
         });
     });

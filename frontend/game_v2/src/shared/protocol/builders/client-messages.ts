@@ -3,17 +3,28 @@ import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 // --- Session messages ---
 
-export function buildJoinGameMessage(gameTicket: string) {
+/** A handoff's seat and this tab's claim on it, sent alike on every join and reconnect of the handoff. */
+export interface SeatClaim {
+    readonly claimId: string;
+    readonly gameTicket: string;
+    readonly seatVersion: number;
+}
+
+export function buildJoinGameMessage({ claimId, gameTicket, seatVersion }: SeatClaim) {
     return {
         [WIRE_KEY.GAME_TICKET]: gameTicket,
         [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.JOIN_GAME,
+        [WIRE_KEY.SEAT_VERSION]: seatVersion,
+        [WIRE_KEY.CLAIM_ID]: claimId,
     } as const;
 }
 
-export function buildReconnectMessage(gameTicket: string) {
+export function buildReconnectMessage({ claimId, gameTicket, seatVersion }: SeatClaim) {
     return {
         [WIRE_KEY.GAME_TICKET]: gameTicket,
         [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.RECONNECT,
+        [WIRE_KEY.SEAT_VERSION]: seatVersion,
+        [WIRE_KEY.CLAIM_ID]: claimId,
     } as const;
 }
 

@@ -24,6 +24,7 @@ const (
 	logCalledTileMismatch  = "invalid call: tile_id mismatch"
 	logPlayerReconnected   = "player reconnected"
 	logConnectionTakenOver = "connection taken over"
+	logStaleClaimRefused   = "stale seat claim refused"
 	logSessionErrorSent    = "session error sent to client"
 	logGameFailed          = "game failed"
 	logAgentFallback       = "AI agent answer unusable, playing the default"

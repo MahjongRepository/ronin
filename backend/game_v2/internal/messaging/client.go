@@ -35,7 +35,10 @@ const (
 	GameActionConfirmRound GameAction = 9
 )
 
-const maxTicketLength = 2000
+const (
+	maxTicketLength  = 2000
+	maxClaimIDLength = 64
+)
 
 //sumtype:decl
 type ClientMessage interface {
@@ -49,12 +52,21 @@ type GameActionMessage struct {
 	Called play.Option[tile.TileID]
 }
 
+// Claim is a client's claim on its seat: the seat version it read from the lobby and the id it
+// made for itself, which it sends unchanged on every join and reconnect of that handoff.
+type Claim struct {
+	ID          string
+	SeatVersion int
+}
+
 type ReconnectMessage struct {
 	Ticket string
+	Claim  play.Option[Claim]
 }
 
 type JoinGameMessage struct {
 	Ticket string
+	Claim  play.Option[Claim]
 }
 
 type ResyncMessage struct{}
@@ -80,11 +92,11 @@ func ParseClientMessage(m wire.Map) (ClientMessage, error) {
 	case typ == int(ClientGameAction):
 		return parseGameAction(m)
 	case typ == int(ClientReconnect):
-		ticket, err := parseTicket(m)
-		return ReconnectMessage{Ticket: ticket}, err
+		ticket, claim, err := parseIdentity(m)
+		return ReconnectMessage{Ticket: ticket, Claim: claim}, err
 	case typ == int(ClientJoinGame):
-		ticket, err := parseTicket(m)
-		return JoinGameMessage{Ticket: ticket}, err
+		ticket, claim, err := parseIdentity(m)
+		return JoinGameMessage{Ticket: ticket, Claim: claim}, err
 	case typ == int(ClientResync):
 		return ResyncMessage{}, nil
 	}
@@ -96,6 +108,39 @@ func RefusedWaitID(m wire.Map) (int, bool) {
 	typ, isInt := m.Int(wire.KeyEventType)
 	waitID, ok := m.Int(wire.KeyWaitID)
 	return waitID, isInt && typ == int(ClientGameAction) && ok && waitID >= 0
+}
+
+func parseIdentity(m wire.Map) (string, play.Option[Claim], error) {
+	ticket, err := parseTicket(m)
+	if err != nil {
+		return "", play.Option[Claim]{}, err
+	}
+
+	claim, err := parseClaim(m)
+	return ticket, claim, err
+}
+
+func parseClaim(m wire.Map) (play.Option[Claim], error) {
+	_, hasVersion := m.Get(wire.KeySeatVersion)
+	_, hasID := m.Get(wire.KeyClaimID)
+	if !hasVersion && !hasID {
+		return play.Option[Claim]{}, nil
+	}
+
+	version, isInt := m.Int(wire.KeySeatVersion)
+	id, isStr := m.Str(wire.KeyClaimID)
+	switch {
+	case !isInt || !isStr:
+		return play.Option[Claim]{}, InvalidMessageError{Reason: "incomplete or mistyped seat claim"}
+	case version < 0:
+		return play.Option[Claim]{}, InvalidMessageError{Reason: "negative seat version"}
+	}
+
+	if length := utf8.RuneCountInString(id); length == 0 || length > maxClaimIDLength {
+		return play.Option[Claim]{}, InvalidMessageError{Reason: "claim id of the wrong length"}
+	}
+
+	return play.Some(Claim{ID: id, SeatVersion: version}), nil
 }
 
 func parseTicket(m wire.Map) (string, error) {

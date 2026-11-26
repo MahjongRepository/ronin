@@ -323,13 +323,13 @@ function secondsLeft(host: HTMLElement): string | null | undefined {
     return host.querySelector(".game__rotate .rotate-panel__seconds")?.textContent;
 }
 
-const JOIN = buildJoinGameMessage(HANDOFF.gameTicket);
+const JOIN = buildJoinGameMessage(HANDOFF);
 /** The first tile of the turn's hand that kuikae lets go, 4m, and the turn's wait id. */
 const FIRST_FREE_TILE = 12;
 const TURN_WAIT_ID = 3;
 const PROMPT_WAIT_ID = 2;
 const ROUND_END_WAIT_ID = 3;
-const RECONNECT = buildReconnectMessage(HANDOFF.gameTicket);
+const RECONNECT = buildReconnectMessage(HANDOFF);
 
 describe("mountGameView", () => {
     it("joins on the handoff's socket and renders the session status and, under debug, the message log", () => {
@@ -800,7 +800,12 @@ class PendingLookup {
     }
 }
 
-const OTHER_HANDOFF = { gameTicket: "ticket-2", wsUrl: "ws://game/ws/g2" } as const;
+const OTHER_HANDOFF = {
+    claimId: "claim-2",
+    gameTicket: "ticket-2",
+    seatVersion: 1,
+    wsUrl: "ws://game/ws/g2",
+} as const;
 
 /** Let a lookup the view started settle and its answer reach the dispatcher. */
 async function settleLookup(): Promise<void> {

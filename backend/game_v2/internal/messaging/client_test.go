@@ -134,6 +134,13 @@ func TestParseClientMessage_WhenASessionMessageIsWellFormed_ShouldCarryItsTicket
 	}{
 		{"reconnect", ticketMessage(messaging.ClientReconnect, "some-ticket"), messaging.ReconnectMessage{Ticket: "some-ticket"}},
 		{"join game", ticketMessage(messaging.ClientJoinGame, longest), messaging.JoinGameMessage{Ticket: longest}},
+		{
+			"reconnect with a claim",
+			claimMessage(messaging.ClientReconnect, wire.Int(3), wire.Str("claim-a")),
+			messaging.ReconnectMessage{
+				Ticket: "some-ticket", Claim: play.Some(messaging.Claim{ID: "claim-a", SeatVersion: 3}),
+			},
+		},
 		{"resync", wire.Map{{Key: wire.KeyEventType, Value: wire.Int(messaging.ClientResync)}}, messaging.ResyncMessage{}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -156,6 +163,14 @@ func TestParseClientMessage_WhenASessionMessageIsMalformedOrUnknown_ShouldRefuse
 		{"reconnect without a ticket", wire.Map{{Key: wire.KeyEventType, Value: wire.Int(messaging.ClientReconnect)}}},
 		{"join with an empty ticket", ticketMessage(messaging.ClientJoinGame, "")},
 		{"join with a ticket over 2000 characters", ticketMessage(messaging.ClientJoinGame, strings.Repeat("a", 2001))},
+		{"join with a claim id but no seat version", wire.Map{
+			{Key: wire.KeyEventType, Value: wire.Int(messaging.ClientJoinGame)},
+			{Key: wire.KeyGameTicket, Value: wire.Str("some-ticket")},
+			{Key: wire.KeyClaimID, Value: wire.Str("claim-a")},
+		}},
+		{"join with a negative seat version", claimMessage(messaging.ClientJoinGame, wire.Int(-1), wire.Str("claim-a"))},
+		{"reconnect with an empty claim id", claimMessage(messaging.ClientReconnect, wire.Int(0), wire.Str(""))},
+		{"join with a mistyped seat claim", claimMessage(messaging.ClientJoinGame, wire.Str("0"), wire.Int(7))},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			got, err := messaging.ParseClientMessage(c.message)
@@ -163,6 +178,15 @@ func TestParseClientMessage_WhenASessionMessageIsMalformedOrUnknown_ShouldRefuse
 				t.Errorf("%s: ParseClientMessage = %v, %v; want an InvalidMessageError", c.name, got, err)
 			}
 		})
+	}
+}
+
+func claimMessage(typ messaging.ClientMessageType, version, id wire.Value) wire.Map {
+	return wire.Map{
+		{Key: wire.KeyEventType, Value: wire.Int(typ)},
+		{Key: wire.KeyGameTicket, Value: wire.Str("some-ticket")},
+		{Key: wire.KeySeatVersion, Value: version},
+		{Key: wire.KeyClaimID, Value: id},
 	}
 }
 
