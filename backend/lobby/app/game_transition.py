@@ -473,9 +473,9 @@ async def hand_back_live_game(
     Send a player whose join was refused as ``already_in_game`` the handoff of the game they play, as ``game_starting``,
     and close with 1000; return whether it was sent.
 
-    Both lobby pages follow ``game_starting`` into the game, so this repairs a handoff lost to a closed socket or a
-    closed game tab. On False the caller answers ``already_in_game`` as before: the lookup failed, or the game ended
-    after the join's own lookup, and the next join attempt sees the current state.
+    Both lobby pages and the standby bot follow ``game_starting`` into the game, so this repairs a handoff lost to a
+    closed socket or a closed game tab. On False the caller answers ``already_in_game`` as before: the lookup failed, or
+    the game ended after the join's own lookup, and the next join attempt sees the current state.
     """
     log = logger.bind(username=player.username)
     try:
