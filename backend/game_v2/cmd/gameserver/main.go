@@ -196,9 +196,10 @@ func serve(
 
 	logger.Info("game server ready", "addr", addr)
 
+	var err error
 	select {
 	case failed := <-serveErr:
-		return fmt.Errorf("serve %s: %w", addr, failed)
+		err = fmt.Errorf("serve %s: %w", addr, failed)
 	case <-ctx.Done():
 	}
 
@@ -207,12 +208,20 @@ func serve(
 	stopCutting := context.AfterFunc(shutdownCtx, cancelStore)
 	defer stopCutting()
 
-	httpErr := httpServer.Shutdown(shutdownCtx)
+	httpDrained := make(chan error, 1)
+	go func() {
+		httpDrained <- httpServer.Shutdown(shutdownCtx)
+	}()
+
 	shutdownErr := srv.Shutdown(shutdownCtx)
-	err := <-serveErr
+	httpErr := <-httpDrained
+	if err == nil {
+		err = <-serveErr
+	}
+
 	if errors.Is(err, http.ErrServerClosed) {
 		err = nil
 	}
 
-	return errors.Join(httpErr, shutdownErr, err)
+	return errors.Join(err, httpErr, shutdownErr)
 }

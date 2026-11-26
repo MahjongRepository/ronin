@@ -149,8 +149,9 @@ func (f fixture) snapshot(t *testing.T) map[string]string {
 		state["row "+id] = data
 	}
 
-	if rows.Err() != nil || rows.Close() != nil {
-		t.Fatalf("read rows: %v", rows.Err())
+	readErr := errors.Join(rows.Err(), rows.Close())
+	if readErr != nil {
+		t.Fatalf("read rows: %v", readErr)
 	}
 
 	return state

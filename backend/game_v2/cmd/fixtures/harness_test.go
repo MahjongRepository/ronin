@@ -122,8 +122,11 @@ func TestSeededWall_ShouldDealTheRoundTheSeedDealsForThatDealer(t *testing.T) {
 		t.Fatalf("NewGame errors = %v, %v", seededErr, fixedErr)
 	}
 
-	_, seededDraw, _ := seededGame.Begin()
-	_, fixedDraw, _ := fixedGame.Begin()
+	_, seededDraw, seededRefusal := seededGame.Begin()
+	_, fixedDraw, fixedRefusal := fixedGame.Begin()
+	if seededRefusal.OK || fixedRefusal.OK {
+		t.Fatalf("Begin refusals = %+v, %+v", seededRefusal, fixedRefusal)
+	}
 
 	if diff := cmp.Diff(dealtTiles(append(seeded, seededDraw...)), dealtTiles(append(fixed, fixedDraw...))); diff != "" {
 		t.Errorf("seeded wall deals unlike the seed (-seed +wall):\n%s", diff)

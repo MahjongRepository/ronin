@@ -85,7 +85,11 @@ func TestFromStart_WhenTheDealerAbortsOnKyuushu_ShouldFollowItsAbort(t *testing.
 	}
 
 	assertEqual(t, "record from the start", r, g.SeatView(seat(t, 2)).Record)
-	g, drew, _ := g.Begin()
+	g, drew, refusal := g.Begin()
+	if refusal.OK {
+		t.Fatalf("Begin refused: %+v", refusal.Value)
+	}
+
 	for _, e := range drew {
 		r = record.Apply(r, e)
 	}
