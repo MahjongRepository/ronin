@@ -217,16 +217,20 @@ describe("renderRoom strong bots option", () => {
 
     test("sends use_strong_bots with the start when the owner ticked strong bots", () => {
         const state = seatedState();
-        state.canStart = true;
-        state.strongBotsAvailable = true;
+        Object.assign(state, { canStart: true, strongBotsAvailable: true });
         state.socket = new LobbySocket(vi.fn(), vi.fn());
         const send = vi.spyOn(state.socket, "send").mockReturnValue(true);
         const container = mount(state);
+        const start = container.querySelector<HTMLButtonElement>(".room-start-btn");
 
+        start?.click();
         container.querySelector<HTMLInputElement>(".room-strong-bots input")?.click();
-        container.querySelector<HTMLButtonElement>(".room-start-btn")?.click();
+        start?.click();
 
-        expect(send).toHaveBeenCalledExactlyOnceWith({ type: "start_game", use_strong_bots: true });
+        expect(send.mock.calls).toEqual([
+            [{ type: "start_game" }],
+            [{ type: "start_game", use_strong_bots: true }],
+        ]);
     });
 
     test.each([
