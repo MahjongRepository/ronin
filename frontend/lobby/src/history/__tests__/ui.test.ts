@@ -60,12 +60,12 @@ describe("renderHistory", () => {
         ).toEqual(["+52.3", "-15.0"]);
     });
 
-    it("points an empty history at quick match and the lobby's tables", () => {
+    it("points an empty history at play with strong bots and the lobby's tables", () => {
         const host = renderGames([]);
 
         const hint = host.querySelector(".lobby-empty-hint");
         expect(hint?.textContent?.replace(/\s+/g, " ").trim()).toBe(
-            "Start a quick match or join a table in the lobby. Finished games and their replays show up here.",
+            "Play with strong bots or join a table in the lobby. Finished games and their replays show up here.",
         );
         expect([...(hint?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"))).toEqual(
             ["/matchmaking", "/"],
