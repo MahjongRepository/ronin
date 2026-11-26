@@ -1259,7 +1259,7 @@ function storybookBoardTemplate(
                     class="board-storybook__btn ${activeClass(story.compassDora)}"
                     aria-pressed=${story.compassDora}
                     @click=${handlers.toggleCompassDora}
-                >Dora above compass</button>
+                >Dora inside compass</button>
                 <button
                     class="board-storybook__btn ${activeClass(story.overlay === "round_end")}"
                     @click=${() => handlers.toggleOverlay("round_end")}

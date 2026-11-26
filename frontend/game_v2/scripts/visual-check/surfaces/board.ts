@@ -157,7 +157,7 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...boardCase("board-compass-dora", "?state=worst&dora=compass", [
-            ".game-board[data-compass-dora] .board-dora .tile__body",
+            ".board-center .board-dora--compass .tile__body",
             ".board-river--top .tile",
             ".board-river--bottom .tile",
         ]),
@@ -462,14 +462,9 @@ function separation(first: Box, second: Box): number {
 
 /** Each seat's river that holds a settled tile, by its nearest one's distance from the centre, in pixels. */
 function riverGapsFromCenter(board: BoardMeasure, center: Box): ReadonlyMap<string, number> {
-    const top = Math.min(
-        center.top,
-        ...(board.compassDora?.indicators ?? []).map((tile) => tile.top),
-    );
-    const footprint = { ...center, height: center.top + center.height - top, top };
     const gaps = new Map<string, number>();
     for (const { box, group } of board.settledRiverTiles) {
-        gaps.set(group, Math.min(gaps.get(group) ?? Infinity, separation(box, footprint)));
+        gaps.set(group, Math.min(gaps.get(group) ?? Infinity, separation(box, center)));
     }
     return gaps;
 }
@@ -1076,37 +1071,58 @@ function isLandscapePhone(viewport: Viewport): boolean {
 
 function checkCompassDora(
     wall: NonNullable<BoardMeasure["compassDora"]>,
-    center: Box,
+    { center, centerTexts }: Readonly<{ center: Box; centerTexts: readonly GroupedBox[] }>,
     report: PageReport,
 ): void {
-    const tileWidth = (center.width * 0.75) / 5;
-    const start = center.left + (center.width - 5 * tileWidth) / 2;
+    const { indicators } = wall;
     report.expect(
-        wall.indicators.length === 5,
-        `middle wall has ${wall.indicators.length} indicators, expected five`,
+        indicators.length === 5,
+        `middle wall has ${indicators.length} indicators, expected five`,
     );
-    for (const [index, tile] of wall.indicators.entries()) {
-        const gap = center.top - tile.top - tile.height;
+    const [first] = indicators;
+    if (first === undefined) {
+        return;
+    }
+    const tileWidth = first.width;
+    const start = center.left + (center.width - 5 * tileWidth) / 2;
+    for (const [index, tile] of indicators.entries()) {
         report.expect(
             Math.abs(tile.width - tileWidth) <= SHOWN_FACE_SLACK &&
-                Math.abs(tile.left - (start + index * tileWidth)) <= SHOWN_FACE_SLACK &&
-                Math.abs(gap - 6) <= SHOWN_FACE_SLACK,
-            `middle dora ${index + 1} at ${describeBox(tile)} should be ${tileWidth.toFixed(1)}px wide in a centred row 6px above ${describeBox(center)} (gap ${gap.toFixed(1)}px)`,
+                Math.abs(tile.left - (start + index * tileWidth)) <= EPSILON &&
+                Math.abs(tile.top - first.top) <= SHOWN_FACE_SLACK,
+            `middle dora ${index + 1} at ${describeBox(tile)} should stand ${tileWidth.toFixed(1)}px wide in a row centred across ${describeBox(center)}`,
         );
     }
-    const wallTop = Math.min(...wall.indicators.map((tile) => tile.top));
+    const row: Box = {
+        height: Math.max(...indicators.map((tile) => tile.height)),
+        left: first.left,
+        top: first.top,
+        width: indicators.length * tileWidth,
+    };
+    report.expect(
+        contains(center, row),
+        `middle dora ${describeBox(row)} should stand inside the compass ${describeBox(center)}`,
+    );
+    const crossed = centerTexts.filter(({ box }) => box.width > 0 && intersects(box, row));
+    report.expect(
+        crossed.length === 0,
+        `middle dora ${describeBox(row)} cover the compass's ${crossed.map(({ group }) => group).join(", ")}`,
+    );
+    const round = centerTexts.find(({ group }) => group.startsWith("board-center__round"));
+    report.expect(
+        round === undefined || row.top + row.height <= round.box.top + EPSILON,
+        `middle dora ${describeBox(row)} should stand above the round ${round === undefined ? "" : describeBox(round.box)}`,
+    );
     const top = wall.rivers.filter(({ group }) => group === "top");
     const bottom = wall.rivers.filter(({ group }) => group === "bottom");
     if (top.length === 0 || bottom.length === 0) {
         return;
     }
-    const above = wallTop - Math.max(...top.map(({ box }) => box.top + box.height));
+    const above = center.top - Math.max(...top.map(({ box }) => box.top + box.height));
     const below = Math.min(...bottom.map(({ box }) => box.top)) - center.top - center.height;
     report.expect(
-        above >= MIN_RIVER_GAP &&
-            below >= MIN_RIVER_GAP &&
-            Math.abs(above - below) <= SHOWN_FACE_SLACK,
-        `middle wall and compass need equal river clearance, measured ${above.toFixed(1)}px above and ${below.toFixed(1)}px below`,
+        above >= MIN_RIVER_GAP && below >= MIN_RIVER_GAP && Math.abs(above - below) <= EPSILON,
+        `the compass needs equal river clearance, measured ${above.toFixed(1)}px above and ${below.toFixed(1)}px below`,
     );
 }
 
@@ -1119,7 +1135,7 @@ function checkCenterScale(board: BoardMeasure, viewport: Viewport, report: PageR
     }
     const riverRow = RIVER_ROW_SIZE * tileScale.river;
     if (board.compassDora !== null) {
-        checkCompassDora(board.compassDora, center, report);
+        checkCompassDora(board.compassDora, { center, centerTexts: board.centerTexts }, report);
         const expectedWidth = isLandscapePhone(viewport)
             ? Math.max(riverRow, PHONE_CENTRE_LEAST.width)
             : riverRow;

@@ -166,7 +166,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 tile.closest(".decision-controls__tiles") === null,
         );
         const tilesByArea = tableTiles.map((tile) => {
-            const area = tile.closest("[data-area], .board-dora");
+            const area = tile.closest("[data-area], .board-dora:not(.board-dora--compass)");
             return {
                 box: box(tile),
                 group: area?.getAttribute("data-area") ?? "dora",
@@ -176,7 +176,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         for (const center of board.querySelectorAll(".board-center")) {
             grouped.push({ box: box(center), group: "center" });
         }
-        for (const dora of board.querySelectorAll(".board-dora")) {
+        for (const dora of board.querySelectorAll(".board-dora:not(.board-dora--compass)")) {
             grouped.push({ box: box(dora), group: "dora" });
         }
         const nameplates = [...board.querySelectorAll(".nameplate")]

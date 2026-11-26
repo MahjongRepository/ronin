@@ -233,11 +233,11 @@ const DORA_SLOTS = 5;
  * The pooled counters: the dora indicators turned so far, a back in each slot still to turn, and the table's honba and
  * riichi sticks as icon and number, which the centre does not repeat.
  */
-function DoraDisplay(center: BoardCenterInfo): TemplateResult {
+function DoraDisplay(center: BoardCenterInfo, inCompass: boolean): TemplateResult {
     const indicators = center.doraIndicators;
     const backs = Math.max(0, DORA_SLOTS - indicators.length);
     return html`
-        <div class="board-dora">
+        <div class="board-dora ${inCompass ? "board-dora--compass" : ""}">
             <div class="board-dora__tiles" role="group" aria-label=${t("game.board.dora_indicators")}>
                 ${indicators.map((face) => html`<span class="board-dora__tile">${Tile(face, "face")}</span>`)}
                 ${Array.from({ length: backs }, () => html`<span class="board-dora__tile">${TileBack()}</span>`)}
@@ -317,12 +317,13 @@ function LiveBadge(): TemplateResult {
 function CenterInfo(
     { center, nameplates: plates }: BoardDisplayState,
     onView: SeatView | null,
-    live: boolean,
+    { compassDora, live }: Readonly<{ compassDora: boolean; live: boolean }>,
 ): TemplateResult {
     return html`
         <div class="board-area board-center" data-area="center">
             ${SEAT_POSITIONS.map((position, index) => CenterSeat(plates[index], position, onView))}
             <div class="board-center__info">
+                ${compassDora ? DoraDisplay(center, true) : nothing}
                 <div class="board-center__round">${center.roundDisplay}</div>
                 <div class="board-center__counts">
                     <span class="board-center__count board-center__count--wall ${center.wallRunningOut ? "board-center__count--running-out" : ""}" title=${t("game.board.wall_title")}
@@ -439,10 +440,11 @@ function GameBoard(props: GameBoardProps): TemplateResult {
     const plates = state ? Nameplates(state.nameplates, onView) : null;
 
     const animationsOn = props.animationsOn !== false;
+    const compassDora = props.compassDora ?? pageCompassDora();
     return html`
         <div
             class="${boardClass}"
-            ?data-compass-dora=${props.compassDora ?? pageCompassDora()}
+            ?data-compass-dora=${compassDora}
             data-motion=${animationsOn ? nothing : "off"}
             ${props.input ?? nothing}
             ${sizeBoard(
@@ -468,11 +470,11 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                         <div class="board-rivers">
                             ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                         </div>
-                        ${state ? CenterInfo(state, onView, props.replay?.live === true) : EmptyCenterArea()}
+                        ${state ? CenterInfo(state, onView, { compassDora, live: props.replay?.live === true }) : EmptyCenterArea()}
                         <div class="board-strips">
                             ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
                         </div>
-                        ${state ? DoraDisplay(state.center) : ""}
+                        ${state && !compassDora ? DoraDisplay(state.center, false) : ""}
                     </div>
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
                     ${bandEnd ? html`<div class="board-actions" data-area="actions">${bandEnd}</div>` : ""}

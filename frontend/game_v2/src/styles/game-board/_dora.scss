@@ -70,35 +70,21 @@
         --h: calc(var(--geo-h) - var(--geo-compass-inset) - var(--river-gap-trim));
     }
 
-    > .board-dora {
-        --board-tile-w: var(--geo-compass-dora-width);
-
-        top: var(--geo-compass-top);
-        left: calc(var(--cx) - 2.5 * var(--geo-compass-dora-width));
-        width: max-content;
-        height: auto;
-        padding: 0;
-        background: none;
-        box-shadow: none;
-        transform: var(--geo-camera-centre);
-
-        .board-dora__tiles {
-            filter: none;
-        }
-    }
-
     > .board-center {
-        --c: var(--geo-compass-panel-height);
+        --c: calc(var(--geo-compass-panel-height) + var(--geo-compass-dora-row));
+        --score-size: max(10px, calc(var(--geo-compass-panel-height) * 0.17));
         --row-h: var(--score-size);
         --turn-bar-h: max(1px, calc(var(--c) * 0.022));
         --edge-gap: calc(var(--turn-bar-h) + max(1px, var(--c) * 0.009));
-        --round-floor: 12px;
-        --stick-h: max(3px, calc(var(--c) * 0.025));
-        --stick-gap: max(1px, calc(var(--c) * 0.009));
-        --info-gap: clamp(0px, (var(--c) - 64px) * 0.02, 3px);
-        --counts-size: max(10px, min(var(--c) * 0.125, (var(--w) - 2 * var(--row-depth)) / 7));
+        --round-floor: 10px;
+        --info-gap: clamp(0px, (var(--c) - 64px) * 0.015, 3px);
+        --inner-w: calc(var(--w) - 2 * var(--row-depth));
+        --info-pad: clamp(0px, (var(--c) - 80px) * 0.05, 6px);
+        --inner-h: calc(var(--c) - 2 * var(--row-depth) - 2 * var(--info-pad));
+        --counts-size: max(10px, min(var(--c) * 0.075, var(--inner-w) / 8));
+        --compass-dora-clear: clamp(0px, (var(--c) - 64px) * 0.06, 8px);
 
-        top: calc(var(--geo-compass-top) + var(--geo-compass-dora-row));
+        top: var(--geo-compass-top);
         container: compass / size;
 
         &:has(.board-center__live) {
@@ -107,37 +93,106 @@
     }
 
     .board-center__info {
-        --round-room: calc(
-            var(--c) - 2 * var(--row-depth) - max(12px, var(--counts-size)) - var(--info-gap)
+        --dora-room: calc(
+            var(--inner-h) - var(--counts-size) - 2 * var(--info-gap) - var(--compass-dora-clear)
         );
-
-        inset: 0 var(--row-depth);
-        pointer-events: none;
-    }
-
-    .board-center__live {
-        pointer-events: auto;
-    }
-
-    .board-center__round {
-        --round-label-ems: 4.3;
-
-        font-size: max(
+        --compass-dora-w: min(
+            var(--geo-compass-dora-width) * 1.05,
+            var(--inner-w) * 0.92 / 5,
+            (var(--dora-room) - max(var(--round-floor), var(--c) * 0.15)) / 1.62
+        );
+        --compass-dora-h: calc(var(--compass-dora-w) * 1.62);
+        --round-size: max(
             var(--round-floor),
             min(
-                var(--round-room),
-                var(--c) * 0.24,
-                (var(--w) - 2 * var(--row-depth)) / var(--round-label-ems)
+                var(--dora-room) - var(--compass-dora-h),
+                var(--c) * 0.17,
+                var(--inner-w) / var(--round-label-ems)
             )
         );
+        --round-label-ems: 4.3;
+
+        inset: var(--row-depth);
+        padding-block: var(--info-pad);
+        justify-content: space-between;
+        pointer-events: none;
 
         &:lang(ru) {
             --round-label-ems: 5.1;
         }
     }
 
+    .board-center__live {
+        pointer-events: auto;
+    }
+
+    .board-center__info > .board-dora--compass {
+        --board-tile-w: var(--compass-dora-w);
+
+        position: static;
+        width: auto;
+        margin-bottom: calc(var(--compass-dora-w) * 0.17);
+        height: auto;
+        padding: 0;
+        background: none;
+        box-shadow: none;
+    }
+
+    .board-center__round {
+        font-size: var(--round-size);
+    }
+
     .board-center__counts {
+        --count-group-gap: 0.35em;
+        --count-icon-gap: 0.12em;
+        --count-stick-h: 0.9em;
+
         font-size: var(--counts-size);
+        line-height: 1;
+
+        .board-stick-icon {
+            height: var(--count-stick-h);
+        }
+    }
+}
+
+@container compass (width >= 160px) {
+    .game-board[data-compass-dora] .board-surface .board-center__info {
+        --counts-w: calc(var(--counts-size) * 4.6);
+        --line-gap: calc(var(--counts-size) * 0.9);
+        --round-size: max(
+            var(--round-floor),
+            min(
+                var(--c) * 0.15,
+                (var(--inner-w) - var(--counts-w) - var(--line-gap)) / var(--round-label-ems)
+            )
+        );
+        --line-room: calc(
+            var(--inner-h) - max(var(--round-size), var(--counts-size)) - var(--compass-dora-clear)
+        );
+        --compass-dora-w: min(
+            var(--geo-compass-dora-width) * 1.05,
+            var(--inner-w) * 0.92 / 5,
+            var(--line-room) / 1.8
+        );
+
+        flex-flow: row wrap;
+        place-content: center;
+        align-items: baseline;
+        gap: calc(var(--compass-dora-clear) + var(--compass-dora-w) * 0.18) var(--line-gap);
+
+        > .board-dora--compass {
+            flex-basis: 100%;
+            margin-bottom: 0;
+
+            .board-dora__tiles {
+                justify-content: center;
+            }
+        }
+
+        > .board-center__live {
+            flex-basis: 100%;
+        }
     }
 }
 
@@ -153,7 +208,13 @@
     }
 
     .game-board[data-compass-dora] .board-surface .board-center__info {
-        --round-room: calc(var(--c) - 2 * var(--row-h) - max(12px, var(--counts-size)) - 2px);
+        --round-size: max(
+            var(--round-floor),
+            min(
+                var(--c) - 2 * var(--row-h) - var(--counts-size) - var(--compass-dora-h) - 2px,
+                var(--inner-w) / var(--round-label-ems)
+            )
+        );
 
         gap: 0;
     }

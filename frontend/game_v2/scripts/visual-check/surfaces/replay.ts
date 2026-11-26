@@ -252,18 +252,20 @@ async function stepReplayToLocalMelds(page: Page): Promise<void> {
 
 async function enableCompassDora(page: Page): Promise<void> {
     const score = page.locator(".board-center__score-line").first();
-    function scoreSize(): Promise<string> {
-        return score.evaluate((element) => getComputedStyle(element).fontSize);
+    async function scorePx(): Promise<number> {
+        return Number.parseFloat(
+            await score.evaluate((element) => getComputedStyle(element).fontSize),
+        );
     }
     await page.locator(".game-board[data-board-family]").waitFor();
-    const cornerSize = await scoreSize();
+    const cornerPx = await scorePx();
     await page.getByRole("button", { exact: true, name: "Settings" }).click();
-    await page.getByRole("switch", { checked: false, name: /Dora above compass/u }).click();
-    await page.getByRole("switch", { checked: true, name: /Dora above compass/u }).press("Escape");
-    const middleSize = await scoreSize();
-    if (middleSize !== cornerSize) {
+    await page.getByRole("switch", { checked: false, name: /Dora inside compass/u }).click();
+    await page.getByRole("switch", { checked: true, name: /Dora inside compass/u }).press("Escape");
+    const insidePx = await scorePx();
+    if (insidePx >= cornerPx) {
         throw new Error(
-            `score size changed from ${cornerSize} to ${middleSize} with dora above compass`,
+            `scores at ${insidePx}px with dora inside the compass, not smaller than the corner layout's ${cornerPx}px`,
         );
     }
 }
@@ -276,7 +278,7 @@ async function enableCompassDora(page: Page): Promise<void> {
  */
 const PAGES: readonly PageCase[] = [
     {
-        ...replayCase("mid", [".game-board[data-compass-dora] .board-dora .tile__body"]),
+        ...replayCase("mid", [".board-center .board-dora--compass .tile__body"]),
         at: [MID_DESKTOP, SAFARI_PHONE],
         name: "replay-compass-dora",
         prepare: enableCompassDora,

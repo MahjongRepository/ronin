@@ -426,10 +426,13 @@ as a number, not seen, so the count turns red from ten tiles left.
   In a live game the badge takes no press, no pointer cursor and no text selection; a replay's badge is a control
   that views the table from its seat, its tap area meeting the control floor whatever the drawn badge's size, and a
   focused one shows the accent's outline. The name shows on every board, shortened rather than dropped.
-- **Dora indicators.** The settings cog can move the five indicators above the compass. In that layout
-  the row spans three quarters of the compass width, with a 6px gap below the tiles and no card or shadow.
-  The wall and compass sit halfway between the visible edges of the top and bottom rivers.
-  The four scores use the same type size in either layout. The default corner layout uses one opaque card on the centre's colour, a faint light rim and a small corner as the centre's: the five dora indicator slots edge to edge (each
+- **Dora indicators.** The settings cog can move the five indicators into the compass. In that layout
+  the row stands inside the compass, centred above the round, with no card or shadow, as large as the room
+  between the side score rows and the round's line holds (never past a river tile). The compass takes the row's
+  height as well as its own and sits halfway between the visible edges of the top and bottom rivers. Its scores,
+  round and counts are smaller than the corner layout's (never under the 10px text floor); the riichi sticks keep
+  the corner layout's size. Where the compass is wide enough (160px) the round, the wall and the sticks share one
+  line; a phone's compass keeps them on two. The default corner layout uses one opaque card on the centre's colour, a faint light rim and a small corner as the centre's: the five dora indicator slots edge to edge (each
   indicator as a face once the event that reveals it has arrived, the rest unreadable backs; indicators are not the
   bonus tiles). Off a phone the card stands at the
   table's top-left corner, level with the top hand's top: over the left strip's lane, ending 0.8 of a river tile short
