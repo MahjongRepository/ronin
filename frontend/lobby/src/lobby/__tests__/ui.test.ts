@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type LobbyRooms, createLobbyState } from "@/lobby/state";
 import { renderLobby } from "@/lobby/ui";
 
+const NO_ACTIONS = { createRoom: () => {}, returnToGame: () => {} };
+
 const LISTED_ROOMS: LobbyRooms["rooms"] = [
     {
         name: "Jade Crane",
@@ -23,7 +25,17 @@ function renderSeatedAt(myRoomId: string): HTMLElement {
     state.rooms = { myRoomId, rooms: LISTED_ROOMS };
     const host = document.createElement("main");
     document.body.append(host);
-    renderLobby(host, state, { createRoom: () => {} });
+    renderLobby(host, state, NO_ACTIONS);
+    return host;
+}
+
+function renderPlaying(returnToGame: () => void): HTMLElement {
+    const state = createLobbyState(null);
+    state.playing = true;
+    state.rooms = { myRoomId: "r1", rooms: LISTED_ROOMS };
+    const host = document.createElement("main");
+    document.body.append(host);
+    renderLobby(host, state, { createRoom: () => {}, returnToGame });
     return host;
 }
 
@@ -80,7 +92,7 @@ describe("renderLobby", () => {
         ];
         const host = document.createElement("main");
         document.body.append(host);
-        renderLobby(host, state, { createRoom: () => {} });
+        renderLobby(host, state, NO_ACTIONS);
 
         const games = [...host.querySelectorAll(".current-games .current-game")];
         expect(
@@ -99,5 +111,19 @@ describe("renderLobby", () => {
         expect(host.querySelector(".current-games .lobby-table-count")?.textContent).toBe(
             "2 playing",
         );
+    });
+
+    it("offers a playing user only the way back into their game, even over the table whose game it is", () => {
+        const returnToGame = vi.fn();
+        const host = renderPlaying(returnToGame);
+
+        host.querySelector<HTMLButtonElement>(".lobby-return-btn")?.click();
+
+        expect(returnToGame).toHaveBeenCalledOnce();
+        expect(host.querySelector(".lobby-action-label")?.textContent).toBe("Return to game");
+        expect(host.querySelector('a[href="/matchmaking"]')).toBeNull();
+        expect(host.querySelector<HTMLButtonElement>(".lobby-create-btn")?.disabled).toBe(true);
+        expect(host.querySelector(".lobby-room-row .lobby-join-btn")).toBeNull();
+        expect(host.querySelector(".lobby-seated-hint")).toBeNull();
     });
 });

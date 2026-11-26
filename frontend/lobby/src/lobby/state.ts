@@ -25,6 +25,9 @@ export interface LobbyState {
     games: CurrentGame[] | null;
     loadFailed: boolean;
     readonly notice: MessageKey | null;
+    playing: boolean;
+    returnFailed: boolean;
+    returning: boolean;
     rooms: LobbyRooms | null;
 }
 
@@ -39,6 +42,9 @@ export function createLobbyState(notice: MessageKey | null): LobbyState {
         games: null,
         loadFailed: false,
         notice,
+        playing: false,
+        returnFailed: false,
+        returning: false,
         rooms: null,
     };
 }

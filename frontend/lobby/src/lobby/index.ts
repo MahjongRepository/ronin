@@ -2,7 +2,13 @@ import { type MountedView } from "@ronin/shared/router";
 
 import { redrawElapsedTimes } from "@/current-games";
 import { watchCurrentGames } from "@/lobby/games-feed";
-import { type LobbyViewContext, createRoom, loadRooms } from "@/lobby/handlers";
+import {
+    type LobbyViewContext,
+    checkLiveGame,
+    createRoom,
+    loadRooms,
+    returnToGame,
+} from "@/lobby/handlers";
 import { type LobbyState, createLobbyState, noticeFromUrl } from "@/lobby/state";
 import { renderLobby } from "@/lobby/ui";
 
@@ -19,7 +25,8 @@ function dropNoticeFromUrl(url: URL): void {
     window.history.replaceState(window.history.state, "", clean);
 }
 
-function loadRoomsAndWatchGames(state: LobbyState, context: LobbyViewContext): () => void {
+function loadLobby(state: LobbyState, context: LobbyViewContext): () => void {
+    void checkLiveGame(state, context);
     let stop: (() => void) | null = null;
     let stopped = false;
     void loadRooms(state, context).then((gamesWsUrl) => {
@@ -47,6 +54,7 @@ export function mountLobbyView(host: HTMLElement, url: URL, deps: LobbyViewDeps)
     };
     const actions = {
         createRoom: () => void createRoom(state, context),
+        returnToGame: () => void returnToGame(state, context),
     };
 
     function render(): void {
@@ -55,7 +63,7 @@ export function mountLobbyView(host: HTMLElement, url: URL, deps: LobbyViewDeps)
 
     dropNoticeFromUrl(url);
     render();
-    const stopWatchingGames = loadRoomsAndWatchGames(state, context);
+    const stopWatchingGames = loadLobby(state, context);
     const stopElapsedRedraw = redrawElapsedTimes(render);
     return {
         rerender: render,

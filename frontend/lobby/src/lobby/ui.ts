@@ -17,6 +17,13 @@ import { seatNamesTemplate } from "@/seat-names";
 
 export interface LobbyActions {
     readonly createRoom: () => void;
+    readonly returnToGame: () => void;
+}
+
+interface ActionsView {
+    readonly playing: boolean;
+    readonly returning: boolean;
+    readonly seated: boolean;
 }
 
 function alertTemplate(tone: "error" | "warning", key: MessageKey): TemplateResult {
@@ -34,27 +41,49 @@ function seatedHint(room: SeatedTable): TemplateResult {
     </p>`;
 }
 
-function actionsTemplate(seated: boolean, actions: LobbyActions): TemplateResult {
+function quickMatchTile(): TemplateResult {
+    return html`<a href="/matchmaking" class="lobby-action-tile lobby-action-tile--primary">
+        <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="5" r="2.25" />
+            <circle cx="19" cy="12" r="2.25" />
+            <circle cx="12" cy="19" r="2.25" />
+            <circle cx="5" cy="12" r="2.25" />
+        </svg>
+        <span class="lobby-action-text">
+            <span class="lobby-action-label">${t("lobby.action.quick_match")}</span>
+            <span class="lobby-action-hint">${t("lobby.action.quick_match_hint")}</span>
+        </span>
+    </a>`;
+}
+
+function returnToGameTile(returning: boolean, actions: LobbyActions): TemplateResult {
+    return html`<button
+        type="button"
+        class="lobby-action-tile lobby-action-tile--primary lobby-return-btn"
+        ?disabled=${returning}
+        aria-busy=${returning ? "true" : "false"}
+        @click=${actions.returnToGame}
+    >
+        <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 5l11 7-11 7z" stroke-linejoin="round" />
+        </svg>
+        <span class="lobby-action-text">
+            <span class="lobby-action-label">${t("lobby.action.return_to_game")}</span>
+            <span class="lobby-action-hint">${t("lobby.action.return_to_game_hint")}</span>
+        </span>
+    </button>`;
+}
+
+function actionsTemplate(view: ActionsView, actions: LobbyActions): TemplateResult {
     function submitCreate(event: SubmitEvent): void {
         event.preventDefault();
         actions.createRoom();
     }
-    return html`<div class="lobby-actions${seated ? " lobby-actions--seated" : ""}">
-        <a href="/matchmaking" class="lobby-action-tile lobby-action-tile--primary">
-            <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="5" r="2.25" />
-                <circle cx="19" cy="12" r="2.25" />
-                <circle cx="12" cy="19" r="2.25" />
-                <circle cx="5" cy="12" r="2.25" />
-            </svg>
-            <span class="lobby-action-text">
-                <span class="lobby-action-label">${t("lobby.action.quick_match")}</span>
-                <span class="lobby-action-hint">${t("lobby.action.quick_match_hint")}</span>
-            </span>
-        </a>
+    return html`<div class="lobby-actions${view.seated ? " lobby-actions--seated" : ""}">
+        ${view.playing ? returnToGameTile(view.returning, actions) : quickMatchTile()}
 
         <form class="lobby-action-form" @submit=${submitCreate}>
-            <button type="submit" class="lobby-action-tile lobby-create-btn">
+            <button type="submit" class="lobby-action-tile lobby-create-btn" ?disabled=${view.playing}>
                 <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 5v14M5 12h14" />
                 </svg>
@@ -67,7 +96,14 @@ function actionsTemplate(seated: boolean, actions: LobbyActions): TemplateResult
     </div>`;
 }
 
-function joinTemplate(room: LobbyRoom, isMine: boolean): TemplateResult {
+function joinTemplate(
+    room: LobbyRoom,
+    isMine: boolean,
+    playing: boolean,
+): TemplateResult | typeof nothing {
+    if (playing) {
+        return nothing;
+    }
     if (isMine) {
         return html`<a href=${roomPath(room.roomId)} role="button" class="lobby-join-btn"
             >${t("lobby.back_to_table")}</a
@@ -81,12 +117,12 @@ function joinTemplate(room: LobbyRoom, isMine: boolean): TemplateResult {
     return html`<span class="lobby-join-btn lobby-full-badge">${t("lobby.room.full")}</span>`;
 }
 
-function roomRow(room: LobbyRoom, myRoomId: string | null): TemplateResult {
+function roomRow(room: LobbyRoom, myRoomId: string | null, playing: boolean): TemplateResult {
     const isMine = room.roomId === myRoomId;
     return html`<li class="lobby-room-row${isMine ? " lobby-room-row--mine" : ""}">
         <span class="lobby-table-name">${room.name}</span>
         ${seatNamesTemplate(room.players.map((player) => (player.isBot ? null : player.name)))}
-        ${joinTemplate(room, isMine)}
+        ${joinTemplate(room, isMine, playing)}
     </li>`;
 }
 
@@ -100,18 +136,26 @@ function emptyTablesHint(actions: LobbyActions): TemplateResult {
     </p>`;
 }
 
-function roomsListTemplate(rooms: LobbyRooms, actions: LobbyActions): TemplateResult {
+function roomsListTemplate(
+    rooms: LobbyRooms,
+    playing: boolean,
+    actions: LobbyActions,
+): TemplateResult {
     return rooms.rooms.length > 0
         ? html`<ul class="lobby-room-list">
-                  ${rooms.rooms.map((room) => roomRow(room, rooms.myRoomId))}
+                  ${rooms.rooms.map((room) => roomRow(room, rooms.myRoomId, playing))}
               </ul>`
         : html`<div class="lobby-empty lobby-empty--boxed">
                   <p class="lobby-empty-title">${t("lobby.tables.empty_title")}</p>
-                  ${emptyTablesHint(actions)}
+                  ${playing ? nothing : emptyTablesHint(actions)}
               </div>`;
 }
 
-function tablesTemplate(rooms: LobbyRooms | null, actions: LobbyActions): TemplateResult {
+function tablesTemplate(
+    rooms: LobbyRooms | null,
+    playing: boolean,
+    actions: LobbyActions,
+): TemplateResult {
     return html`<section class="lobby-section">
         <div class="lobby-section-header">
             <h2>${t("lobby.tables.title")}</h2>
@@ -124,7 +168,7 @@ function tablesTemplate(rooms: LobbyRooms | null, actions: LobbyActions): Templa
             }
         </div>
 
-        ${rooms ? roomsListTemplate(rooms, actions) : listLoadingTemplate("rows", 3)}
+        ${rooms ? roomsListTemplate(rooms, playing, actions) : listLoadingTemplate("rows", 3)}
     </section>`;
 }
 
@@ -132,11 +176,16 @@ function lobbyTemplate(state: LobbyState, actions: LobbyActions): TemplateResult
     if (state.loadFailed) {
         return pageFailedView();
     }
-    const seated = state.rooms ? seatedTable(state.rooms) : null;
+    const seated = state.rooms && !state.playing ? seatedTable(state.rooms) : null;
     return html`${state.notice ? alertTemplate("warning", state.notice) : nothing}
         ${state.createFailed ? alertTemplate("error", "lobby.error.create_failed") : nothing}
+        ${state.returnFailed ? alertTemplate("error", "lobby.error.return_failed") : nothing}
         ${seated ? seatedHint(seated) : nothing}
-        ${actionsTemplate(seated !== null, actions)} ${tablesTemplate(state.rooms, actions)}
+        ${actionsTemplate(
+            { playing: state.playing, returning: state.returning, seated: seated !== null },
+            actions,
+        )}
+        ${tablesTemplate(state.rooms, state.playing, actions)}
         ${currentGamesTemplate(state.games, "lobby-games-title")}`;
 }
 

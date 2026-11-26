@@ -74,6 +74,10 @@ When a game starts, the room, matchmaking and tournament pages hand off only thr
 without a `game_id` ends the page with a way to rejoin instead. The storage key and shape are the
 handoff contract in `docs/architecture.md`; change them only together with the game client.
 
+The lobby view never leaves for a game on its own, so a second tab cannot take a seat over unasked. It asks
+`GET /api/game-session` when it mounts, and a user who plays any game sees Return to game in place of Quick
+match, with no way to open or join a table. The click asks again and enters with the fresh handoff.
+
 A join refused as `already_in_game` can instead be answered with `game_starting` for the game the
 user already plays, as the join's first and only message, so each page handles `game_starting`
 the same way whether or not it was ever seated or queued.
